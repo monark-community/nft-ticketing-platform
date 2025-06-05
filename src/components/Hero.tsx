@@ -1,7 +1,7 @@
 
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Play } from "lucide-react";
+import { ArrowRight, Play, Ticket, ShoppingCart, QrCode } from "lucide-react";
 
 const Hero = () => {
   return (
@@ -38,19 +38,25 @@ const Hero = () => {
           <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-2xl p-8 backdrop-blur-sm border border-white/50">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white/80 rounded-lg p-6 shadow-lg">
-                <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg mb-4"></div>
+                <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg mb-4 flex items-center justify-center">
+                  <Ticket className="h-6 w-6 text-white" />
+                </div>
                 <h3 className="font-semibold text-gray-800 mb-2">Create Event</h3>
                 <p className="text-sm text-gray-600">Design and mint your NFT tickets</p>
               </div>
               
               <div className="bg-white/80 rounded-lg p-6 shadow-lg">
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg mb-4"></div>
+                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg mb-4 flex items-center justify-center">
+                  <ShoppingCart className="h-6 w-6 text-white" />
+                </div>
                 <h3 className="font-semibold text-gray-800 mb-2">Sell Tickets</h3>
                 <p className="text-sm text-gray-600">List on marketplace with smart contracts</p>
               </div>
               
               <div className="bg-white/80 rounded-lg p-6 shadow-lg">
-                <div className="w-12 h-12 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg mb-4"></div>
+                <div className="w-12 h-12 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg mb-4 flex items-center justify-center">
+                  <QrCode className="h-6 w-6 text-white" />
+                </div>
                 <h3 className="font-semibold text-gray-800 mb-2">Verify Entry</h3>
                 <p className="text-sm text-gray-600">Scan QR codes for instant validation</p>
               </div>
