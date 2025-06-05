@@ -6,6 +6,7 @@ import { Ticket, Shield, Wallet, QrCode } from "lucide-react";
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import FeatureCard from "@/components/FeatureCard";
+import Footer from "@/components/Footer";
 
 const Index = () => {
   const features = [
@@ -79,6 +80,8 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      <Footer />
     </div>
   );
 };
