@@ -8,8 +8,9 @@ const MonarkBannerWrapper: React.FC<MonarkBannerWrapperProps> = ({
   children,
 }) => {
   return (
-    <div className="fixed top-0 left-0 w-full z-[100]">
-      <div className="bg-white text-black py-2 px-4 flex justify-between items-center text-sm sm:text-base shadow-md z-50">
+    <div className="min-h-screen flex flex-col">
+      <main className="flex-1">{children}</main>
+      <div className="bg-white text-black py-2 px-4 flex justify-between items-center text-sm sm:text-base shadow-md border-t border-gray-200">
         <span>
           🚧 This is a demonstration to illustrate key project features.
         </span>
@@ -17,7 +18,6 @@ const MonarkBannerWrapper: React.FC<MonarkBannerWrapperProps> = ({
           Powered by <a className="text-primary hover:underline" href="https://monark.io" target="_blank">Monark</a>
         </span>
       </div>
-      <main className="relative z-10 overflow-hidden">{children}</main>
     </div>
   );
 };
