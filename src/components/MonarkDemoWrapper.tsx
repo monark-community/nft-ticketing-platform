@@ -8,9 +8,9 @@ const MonarkBannerWrapper: React.FC<MonarkBannerWrapperProps> = ({
   children,
 }) => {
   return (
-    <div className="min-h-screen flex flex-col">
-      <main className="flex-1">{children}</main>
-      <div className="bg-white text-black py-2 px-4 flex justify-between items-center text-sm sm:text-base shadow-md border-t border-gray-200">
+    <div className="relative">
+      {children}
+      <div className="fixed bottom-0 left-0 right-0 bg-white text-black py-2 px-4 flex justify-between items-center text-sm sm:text-base shadow-lg border-t border-gray-200 z-50">
         <span>
           🚧 This is a demonstration to illustrate key project features.
         </span>
