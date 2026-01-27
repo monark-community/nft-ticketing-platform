@@ -1,8 +1,8 @@
-# Contributing to {{PROJECT_NAME}}
+# Contributing to NFTokenPass
 
 
 
-Thank you for your interest in contributing to **{{PROJECT_NAME}}**! We welcome contributions of all kinds: bug reports, feature requests, documentation improvements, and code.
+Thank you for your interest in contributing to **NFTokenPass**! We welcome contributions of all kinds: bug reports, feature requests, documentation improvements, and code.
 
 By contributing, you agree to the following terms:
 
@@ -73,5 +73,5 @@ We expect all contributors to follow a respectful and collaborative approach. Pl
 
 ---
 
-Thank you for helping improve **{{PROJECT_NAME}}**! Your contributions are highly appreciated.
+Thank you for helping improve **NFTokenPass**! Your contributions are highly appreciated.
 

@@ -28,15 +28,18 @@ This template helps you quickly start a **Monark project** with the **standard m
 
 ---
 
-# {{PROJECT_NAME}}
+# NFTokenPass
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-![GitHub Issues](https://img.shields.io/github/issues/monark-community/{{PROJECT_NAME}})
-![GitHub Issues](https://img.shields.io/github/issues-pr/monark-community/{{PROJECT_NAME}})
-![GitHub Stars](https://img.shields.io/github/stars/monark-community/{{PROJECT_NAME}})
-![GitHub Forks](https://img.shields.io/github/forks/monark-community/{{PROJECT_NAME}})
+![GitHub Issues](https://img.shields.io/github/issues/monark-community/nft-ticketing-platform)
+![GitHub Issues](https://img.shields.io/github/issues-pr/monark-community/nft-ticketing-platform)
+![GitHub Stars](https://img.shields.io/github/stars/monark-community/nft-ticketing-platform)
+![GitHub Forks](https://img.shields.io/github/forks/monark-community/nft-ticketing-platform)
 
-{{PROJECT_NAME}} is {{PROJECT_DESCRIPTION}}...
+NFTokenPass is a full-stack NFT ticketing platform where organizers mint unique event tickets as NFTs. 
+Tickets include metadata (seat, time, access rules, special rewards, etc.), and can be scanned for entry via 
+blockchain wallet signature or QR code. Resale restrictions and secondary royalties are enforced via smart contracts. 
+You can add bonus features like POAP collectibles, attendance badges, or discount perks.
 
 ## Overview
 
@@ -51,7 +54,7 @@ TODO
 ## Project Structure
 
 ```
-{{PROJECT_REPOSITORY_NAME}}/
+nft-ticketing-platform/
 ├── packages/
 │   ├── shared/                   # Shared types and utilities
 │   ├── smart-contracts/          # Solidity contracts + ZK circuits
