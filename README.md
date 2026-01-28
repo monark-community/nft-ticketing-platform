@@ -1,33 +1,3 @@
-# How to Use This Template
-
-This template helps you quickly start a **Monark project** with the **standard monorepo structure**, pre-configured licenses, policies, and workflows. It includes:
-
-- Standardized **monorepo structure** for Monark projects.
-- Predefined **issue templates** and **labels** for consistent project management.
-- Guidance to get started with **Monark workflows**.
-
-> **Tip:** Once you’ve completed these setup steps, you can delete this section from your repository.
-
----
-
-## Setup Steps
-
-1. **Replace placeholders** in your project files:  
-   - `{{PROJECT_NAME}}` → Your project name  
-   - `{{PROJECT_DESCRIPTION}}` → Short description of the project  
-   - `{{PROJECT_REPOSITORY_NAME}}` → GitHub repository name  
-   - `{{START_YEAR}}` → Project start year  
-   - `{{CURRENT_YEAR}}` → Current year  
-
-2. **Sync repository labels with the template repository**  
-   1. Make sure your **workflow permissions** are set to **Read & Write**:  
-      [GitHub Actions workflow permissions](https://github.com/marketplace/actions/github-label-sync-action#403-resource-not-accessible-by-integration)  
-   2. Go to the **Actions** tab in your repository and run the **`Apply Template Labels`** workflow.  
-   3. Confirm that the repository now contains the **standard Monark labels** (for example, check that `P0 🟣` exists).
-
-
----
-
 # NFTokenPass
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
