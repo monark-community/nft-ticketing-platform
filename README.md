@@ -48,7 +48,7 @@ NFTokenPass is an NFT ticketing platform designed to fix common issues like scal
 - ✅ **Wallet-Based Login** - Secure authentication for everyone. Users connect their crypto wallets (MetaMask) to buy, view, and store their tickets.
 - 🔄 **Fair Resale Market** - Smart contracts automatically enforce price limits and royalties on secondary sales, preventing scalping and ensuring creators get paid.
 - 📱 **Secure Check-in System** - Verify tickets instantly at the venue using a QR code scanner or a cryptographic wallet signature to prevent fraud.
-- 💾 **Dynamic Metadata** - Tickets are not just images; they sore essential data directly on the blockchain.
+- 💾 **Dynamic Metadata** - Tickets are not just images; they store essential data directly on the blockchain.
 
 ---
 
