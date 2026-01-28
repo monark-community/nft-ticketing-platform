@@ -63,8 +63,8 @@ NFTokenPass is an NFT ticketing platform designed to fix common issues like scal
 ---
 ## 🎯 Objectives & Success Criteria
 
-**Value Proposition**  
-We aim to solve the lack of control in the secondary ticketing market. By using NFTs, we guarantee authenticity for buyers and enforce royalties for organizers.
+**Value Proposition**
+* We aim to solve the lack of control in the secondary ticketing market. By using NFTs, we guarantee authenticity for buyers and enforce royalties for organizers.
 
 **Key Accomplishments (MVP)**
 1.  **Minting:** Organizers can create verifiable digital tickets.
