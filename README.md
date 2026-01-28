@@ -1,10 +1,10 @@
 # NFTokenPass
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-![GitHub Issues](https://img.shields.io/github/issues/monark-community/{{PROJECT_NAME}})
-![GitHub Issues](https://img.shields.io/github/issues-pr/monark-community/{{PROJECT_NAME}})
-![GitHub Stars](https://img.shields.io/github/stars/monark-community/{{PROJECT_NAME}})
-![GitHub Forks](https://img.shields.io/github/forks/monark-community/{{PROJECT_NAME}})
+![GitHub Issues](https://img.shields.io/github/issues/monark-community/nft-ticketing-platform)
+![GitHub Issues](https://img.shields.io/github/issues-pr/monark-community/nft-ticketing-platform)
+![GitHub Stars](https://img.shields.io/github/stars/monark-community/nft-ticketing-platform)
+![GitHub Forks](https://img.shields.io/github/forks/monark-community/nft-ticketing-platform)
 
 NFTokenPass is a decentralized NFT ticketing platform developed as a Capstone project in collaboration with **Monark**. The platform solves the issues of scalping and fraud by minting tickets as unique, verifiable NFTs.
 
