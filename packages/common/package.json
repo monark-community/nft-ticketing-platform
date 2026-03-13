@@ -1,0 +1,11 @@
+{
+  "name": "common",
+  "version": "1.0.0",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts-upgradeable": "^5.6.1"
+  }
+}
