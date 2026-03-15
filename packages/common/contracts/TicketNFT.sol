@@ -16,7 +16,7 @@ contract TicketNFT is
     ERC2981Upgradeable, 
     UUPSUpgradeable 
 {
-    
+    // State variables
     uint256 private tokenIdCounter;
     mapping(uint256 => bool) public isUsed;
     mapping(uint256 => mapping(address => bool)) private _whitelist;
@@ -25,17 +25,17 @@ contract TicketNFT is
     mapping(uint256 => uint256) public maxResalePrice;
     mapping(uint256 => uint256) public tokenEventId;
 
-    
+    // Roles
     bytes32 public constant ORGANIZER_ROLE = keccak256("ORGANIZER_ROLE");
     bytes32 public constant SCANNER_ROLE = keccak256("SCANNER_ROLE");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
-    
+    // Constructor to disable initializers for the implementation contract
     constructor() {
         _disableInitializers();
     }
 
-    
+    // Initializer function to set up the contract
     function initialize(address defaultAdmin) public initializer {
         __ERC721_init("NFTicketPass", "NFTP");
         __ERC721URIStorage_init();
@@ -52,7 +52,7 @@ contract TicketNFT is
         onlyRole(UPGRADER_ROLE)
     {}
 
-    
+    // Overrides functions
     function tokenURI(uint256 tokenId)
         public
         view
@@ -70,38 +70,4 @@ contract TicketNFT is
     {
         return super.supportsInterface(interfaceId);
     }
-
-    function mintTicket(
-        address to,
-        string memory uri,
-        uint256 eventId,
-        uint256 _maxResalePrice
-    ) public onlyRole(ORGANIZER_ROLE) {
-        tokenIdCounter++;
-        uint256 newTokenId = tokenIdCounter;
-        _safeMint(to, newTokenId);
-        _setTokenURI(newTokenId, uri);
-        tokenEventId[newTokenId] = eventId;
-        maxResalePrice[newTokenId] = _maxResalePrice;
-    }
-
-    function checkInTicket(
-        uint256 tokenId
-    ) public onlyRole(SCANNER_ROLE){
-        require(tokenEventId[tokenId] != 0, "Ticket does not exist");
-        require(!isUsed[tokenId], "Ticket already used");
-        isUsed[tokenId] = true;
-    }
-
-    function _update(address to, uint256 tokenId, address auth)
-        internal
-        override(ERC721Upgradeable)
-        returns (address)
-        {
-            if (isUsed[tokenId]) {
-                revert("Ticket already used, cannot be transferred");
-            }
-
-            return super._update(to, tokenId, auth);
-        }
 }
