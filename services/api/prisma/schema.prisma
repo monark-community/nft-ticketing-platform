@@ -1,0 +1,128 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ATTENDEE
+  ORGANIZER
+  SCANNER
+  ADMIN
+}
+
+enum EventStatus {
+  DRAFT
+  FROZEN
+  PUBLISHED
+  CANCELLED
+}
+
+enum TicketStatus {
+  VALID
+  USED
+  CANCELLED
+}
+
+model User {
+  wallet_address String   @id
+  nonce          String?
+  role           Role     @default(ATTENDEE)
+  email          String?  @unique
+  nickname       String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  events         Event[]
+  checkin_logs   CheckinLog[]
+}
+
+model Event {
+  id                 String      @id @default(cuid())
+  organizer_wallet   String
+  title              String
+  description        String?
+  location           String?
+  start_date         DateTime
+  end_date           DateTime?
+  image_url          String?
+  ipfs_hash          String?
+  contract_event_id  Int?        @unique
+  status             EventStatus @default(DRAFT)
+  created_at         DateTime    @default(now())
+  updated_at         DateTime    @updatedAt
+
+  organizer          User         @relation(fields: [organizer_wallet], references: [wallet_address])
+  ticket_types       TicketType[]
+  tickets            Ticket[]
+  scanners           Scanner[]
+  whitelist          Whitelist[]
+}
+
+model TicketType {
+  id            String   @id @default(cuid())
+  event_id      String
+  name          String
+  description   String?
+  price         Decimal  @db.Decimal(18, 8)
+  supply        Int
+  sold          Int      @default(0)
+  metadata      Json?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  event         Event    @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  tickets       Ticket[]
+}
+
+model Ticket {
+  token_id       Int          @id
+  event_id       String
+  ticket_type_id String
+  owner_wallet   String
+  status         TicketStatus @default(VALID)
+  used_at        DateTime?
+  minted_at      DateTime     @default(now())
+  updated_at     DateTime     @updatedAt
+
+  event          Event        @relation(fields: [event_id], references: [id])
+  ticket_type    TicketType   @relation(fields: [ticket_type_id], references: [id])
+  checkin_logs   CheckinLog[]
+}
+
+model Scanner {
+  id              String   @id @default(cuid())
+  event_id        String
+  wallet          String
+  synced_to_chain Boolean  @default(false)
+  created_at      DateTime @default(now())
+
+  event           Event    @relation(fields: [event_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_id, wallet])
+}
+
+model Whitelist {
+  id              String   @id @default(cuid())
+  event_id        String
+  wallet          String
+  synced_to_chain Boolean  @default(false)
+  created_at      DateTime @default(now())
+
+  event           Event    @relation(fields: [event_id], references: [id], onDelete: Cascade)
+
+  @@unique([event_id, wallet])
+}
+
+model CheckinLog {
+  id              String   @id @default(cuid())
+  token_id        Int
+  scanner_wallet  String
+  checked_in_at   DateTime @default(now())
+
+  ticket          Ticket   @relation(fields: [token_id], references: [token_id])
+  scanner         User     @relation(fields: [scanner_wallet], references: [wallet_address])
+}
