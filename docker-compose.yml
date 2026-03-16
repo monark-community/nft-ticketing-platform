@@ -4,13 +4,16 @@ services:
   # PostgreSQL Database
   db:
     image: postgres:15-alpine
-    container_name: nft-ticketing-db
+    container_name: ${POSTGRES_ENVIRONMENT}-nft-ticketing-db
+    restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ticketing_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ticketing_password}
       POSTGRES_DB: ${POSTGRES_DB:-nft_ticketing}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # this volume mounts the init.sql file to initialize the database on first run
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     networks:
