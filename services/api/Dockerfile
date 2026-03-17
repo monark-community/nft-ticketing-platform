@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:20-alpine
 
 WORKDIR /app
 
@@ -7,11 +7,9 @@ RUN apk add --no-cache dumb-init
 
 # Copy package files
 COPY package*.json ./
-COPY pnpm-lock.yaml* ./
 
 # Install dependencies
-RUN npm install -g pnpm && \
-    pnpm install
+RUN npm install
 
 # Copy source code
 COPY . .
@@ -27,4 +25,4 @@ EXPOSE 3001
 ENTRYPOINT ["/usr/sbin/dumb-init", "--"]
 
 # Run the API dev script defined in package.json
-CMD ["pnpm", "dev"]
+CMD ["npm", "run", "dev"]
