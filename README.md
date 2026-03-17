@@ -70,13 +70,116 @@ nft-ticketing-platform/
 │       ├── app/                  # App router pages
 │       ├── components/           # UI components
 │       └── services/             # API clients, blockchain
-└── infra/
-    └── docker-compose.yaml       # Optional global infrastructure
+├── docker-compose.yml            # Local Docker setup (api + web + db)
+└── DOCKER.md                     # Docker usage and deployment guide
 ```
 
+---
 ## Getting Started
 
-Coming soon
+### Quick Start with Docker
+
+The easiest way to run the NFTokenPass platform is using Docker and Docker Compose. This ensures consistent environments across all systems.
+
+#### Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) (version 20.10 or higher)
+- [Docker Compose](https://docs.docker.com/compose/install/) (version 1.29 or higher)
+- [Git](https://git-scm.com/)
+
+#### Setup Instructions
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/monark-community/nft-ticketing-platform.git
+   cd nft-ticketing-platform
+   ```
+
+2. **Create environment configuration:**
+   ```bash
+   # Copy the Docker environment example
+   cp .env.docker.example .env
+   
+   # Edit .env with your specific configuration (optional for development)
+   # nano .env  # or your preferred editor
+   ```
+
+3. **Build and start the services:**
+   ```bash
+   # Start services (development)
+   docker-compose up --build
+   ```
+
+4. **Access the application:**
+   - **Web Frontend:** http://localhost:3000
+   - **API Server:** http://localhost:3001
+   - **Database:** localhost:5432 (PostgreSQL)
+
+#### Common Docker Commands
+
+```bash
+# View logs for all services
+docker-compose logs -f
+
+# View logs for specific service
+docker-compose logs -f api
+docker-compose logs -f web
+docker-compose logs -f db
+
+# Stop all services
+docker-compose down
+
+# Stop and remove all data (including database)
+docker-compose down -v
+
+# Rebuild services after code changes
+docker-compose build
+
+# Run a command in a container
+docker-compose exec api npm run migrate
+docker-compose exec web npm run build
+
+# Access a service shell
+docker-compose exec api sh
+docker-compose exec web sh
+```
+
+#### Building Individual Services
+
+If you want to build only specific services:
+
+```bash
+# Build only the API
+docker build -f services/api/Dockerfile -t nft-ticketing-api ./services/api
+
+# Build only the web frontend
+docker build -f services/web/Dockerfile -t nft-ticketing-web ./services/web
+
+# Run individual services
+docker run -p 3001:3001 nft-ticketing-api
+docker run -p 3000:3000 nft-ticketing-web
+```
+
+#### Environment Variables
+
+All services use environment variables for configuration:
+
+- **Global:** See [.env.example](./.env.example)
+- **Docker-specific:** See [.env.docker.example](./.env.docker.example)
+- **API service:** See [services/api/.env.example](./services/api/.env.example)
+- **Web service:** See [services/web/.env.example](./services/web/.env.example)
+
+#### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Port already in use | Change ports in docker-compose.yml or stop other services using those ports |
+| Database connection errors | Ensure `db` service is running: `docker-compose ps` and check logs with `docker-compose logs db` |
+| Out of disk space | Run `docker system prune -a` to remove unused images |
+| Changes not reflecting | Rebuild services: `docker-compose build --no-cache` |
+| Permission denied | Run with `sudo` or add your user to docker group: `sudo usermod -aG docker $USER` |
+
+---
 
 ## Available Scripts
 
@@ -116,7 +219,8 @@ Coming soon
 
 ## Documentation
 
-Coming soon
+- Docker setup and deployment guide: [DOCKER.md](./DOCKER.md)
+- Additional docs: [docs/README.md](./docs/README.md)
 
 
 ## Contribution
