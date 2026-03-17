@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: nft-ticketing-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ticketing_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ticketing_password}
+      POSTGRES_DB: ${POSTGRES_DB:-nft_ticketing}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - nft-network
+
+  # API Service
+  api:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    container_name: nft-ticketing-api
+    environment:
+      NODE_ENV: development
+      PORT: ${API_PORT:-3001}
+    ports:
+      - "${API_PORT:-3001}:3001"
+    volumes:
+      - ./services/api:/app
+      - /app/node_modules
+    networks:
+      - nft-network
+
+  # Web Frontend Service
+  web:
+    build:
+      context: ./services/web
+      dockerfile: Dockerfile
+    container_name: nft-ticketing-web
+    environment:
+      NODE_ENV: development
+      PORT: ${WEB_PORT:-3000}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    volumes:
+      - ./services/web:/app
+      - /app/node_modules
+    networks:
+      - nft-network
+
+volumes:
+  postgres_data:
+
+networks:
+  nft-network:
+    driver: bridge
