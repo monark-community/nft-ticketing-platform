@@ -9,9 +9,10 @@ RUN apk add --no-cache dumb-init
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install \
-    # Copy source code
-    COPY . .
+RUN npm install
+
+# Copy source code
+COPY . .
 
 # Create a non-root user to run the application
 RUN addgroup -g 1001 -S nodejs && \

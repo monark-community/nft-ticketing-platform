@@ -12,7 +12,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     networks:
       - nft-network
 
@@ -24,9 +24,9 @@ services:
     container_name: nft-ticketing-api
     environment:
       NODE_ENV: development
-      PORT: 3001
+      PORT: ${API_PORT:-3001}
     ports:
-      - "3001:3001"
+      - "${API_PORT:-3001}:3001"
     volumes:
       - ./services/api:/app
       - /app/node_modules
@@ -41,9 +41,9 @@ services:
     container_name: nft-ticketing-web
     environment:
       NODE_ENV: development
-      NEXT_PUBLIC_API_URL: http://localhost:3001
+      PORT: ${WEB_PORT:-3000}
     ports:
-      - "3000:3000"
+      - "${WEB_PORT:-3000}:3000"
     volumes:
       - ./services/web:/app
       - /app/node_modules
