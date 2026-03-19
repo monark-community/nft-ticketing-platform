@@ -30,7 +30,7 @@ contract TicketNFT is
     bytes32 public constant SCANNER_ROLE = keccak256("SCANNER_ROLE");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
-    // Constructor to disable initializers for the implementation contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -69,5 +69,29 @@ contract TicketNFT is
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
+    }
+
+    // Core functions
+    function mintTicket(
+        address to,
+        uint256 eventId,
+        string memory uri,
+        uint256 maxPrice
+    ) public onlyRole(ORGANIZER_ROLE) {
+        tokenIdCounter++;
+        uint256 newTokenId = tokenIdCounter;
+        _safeMint(to, newTokenId);
+        _setTokenURI(newTokenId, uri);
+        maxResalePrice[newTokenId] = maxPrice;
+        tokenEventId[newTokenId] = eventId;
+    }
+
+    function checkInTicket(uint256 tokenId)
+    public
+    onlyRole(SCANNER_ROLE)
+    {
+        require(tokenEventId[tokenId] != 0, "Ticket does not exist");
+        require(!isUsed[tokenId], "Ticket already used");
+        isUsed[tokenId] = true;
     }
 }
