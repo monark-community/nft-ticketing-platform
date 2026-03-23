@@ -5,7 +5,7 @@ const config: HardhatUserConfig = {
   solidity: {
     version: "0.8.24",
     settings: {
-      evmVersion: "cancun" 
+      evmVersion: "shanghai", 
     }
   }
 };
