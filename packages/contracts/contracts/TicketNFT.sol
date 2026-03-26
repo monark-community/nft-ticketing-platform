@@ -27,12 +27,14 @@ contract TicketNFT is
 
     // Events
     event TicketMinted(uint256 indexed tokenId, uint256 indexed eventId, address indexed to, string tokenURI);
+    event TicketCheckedIn(uint256 indexed tokenId, address indexed scanner);
 
     // Roles
     bytes32 public constant ORGANIZER_ROLE = keccak256("ORGANIZER_ROLE");
     bytes32 public constant SCANNER_ROLE = keccak256("SCANNER_ROLE");
 
     // Constructor to disable initializers for the implementation contract
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
     }
@@ -73,6 +75,15 @@ contract TicketNFT is
 
     emit TicketMinted(tokenId, eventId, to, _tokenURI);
 }
+
+    function checkInTicket(uint256 tokenId) public onlyRole(SCANNER_ROLE) {
+        require(tokenEventId[tokenId] != 0, "Ticket does not exist");
+        require(!isUsed[tokenId], "Ticket already used");
+
+        isUsed[tokenId] = true;
+
+        emit TicketCheckedIn(tokenId, msg.sender);
+    }
 
     // Overrides functions
     function tokenURI(uint256 tokenId)
