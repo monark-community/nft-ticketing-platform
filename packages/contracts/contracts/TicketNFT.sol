@@ -25,10 +25,12 @@ contract TicketNFT is
     mapping(uint256 => uint256) public maxResalePrice;
     mapping(uint256 => uint256) public tokenEventId;
 
+    // Events
+    event TicketMinted(uint256 indexed tokenId, uint256 indexed eventId, address indexed to, string tokenURI);
+
     // Roles
     bytes32 public constant ORGANIZER_ROLE = keccak256("ORGANIZER_ROLE");
     bytes32 public constant SCANNER_ROLE = keccak256("SCANNER_ROLE");
-    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
     // Constructor to disable initializers for the implementation contract
     constructor() {
@@ -43,14 +45,34 @@ contract TicketNFT is
         __ERC2981_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
-        _grantRole(UPGRADER_ROLE, defaultAdmin);
     }
 
     function _authorizeUpgrade(address newImplementation)
         internal
         override
-        onlyRole(UPGRADER_ROLE)
+        onlyRole(DEFAULT_ADMIN_ROLE)
     {}
+
+    function mintTicket(
+    address to,
+    string memory _tokenURI,
+    uint256 eventId,
+    uint256 maxPrice
+) public onlyRole(ORGANIZER_ROLE) {
+    uint256 tokenId = tokenIdCounter;
+    tokenIdCounter++;
+
+    _safeMint(to, tokenId);
+    _setTokenURI(tokenId, _tokenURI);
+
+    tokenEventId[tokenId] = eventId;
+
+    if (maxPrice > 0) {
+        maxResalePrice[tokenId] = maxPrice;
+    }
+
+    emit TicketMinted(tokenId, eventId, to, _tokenURI);
+}
 
     // Overrides functions
     function tokenURI(uint256 tokenId)
