@@ -76,12 +76,18 @@ contract TicketNFT is
     emit TicketMinted(tokenId, eventId, to, _tokenURI);
 }
 
-    function checkInTicket(uint256 tokenId) public onlyRole(SCANNER_ROLE) {
-        require(tokenEventId[tokenId] != 0, "Ticket does not exist");
+    function checkInTicket(uint256 tokenId) public {
+        require(
+            hasRole(SCANNER_ROLE, msg.sender) || 
+            hasRole(ORGANIZER_ROLE, msg.sender) ||
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
+            "Not authorized to check in"
+        );
+
+        ownerOf(tokenId); 
+
         require(!isUsed[tokenId], "Ticket already used");
-
         isUsed[tokenId] = true;
-
         emit TicketCheckedIn(tokenId, msg.sender);
     }
 
