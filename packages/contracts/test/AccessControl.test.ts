@@ -81,5 +81,18 @@ describe("TicketNFT - Role-Based Access Control", function () {
         await ticketNFT.grantRole(SCANNER_ROLE, scanner.address);
         await expect(ticketNFT.connect(scanner).checkInTicket(999))
         .to.be.reverted;
-    });
+  });
+
+  it("Should correctly report ticket validity (isValidTicket)", async function () {
+        const ORGANIZER_ROLE = ethers.id("ORGANIZER_ROLE");
+        await ticketNFT.grantRole(ORGANIZER_ROLE, organizer.address);
+
+        expect(await ticketNFT.isValidTicket(999)).to.be.false;
+
+        await ticketNFT.connect(organizer).mintTicket(admin.address, "ipfs://test", 1, 0);
+        expect(await ticketNFT.isValidTicket(0)).to.be.true;
+
+        await ticketNFT.connect(organizer).checkInTicket(0);
+        expect(await ticketNFT.isValidTicket(0)).to.be.false;
+  });
 });
