@@ -1,15 +1,32 @@
-import express, { Express, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import express, { Express, Request, Response, NextFunction } from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
+import { PrismaClient } from '@prisma/client';
+import routes from './routes';
 
 dotenv.config();
 
 const app: Express = express();
-// default port (3001) is the same as api port in docker-compose.yml
-const port = process.env.API_PORT || 3001; 
+const PORT = process.env.API_PORT || 3001;
 const prisma = new PrismaClient();
 
+// Security headers
+app.use(helmet());
+
+// CORS — allow frontend origin with credentials (cookies)
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+  })
+);
+
+// Body parsing
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {
@@ -23,13 +40,13 @@ app.get('/db-health', async (_req: Request, res: Response) => {
     res.json({
       status: 'ok',
       message: 'Database connection is healthy',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     res.status(500).json({
       status: 'error',
       message: 'Database connection failed',
-      error: String(error)
+      error: String(error),
     });
   }
 });
@@ -105,11 +122,26 @@ app.get('/api/blockchain-cache', async (_req: Request, res: Response) => {
   }
 });
 
+// All API routes
+app.use('/api', routes);
+
+// 404 handler
+app.use((_req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
+// Global error handler
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
 // Start server
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-  console.log(`Health check: http://localhost:${port}/health`);
-  console.log(`Database health: http://localhost:${port}/db-health`);
+app.listen(PORT, () => {
+  console.log(`NFTicketPass API running on port ${PORT}`);
+  console.log(`Health check: http://localhost:${PORT}/health`);
+  console.log(`Database health: http://localhost:${PORT}/db-health`);
+
 });
 
 // Graceful shutdown
@@ -117,3 +149,5 @@ process.on('SIGINT', async () => {
   await prisma.$disconnect();
   process.exit(0);
 });
+
+export default app;
