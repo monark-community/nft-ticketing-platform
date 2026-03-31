@@ -91,6 +91,10 @@ contract TicketNFT is
         emit TicketCheckedIn(tokenId, msg.sender);
     }
 
+    function isValidTicket(uint256 tokenId) public view returns (bool) {
+        return _ownerOf(tokenId) != address(0) && !isUsed[tokenId];
+    }
+
     // Overrides functions
     function tokenURI(uint256 tokenId)
         public
