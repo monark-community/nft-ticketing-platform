@@ -15,9 +15,8 @@ export async function getMyTickets(req: Request, res: Response): Promise<void> {
 }
 
 export async function getTicket(req: Request, res: Response): Promise<void> {
-  const tokenId = parseInt(req.params.tokenId);
-
-  if (isNaN(tokenId)) {
+  let tokenId: bigint;
+  try { tokenId = BigInt(req.params.tokenId); } catch {
     res.status(400).json({ error: 'Invalid tokenId' });
     return;
   }
@@ -35,13 +34,12 @@ export async function getTicket(req: Request, res: Response): Promise<void> {
 }
 
 export async function validateTicketEntry(req: Request, res: Response): Promise<void> {
-  const tokenId = parseInt(req.params.tokenId);
-  const { eventId } = req.query;
-
-  if (isNaN(tokenId)) {
+  let tokenId: bigint;
+  try { tokenId = BigInt(req.params.tokenId); } catch {
     res.status(400).json({ error: 'Invalid tokenId' });
     return;
   }
+  const { eventId } = req.query;
 
   if (!eventId) {
     res.status(400).json({ error: 'eventId query parameter is required' });

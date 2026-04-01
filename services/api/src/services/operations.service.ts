@@ -18,7 +18,7 @@ export async function addScanner(eventId: string, organizerWallet: string, walle
   return prisma.scanner.upsert({
     where: { event_id_wallet: { event_id: eventId, wallet: wallet.toLowerCase() } },
     update: {},
-    create: { event_id: eventId, wallet: wallet.toLowerCase() },
+    create: { event_id: eventId, wallet: wallet.toLowerCase(), assigned_by: organizerWallet },
   });
 }
 
@@ -52,7 +52,7 @@ export async function addToWhitelist(eventId: string, organizerWallet: string, w
   if (!event) return null;
   if (event.organizer_wallet !== organizerWallet) return 'forbidden';
 
-  const records = wallets.map((w) => ({ event_id: eventId, wallet: w.toLowerCase() }));
+  const records = wallets.map((w) => ({ event_id: eventId, wallet: w.toLowerCase(), added_by: organizerWallet }));
   return prisma.whitelist.createMany({ data: records, skipDuplicates: true });
 }
 
