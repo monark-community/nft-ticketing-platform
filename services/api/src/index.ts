@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import routes from './routes';
+import { startBlockchainListener } from './workers/blockchain.listener';
 
 dotenv.config();
 
@@ -141,7 +142,7 @@ app.listen(PORT, () => {
   console.log(`NFTicketPass API running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log(`Database health: http://localhost:${PORT}/db-health`);
-
+  startBlockchainListener();
 });
 
 // Graceful shutdown
