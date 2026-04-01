@@ -56,25 +56,56 @@ contract TicketNFT is
     {}
 
     function mintTicket(
-    address to,
-    string memory _tokenURI,
-    uint256 eventId,
-    uint256 maxPrice
-) public onlyRole(ORGANIZER_ROLE) {
-    uint256 tokenId = tokenIdCounter;
-    tokenIdCounter++;
+        address to,
+        string memory _tokenURI,
+        uint256 eventId,
+        uint256 maxPrice
+        ) public onlyRole(ORGANIZER_ROLE) {
+        uint256 tokenId = tokenIdCounter;
+        tokenIdCounter++;
 
-    _safeMint(to, tokenId);
-    _setTokenURI(tokenId, _tokenURI);
+        _safeMint(to, tokenId);
+        _setTokenURI(tokenId, _tokenURI);
 
-    tokenEventId[tokenId] = eventId;
+        tokenEventId[tokenId] = eventId;
 
-    if (maxPrice > 0) {
-        maxResalePrice[tokenId] = maxPrice;
+        if (maxPrice > 0) {
+            maxResalePrice[tokenId] = maxPrice;
+        }
+
+        emit TicketMinted(tokenId, eventId, to, _tokenURI);
     }
 
-    emit TicketMinted(tokenId, eventId, to, _tokenURI);
-}
+    function batchMint(
+        address[] memory recipients,
+        string[] memory tokenURIs,
+        uint256[] memory maxPrices,
+        uint256 eventId
+        ) public onlyRole(ORGANIZER_ROLE) {
+        require(recipients.length > 0, "Must mint at least one ticket");
+        require(recipients.length <= 100, "Batch size cannot exceed 100");
+        require(
+            recipients.length == tokenURIs.length && 
+            recipients.length == maxPrices.length,
+            "Array lengths must match"
+        );
+
+        for (uint256 i = 0; i < recipients.length; i++) {
+            uint256 tokenId = tokenIdCounter;
+            tokenIdCounter++;
+
+            _safeMint(recipients[i], tokenId);
+            _setTokenURI(tokenId, tokenURIs[i]);
+
+            tokenEventId[tokenId] = eventId;
+
+            if (maxPrices[i] > 0) {
+                maxResalePrice[tokenId] = maxPrices[i];
+            }
+
+            emit TicketMinted(tokenId, eventId, recipients[i], tokenURIs[i]);
+        }
+    }
 
     function checkInTicket(uint256 tokenId) public {
         require(
