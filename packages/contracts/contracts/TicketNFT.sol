@@ -20,6 +20,7 @@ contract TicketNFT is
     uint256 private tokenIdCounter;
     mapping(uint256 => bool) public isUsed;
     mapping(uint256 => mapping(address => bool)) private _whitelist;
+    mapping(uint256 => bool) public presaleActive;
     uint256 public royaltyPercentage;
     string public baseTokenURI;
     mapping(uint256 => uint256) public maxResalePrice;
@@ -28,6 +29,8 @@ contract TicketNFT is
     // Events
     event TicketMinted(uint256 indexed tokenId, uint256 indexed eventId, address indexed to, string tokenURI);
     event TicketCheckedIn(uint256 indexed tokenId, address indexed scanner);
+    event WhitelistUpdated(uint256 indexed eventId, address indexed wallet, bool status);
+    event PresaleStatusUpdated(uint256 indexed eventId, bool active);
 
     // Roles
     bytes32 public constant ORGANIZER_ROLE = keccak256("ORGANIZER_ROLE");
@@ -60,7 +63,10 @@ contract TicketNFT is
         string memory _tokenURI,
         uint256 eventId,
         uint256 maxPrice
-        ) public onlyRole(ORGANIZER_ROLE) {
+        ) public onlyRole(ORGANIZER_ROLE) {  
+        if (presaleActive[eventId]) {
+            require(_whitelist[eventId][to], "Address not whitelisted for presale");
+        }
         uint256 tokenId = tokenIdCounter;
         tokenIdCounter++;
 
@@ -90,6 +96,11 @@ contract TicketNFT is
             "Array lengths must match"
         );
 
+        if (presaleActive[eventId]) {
+            for (uint256 i = 0; i < recipients.length; i++) {
+                require(_whitelist[eventId][recipients[i]], "Address not whitelisted for presale");
+            }
+        }
         for (uint256 i = 0; i < recipients.length; i++) {
             uint256 tokenId = tokenIdCounter;
             tokenIdCounter++;
@@ -124,6 +135,44 @@ contract TicketNFT is
 
     function isValidTicket(uint256 tokenId) public view returns (bool) {
         return _ownerOf(tokenId) != address(0) && !isUsed[tokenId];
+    }
+
+    function setPresaleActive(uint256 eventId, bool active) 
+        public onlyRole(ORGANIZER_ROLE) 
+    {
+        presaleActive[eventId] = active;
+        emit PresaleStatusUpdated(eventId, active);
+    }
+
+    function addToWhitelist(uint256 eventId, address wallet) 
+        public onlyRole(ORGANIZER_ROLE) 
+    {
+        _whitelist[eventId][wallet] = true;
+        emit WhitelistUpdated(eventId, wallet, true);
+    }
+
+    function batchAddToWhitelist(uint256 eventId, address[] memory wallets)
+        public onlyRole(ORGANIZER_ROLE)
+    {   
+        require(wallets.length > 0, "Must provide at least one address");
+        require(wallets.length <= 100, "Batch size cannot exceed 100");
+        for (uint256 i = 0; i < wallets.length; i++) {
+            _whitelist[eventId][wallets[i]] = true;
+            emit WhitelistUpdated(eventId, wallets[i], true);
+        }
+    }
+
+    function removeFromWhitelist(uint256 eventId, address wallet) 
+        public onlyRole(ORGANIZER_ROLE) 
+    {
+        _whitelist[eventId][wallet] = false;
+        emit WhitelistUpdated(eventId, wallet, false);
+    }
+
+    function isWhitelisted(uint256 eventId, address wallet) 
+        public view returns (bool) 
+    {
+        return _whitelist[eventId][wallet];
     }
 
     // Overrides functions
