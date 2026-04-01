@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import routes from './routes';
+import { startBlockchainListener } from './workers/blockchain.listener';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -44,6 +45,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 app.listen(PORT, () => {
   console.log(`NFTicketPass API running on port ${PORT}`);
+  startBlockchainListener();
 });
 
 export default app;
