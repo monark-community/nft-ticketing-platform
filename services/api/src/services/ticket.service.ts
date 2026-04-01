@@ -8,14 +8,14 @@ export async function getTicketsByWallet(walletAddress: string) {
   });
 }
 
-export async function getTicketByTokenId(tokenId: number) {
+export async function getTicketByTokenId(tokenId: bigint) {
   return prisma.ticket.findUnique({
     where: { token_id: tokenId },
     include: { event: true, ticket_type: true },
   });
 }
 
-export async function validateTicket(tokenId: number, eventId: string) {
+export async function validateTicket(tokenId: bigint, eventId: string) {
   const ticket = await prisma.ticket.findUnique({
     where: { token_id: tokenId },
     include: { event: true },
@@ -24,7 +24,6 @@ export async function validateTicket(tokenId: number, eventId: string) {
   if (!ticket) return { valid: false, reason: 'Ticket not found' };
   if (ticket.event_id !== eventId) return { valid: false, reason: 'Ticket does not belong to this event' };
   if (ticket.status === 'USED') return { valid: false, reason: 'Ticket already used', used_at: ticket.used_at };
-  if (ticket.status === 'CANCELLED') return { valid: false, reason: 'Ticket cancelled' };
 
   return { valid: true, ticket };
 }
