@@ -1,9 +1,11 @@
 "use client";
 
+import { Navbar } from "@/components/Navbar";
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useWalletGuard } from "@/hooks/WalletGuard";
 import { useState } from "react";
 import { useAccount } from "wagmi";
 
@@ -44,13 +46,17 @@ export default function SignInPage() {
     return e;
   }
 
-  function handleSubmit() {
-    const e = validate();
-    setErrors(e);
-    if (Object.keys(e).length > 0) return;
-    console.log("✅ Sign in submitted:", { ...form, walletAddress: address });
-    alert(`Signed in!\nEmail: ${form.email}\nWallet: ${address ?? "none"}`);
-  }
+  const { requireWallet } = useWalletGuard();
+
+function handleSubmit() {
+  const e = validate();
+  setErrors(e);
+  if (Object.keys(e).length > 0) return;
+  requireWallet(() => {
+    console.log("✅ Form submitted:", { ...form, walletAddress: address });
+    alert(`Account ready!\nWallet: ${address}`);
+  });
+}
 
   function handleChange(field: keyof FormData, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -61,17 +67,7 @@ export default function SignInPage() {
     <div className="min-h-screen bg-white flex flex-col">
 
       {/* NAV */}
-      <nav className="bg-[#3a7bd5] px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-white/20 rounded flex items-center justify-center text-white text-sm font-bold">
-            🎟
-          </div>
-          <span className="text-white font-bold text-lg tracking-wide">SMARTPASS</span>
-        </div>
-        <a href="#" className="text-white text-sm font-medium hover:underline">
-          Need Help?
-        </a>
-      </nav>
+      <Navbar />
 
       {/* CONTENT */}
       <div className="flex-1 flex flex-col items-center py-10 px-4">

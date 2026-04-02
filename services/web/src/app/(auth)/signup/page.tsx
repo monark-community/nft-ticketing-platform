@@ -1,9 +1,11 @@
 "use client";
 
+import { NetworkGuard } from "@/components/NetworkWarning";
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useWalletGuard } from "@/hooks/WalletGuard";
 import { useState } from "react";
 import { useAccount } from "wagmi";
 // If '@/components/ui/label' does not exist, create 'src/components/ui/label.tsx' with a Label component.
@@ -60,12 +62,16 @@ export default function CreateAccountPage() {
   
 
   // --- Submit ---
-  function handleSubmit() {
-    const e = validate();
-    setErrors(e);
-    if (Object.keys(e).length > 0) return;
+const { requireWallet } = useWalletGuard();
+
+function handleSubmit() {
+  const e = validate();
+  setErrors(e);
+  if (Object.keys(e).length > 0) return;
+  requireWallet(() => {
     console.log("✅ Form submitted:", { ...form, walletAddress: address });
-alert(`Account ready!\nWallet: ${address}\nCheck the console for full details.`);
+    alert(`Account ready!\nWallet: ${address}`);
+  });
 }
 
   function handleChange(field: keyof FormData, value: string) {
@@ -243,6 +249,8 @@ alert(`Account ready!\nWallet: ${address}\nCheck the console for full details.`)
   <p className="text-xs font-semibold text-gray-500 mb-3">
     Connect your wallet
   </p>
+
+  <NetworkGuard />
 
   <ConnectWalletButton />
 
