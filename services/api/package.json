@@ -24,7 +24,8 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
-    "pinata": "^1.1.2"
+    "pinata": "^1.1.2",
+    "winston": "^3.19.0"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.7",

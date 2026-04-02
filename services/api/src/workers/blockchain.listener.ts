@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
+import logger from '../lib/logger';
 
 // NOTE: This ABI is derived from the events described in the API Design Doc (Section 6).
 // It must be replaced with the actual compiled contract ABI once the smart contract is finalized.
@@ -25,14 +26,14 @@ export async function startBlockchainListener(): Promise<void> {
   const contractAddress = process.env.CONTRACT_ADDRESS;
 
   if (!rpcUrl || !contractAddress) {
-    console.warn('Blockchain listener not started: RPC_URL or CONTRACT_ADDRESS is missing from environment.');
+    logger.warn('Blockchain listener not started: RPC_URL or CONTRACT_ADDRESS is missing from environment.');
     return;
   }
 
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const contract = new ethers.Contract(contractAddress, CONTRACT_ABI, provider);
 
-  console.log(`Blockchain listener connected to contract ${contractAddress}`);
+  logger.info(`Blockchain listener connected to contract ${contractAddress}`);
 
   // ERC-721 Transfer — update ticket ownership when a ticket is transferred
   contract.on('Transfer', async (from: string, to: string, tokenId: bigint) => {
@@ -44,9 +45,9 @@ export async function startBlockchainListener(): Promise<void> {
         where: { token_id: tokenId },
         data: { owner_wallet: to.toLowerCase() },
       });
-      console.log(`Transfer: token ${tokenId} ownership updated to ${to}`);
+      logger.info(`Transfer: token ${tokenId} ownership updated to ${to}`);
     } catch (err) {
-      console.error(`Transfer handler error for token ${tokenId}:`, err);
+      logger.error(`Transfer handler error for token ${tokenId}`, { error: err });
     }
   });
 
@@ -59,13 +60,13 @@ export async function startBlockchainListener(): Promise<void> {
       });
 
       if (!event) {
-        console.warn(`TicketMinted: no event found for contract_event_id ${eventId}`);
+        logger.warn(`TicketMinted: no event found for contract_event_id ${eventId}`);
         return;
       }
 
       const defaultTicketType = event.ticket_types[0];
       if (!defaultTicketType) {
-        console.warn(`TicketMinted: no ticket type found for event ${event.id}`);
+        logger.warn(`TicketMinted: no ticket type found for event ${event.id}`);
         return;
       }
 
@@ -80,9 +81,9 @@ export async function startBlockchainListener(): Promise<void> {
         },
       });
 
-      console.log(`TicketMinted: token ${tokenId} minted for event ${event.id} to ${owner}`);
+      logger.info(`TicketMinted: token ${tokenId} minted for event ${event.id} to ${owner}`);
     } catch (err) {
-      console.error(`TicketMinted handler error for token ${tokenId}:`, err);
+      logger.error(`TicketMinted handler error for token ${tokenId}`, { error: err });
     }
   });
 
@@ -103,9 +104,9 @@ export async function startBlockchainListener(): Promise<void> {
         },
       });
 
-      console.log(`TicketCheckedIn: token ${tokenId} checked in by ${scanner}`);
+      logger.info(`TicketCheckedIn: token ${tokenId} checked in by ${scanner}`);
     } catch (err) {
-      console.error(`TicketCheckedIn handler error for token ${tokenId}:`, err);
+      logger.error(`TicketCheckedIn handler error for token ${tokenId}`, { error: err });
     }
   });
 
@@ -123,9 +124,9 @@ export async function startBlockchainListener(): Promise<void> {
         data: { synced_to_chain: true },
       });
 
-      console.log(`WhitelistUpdated: wallet ${wallet} synced for event ${event.id}`);
+      logger.info(`WhitelistUpdated: wallet ${wallet} synced for event ${event.id}`);
     } catch (err) {
-      console.error(`WhitelistUpdated handler error:`, err);
+      logger.error('WhitelistUpdated handler error', { error: err });
     }
   });
 
@@ -143,13 +144,13 @@ export async function startBlockchainListener(): Promise<void> {
         data: { synced_to_chain: true },
       });
 
-      console.log(`ScannerUpdated: wallet ${wallet} synced for event ${event.id}`);
+      logger.info(`ScannerUpdated: wallet ${wallet} synced for event ${event.id}`);
     } catch (err) {
-      console.error(`ScannerUpdated handler error:`, err);
+      logger.error('ScannerUpdated handler error', { error: err });
     }
   });
 
   provider.on('error', (err) => {
-    console.error('Blockchain provider error:', err);
+    logger.error('Blockchain provider error', { error: err });
   });
 }

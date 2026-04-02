@@ -6,12 +6,13 @@ import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import routes from './routes';
 import { startBlockchainListener } from './workers/blockchain.listener';
+import logger from './lib/logger';  
 
 dotenv.config();
 
 const app: Express = express();
 const PORT = process.env.API_PORT || 3001;
-const prisma = new PrismaClient();
+const prisma = new PrismaClient();  
 
 // Security headers
 app.use(helmet());
@@ -132,22 +133,23 @@ app.use((_req, res) => {
 });
 
 // Global error handler
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err.stack);
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error(err.message, { stack: err.stack });
   res.status(500).json({ error: 'Internal server error' });
 });
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`NFTicketPass API running on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log(`Database health: http://localhost:${PORT}/db-health`);
+  logger.info(`NFTicketPass API running on port ${PORT}`);
+  logger.info(`Health check: http://localhost:${PORT}/health`);
+  logger.info(`Database health: http://localhost:${PORT}/db-health`);
   startBlockchainListener();
 });
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
   await prisma.$disconnect();
+  logger.info('API server stopped');
   process.exit(0);
 });
 
