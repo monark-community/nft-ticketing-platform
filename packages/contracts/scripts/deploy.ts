@@ -7,8 +7,7 @@ async function main() {
     const TicketNFT = await ethers.getContractFactory("TicketNFT");
     
     const contract = await upgrades.deployProxy(TicketNFT, [deployer.address], {
-        initializer: "initialize",
-        unsafeAllow: ["constructor"],
+        initializer: "initialize"
     });
 
     await contract.waitForDeployment();

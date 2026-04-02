@@ -7,6 +7,8 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts-upgradeable/token/common/ERC2981Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 contract TicketNFT is 
     Initializable, 
@@ -14,23 +16,28 @@ contract TicketNFT is
     ERC721URIStorageUpgradeable,
     AccessControlUpgradeable, 
     ERC2981Upgradeable, 
-    UUPSUpgradeable 
+    UUPSUpgradeable,
+    ReentrancyGuardUpgradeable
 {
     // State variables
     uint256 private tokenIdCounter;
     mapping(uint256 => bool) public isUsed;
     mapping(uint256 => mapping(address => bool)) private _whitelist;
     mapping(uint256 => bool) public presaleActive;
-    uint256 public royaltyPercentage;
+    mapping(uint256 => uint256)public royaltyPercentage;
     string public baseTokenURI;
     mapping(uint256 => uint256) public maxResalePrice;
     mapping(uint256 => uint256) public tokenEventId;
+    mapping(uint256 => address) public eventOrganizer;
+    address public usdcToken;
 
     // Events
     event TicketMinted(uint256 indexed tokenId, uint256 indexed eventId, address indexed to, string tokenURI);
     event TicketCheckedIn(uint256 indexed tokenId, address indexed scanner);
     event WhitelistUpdated(uint256 indexed eventId, address indexed wallet, bool status);
     event PresaleStatusUpdated(uint256 indexed eventId, bool active);
+    event EventRoyaltyUpdated(uint256 indexed eventId, uint256 basisPoints);
+    event TicketResold(uint256 indexed tokenId, address indexed from, address indexed to, uint256 price);
 
     // Roles
     bytes32 public constant ORGANIZER_ROLE = keccak256("ORGANIZER_ROLE");
@@ -43,13 +50,16 @@ contract TicketNFT is
     }
 
     // Initializer function to set up the contract
-    function initialize(address defaultAdmin) public initializer {
+    function initialize(address defaultAdmin, address _usdcToken) public initializer {
         __ERC721_init("NFTicketPass", "NFTP");
         __ERC721URIStorage_init();
         __AccessControl_init();
         __ERC2981_init();
+        __ReentrancyGuard_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+        usdcToken = _usdcToken;
+
     }
 
     function _authorizeUpgrade(address newImplementation)
@@ -74,6 +84,10 @@ contract TicketNFT is
         _setTokenURI(tokenId, _tokenURI);
 
         tokenEventId[tokenId] = eventId;
+    
+        if(eventOrganizer[eventId] == address(0)) {
+            eventOrganizer[eventId] = msg.sender;
+        }
 
         if (maxPrice > 0) {
             maxResalePrice[tokenId] = maxPrice;
@@ -100,6 +114,10 @@ contract TicketNFT is
             for (uint256 i = 0; i < recipients.length; i++) {
                 require(_whitelist[eventId][recipients[i]], "Address not whitelisted for presale");
             }
+        }
+
+        if (eventOrganizer[eventId] == address(0)) {
+            eventOrganizer[eventId] = msg.sender;
         }
         for (uint256 i = 0; i < recipients.length; i++) {
             uint256 tokenId = tokenIdCounter;
@@ -173,6 +191,52 @@ contract TicketNFT is
         public view returns (bool) 
     {
         return _whitelist[eventId][wallet];
+    }
+
+    function setRoyaltyPercentage(uint256 eventId, uint256 basisPoints) 
+        public onlyRole(DEFAULT_ADMIN_ROLE) 
+    {
+        require(basisPoints <= 10000, "Basis points must be less than or equal to 10000");
+        royaltyPercentage[eventId] = basisPoints;
+        emit EventRoyaltyUpdated(eventId, basisPoints);
+    }
+
+    function royaltyInfo(uint256 tokenId, uint256 salePrice)
+        public view override returns (address receiver, uint256 amount)
+    {
+        uint256 eventId = tokenEventId[tokenId];
+        uint256 royalty = (salePrice * royaltyPercentage[eventId]) / 10000;
+        return (eventOrganizer[eventId], royalty);
+    }
+
+    function resell(uint256 tokenId, address buyer, uint256 salePrice) public nonReentrant {
+        require(ownerOf(tokenId) == msg.sender, "You do not own this ticket");
+        require(!isUsed[tokenId], "Cannot resell a used ticket");
+        require(buyer != address(0), "Invalid buyer address");
+
+        if (maxResalePrice[tokenId] > 0) {
+            require(salePrice <= maxResalePrice[tokenId], "Sale price exceeds maximum resale price");
+        }
+
+        IERC20 usdc = IERC20(usdcToken);
+
+        require(
+            usdc.transferFrom(buyer, address(this), salePrice),
+            "USDC transfer from buyer failed"
+        );
+
+        (address royaltyReceiver, uint256 royaltyAmount) = royaltyInfo(tokenId, salePrice);
+        uint256 sellerAmount = salePrice - royaltyAmount;
+
+        if (royaltyAmount > 0) {
+            require(usdc.transfer(royaltyReceiver, royaltyAmount), "Royalty transfer failed");
+        }
+
+        require(usdc.transfer(msg.sender, sellerAmount), "Seller transfer failed");
+
+        _transfer(msg.sender, buyer, tokenId);
+
+        emit TicketResold(tokenId, msg.sender, buyer, salePrice);
     }
 
     // Overrides functions
