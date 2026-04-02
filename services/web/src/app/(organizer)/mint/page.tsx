@@ -1,10 +1,11 @@
 "use client";
 
+import { Navbar } from "@/components/Navbar";
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useWalletGuard } from "@/hooks/WalletGuard";
 import { useState } from "react";
-import { useAccount } from "wagmi";
 
 interface TicketTier {
   id: number;
@@ -32,43 +33,25 @@ export default function TicketMintingPage() {
     );
   }
 
-  const { isConnected } = useAccount();
+  const { requireWallet } = useWalletGuard();
 
-  function handleMint() {
-    if (!isConnected) {
-    alert("Please connect your wallet before minting.");
-    return;
-  }
-  const selected = tiers.filter((t) => t.selected);
-  if (selected.length === 0) {
-    alert("Please select at least one ticket tier to mint.");
-    return;
-  }
-  console.log("✅ Minting tickets:", { ticketsToMint, ticketPrice, tiers: selected });
-  alert(`Minting ${ticketsToMint} NFT tickets at ${ticketPrice} USDC each.\nCheck the console for details.`);
+function handleMint() {
+  requireWallet(() => {
+    const selected = tiers.filter((t) => t.selected);
+    if (selected.length === 0) {
+      alert("Please select at least one ticket tier to mint.");
+      return;
+    }
+    console.log("✅ Minting tickets:", { ticketsToMint, ticketPrice, tiers: selected });
+    alert(`Minting ${ticketsToMint} NFT tickets at ${ticketPrice} USDC each.`);
+  });
 }
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
 
       {/* NAV */}
-      <nav className="bg-[#3a7bd5] px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-white/20 rounded flex items-center justify-center text-white text-sm font-bold">
-            🎟
-          </div>
-          <span className="text-white font-bold text-lg tracking-wide">SMARTPASS</span>
-        </div>
-        <div className="flex items-center gap-8">
-          <a href="#" className="text-white text-sm font-medium hover:underline">Event Listing</a>
-          <a href="#" className="text-white text-sm font-medium hover:underline">My Events</a>
-          <a href="#" className="text-white text-sm font-semibold border-b-2 border-white pb-0.5">Create Event</a>
-          <div className="flex items-center gap-2 bg-white/20 rounded-full px-3 py-1">
-            <span className="text-white text-sm font-mono">0×3F…D12</span>
-            <div className="w-6 h-6 rounded-full bg-yellow-400" />
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* PAGE HEADER */}
       <div className="bg-[#3a7bd5] px-8 pb-5">
