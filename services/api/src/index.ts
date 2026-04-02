@@ -4,6 +4,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import routes from './routes';
 import { startBlockchainListener } from './workers/blockchain.listener';
+import logger from './lib/logger';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -39,12 +40,12 @@ app.use((_req, res) => {
 
 // Global error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error(err.stack);
+  logger.error(err.message, { stack: err.stack });
   res.status(500).json({ error: 'Internal server error' });
 });
 
 app.listen(PORT, () => {
-  console.log(`NFTicketPass API running on port ${PORT}`);
+  logger.info(`NFTicketPass API running on port ${PORT}`);
   startBlockchainListener();
 });
 
