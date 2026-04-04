@@ -5,7 +5,7 @@ import "@rainbow-me/rainbowkit/styles.css";
 import { metaMaskWallet, walletConnectWallet } from "@rainbow-me/rainbowkit/wallets";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createConfig, http, WagmiProvider } from "wagmi";
-import { mainnet, sepolia } from "wagmi/chains";
+import { hardhat, mainnet, sepolia } from "wagmi/chains";
 
 const connectors = connectorsForWallets(
   [
@@ -21,10 +21,11 @@ const connectors = connectorsForWallets(
 
 const config = createConfig({
   connectors,
-  chains: [mainnet, sepolia],
+  chains: [mainnet, sepolia, hardhat],
   transports: {
     [mainnet.id]: http(),
     [sepolia.id]: http(),
+    [hardhat.id]: http("http://127.0.0.1:8545"),
   },
 });
 
