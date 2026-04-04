@@ -13,7 +13,7 @@ interface FormData {
   firstName: string;
   lastName: string;
   email: string;
-  password: string;
+  password: "";
 }
 
 interface FormErrors {
@@ -40,8 +40,8 @@ export default function SignInPage() {
     if (!form.lastName.trim()) e.lastName = "Last name is required.";
     if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
       e.email = "A valid email is required.";
-    if (!form.password || form.password.length < 8)
-      e.password = "Password must be at least 8 characters.";
+    // if (!form.password || form.password.length < 8)
+    //   e.password = "Password must be at least 8 characters.";
     if (!isConnected) e.wallet = "Please connect your wallet before continuing.";
     return e;
   }
