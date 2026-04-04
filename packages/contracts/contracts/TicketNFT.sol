@@ -38,6 +38,7 @@ contract TicketNFT is
     event PresaleStatusUpdated(uint256 indexed eventId, bool active);
     event EventRoyaltyUpdated(uint256 indexed eventId, uint256 basisPoints);
     event TicketResold(uint256 indexed tokenId, address indexed from, address indexed to, uint256 price);
+    event ScannerUpdated(uint256 indexed eventId, address indexed wallet);
 
     // Roles
     bytes32 public constant ORGANIZER_ROLE = keccak256("ORGANIZER_ROLE");
@@ -178,6 +179,13 @@ contract TicketNFT is
             _whitelist[eventId][wallets[i]] = true;
             emit WhitelistUpdated(eventId, wallets[i], true);
         }
+    }
+
+    function grantScannerRole(uint256 eventId, address wallet)
+        public onlyRole(ORGANIZER_ROLE)
+    {
+        _grantRole(SCANNER_ROLE, wallet);
+        emit ScannerUpdated(eventId, wallet);
     }
 
     function removeFromWhitelist(uint256 eventId, address wallet) 
