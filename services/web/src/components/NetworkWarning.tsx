@@ -1,9 +1,9 @@
 "use client";
 
 import { useAccount, useSwitchChain } from "wagmi";
-import { mainnet, sepolia } from "wagmi/chains";
+import { sepolia } from "wagmi/chains";
 
- const SUPPORTED_CHAIN_IDS = [mainnet.id, sepolia.id, 31337];
+ const SUPPORTED_CHAIN_IDS = [sepolia.id, 31337];
 
 export function NetworkGuard() {
   const { isConnected, chainId } = useAccount();

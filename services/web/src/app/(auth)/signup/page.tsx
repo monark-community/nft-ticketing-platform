@@ -15,9 +15,9 @@ interface FormData {
   lastName: string;
   email: string;
   phone: string;
-  password: string;
-  dob: string;
-  role: "attendee" | "organizer";
+  password: "";
+  dob: "";
+  role: "user" | "organizer";
 }
 
 interface FormErrors {
@@ -38,7 +38,7 @@ export default function CreateAccountPage() {
     phone: "",
     password: "",
     dob: "",
-    role: "attendee",
+    role: "user",
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
@@ -51,9 +51,9 @@ export default function CreateAccountPage() {
     if (!form.lastName.trim()) e.lastName = "Last name is required.";
     if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
       e.email = "A valid email is required.";
-    if (!form.password || form.password.length < 8)
-      e.password = "Password must be at least 8 characters.";
-    if (!form.dob) e.dob = "Date of birth is required.";
+    // if (!form.password || form.password.length < 8)
+    //   e.password = "Password must be at least 8 characters.";
+    // if (!form.dob) e.dob = "Date of birth is required.";
     if (!form.role) e.role = "Please select a role.";
     if (!isConnected) e.wallet = "Please connect your wallet before continuing.";    return e;
   }
@@ -218,14 +218,14 @@ function handleSubmit() {
   <div className="grid grid-cols-2 gap-3">
     <button
       type="button"
-      onClick={() => handleChange("role", "attendee")}
+      onClick={() => handleChange("role", "user")}
       className={`border-2 rounded-lg px-4 py-3 text-sm font-semibold transition-all ${
-        form.role === "attendee"
+        form.role === "user"
           ? "border-[#4f35c2] bg-[#f5f3ff] text-[#4f35c2]"
           : "border-gray-200 text-gray-500 hover:border-gray-300"
       }`}
     >
-       Attendee
+       User
     </button>
     <button
       type="button"
