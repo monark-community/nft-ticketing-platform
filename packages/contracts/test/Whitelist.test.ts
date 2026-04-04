@@ -7,8 +7,16 @@ describe("TicketNFT - Whitelist Mechanism", function () {
 
     beforeEach(async function () {
         [admin, organizer, hacker, whitelisted, notWhitelisted] = await ethers.getSigners();
+
+        const MockUSDC = await ethers.getContractFactory("MockUSDC");
+        const mockUSDC = await MockUSDC.deploy();
+
         const TicketNFTFactory = await ethers.getContractFactory("TicketNFT");
-        ticketNFT = await upgrades.deployProxy(TicketNFTFactory, [admin.address], { kind: "uups" });
+        ticketNFT = await upgrades.deployProxy(
+            TicketNFTFactory,
+            [admin.address, await mockUSDC.getAddress()],
+            { kind: "uups" }
+        );
 
         const ORGANIZER_ROLE = await ticketNFT.ORGANIZER_ROLE();
         await ticketNFT.grantRole(ORGANIZER_ROLE, organizer.address);
