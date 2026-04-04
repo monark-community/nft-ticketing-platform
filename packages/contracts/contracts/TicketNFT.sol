@@ -29,6 +29,7 @@ contract TicketNFT is
     mapping(uint256 => uint256) public maxResalePrice;
     mapping(uint256 => uint256) public tokenEventId;
     mapping(uint256 => address) public eventOrganizer;
+    mapping(uint256 => mapping(address => bool)) public eventScanners;
     address public usdcToken;
 
     // Events
@@ -38,11 +39,11 @@ contract TicketNFT is
     event PresaleStatusUpdated(uint256 indexed eventId, bool active);
     event EventRoyaltyUpdated(uint256 indexed eventId, uint256 basisPoints);
     event TicketResold(uint256 indexed tokenId, address indexed from, address indexed to, uint256 price);
-    event ScannerUpdated(uint256 indexed eventId, address indexed wallet);
+    event ScannerUpdated(uint256 indexed eventId, address indexed wallet, bool status);
+    
 
     // Roles
     bytes32 public constant ORGANIZER_ROLE = keccak256("ORGANIZER_ROLE");
-    bytes32 public constant SCANNER_ROLE = keccak256("SCANNER_ROLE");
 
     // Constructor to disable initializers for the implementation contract
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -138,8 +139,9 @@ contract TicketNFT is
     }
 
     function checkInTicket(uint256 tokenId) public {
+        uint256 eventId = tokenEventId[tokenId];
         require(
-            hasRole(SCANNER_ROLE, msg.sender) || 
+            eventScanners[eventId][msg.sender] || 
             hasRole(ORGANIZER_ROLE, msg.sender) ||
             hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
             "Not authorized to check in"
@@ -181,11 +183,11 @@ contract TicketNFT is
         }
     }
 
-    function grantScannerRole(uint256 eventId, address wallet)
+    function setEventScanner(uint256 eventId, address wallet, bool status)
         public onlyRole(ORGANIZER_ROLE)
     {
-        _grantRole(SCANNER_ROLE, wallet);
-        emit ScannerUpdated(eventId, wallet);
+        eventScanners[eventId][wallet] = status;
+        emit ScannerUpdated(eventId, wallet, status);
     }
 
     function removeFromWhitelist(uint256 eventId, address wallet) 
