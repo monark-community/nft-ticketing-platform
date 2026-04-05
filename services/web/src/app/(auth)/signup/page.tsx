@@ -15,8 +15,6 @@ interface FormData {
   lastName: string;
   email: string;
   phone: string;
-  password: "";
-  dob: "";
   role: "user" | "organizer";
 }
 
@@ -24,8 +22,6 @@ interface FormErrors {
   firstName?: string;
   lastName?: string;
   email?: string;
-  password?: string;
-  dob?: string;
   wallet?: string;
   role?: string;
 }
@@ -36,8 +32,6 @@ export default function CreateAccountPage() {
     lastName: "",
     email: "",
     phone: "",
-    password: "",
-    dob: "",
     role: "user",
   });
 
@@ -51,9 +45,6 @@ export default function CreateAccountPage() {
     if (!form.lastName.trim()) e.lastName = "Last name is required.";
     if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
       e.email = "A valid email is required.";
-    // if (!form.password || form.password.length < 8)
-    //   e.password = "Password must be at least 8 characters.";
-    // if (!form.dob) e.dob = "Date of birth is required.";
     if (!form.role) e.role = "Please select a role.";
     if (!isConnected) e.wallet = "Please connect your wallet before continuing.";    return e;
   }
@@ -175,39 +166,6 @@ function handleSubmit() {
                 value={form.phone}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange("phone", e.target.value)}
               />
-            </div>
-
-            {/* PASSWORD */}
-            <div className="mb-4">
-              <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
-                Password
-              </Label>
-              <Input
-                type="password"
-                placeholder="Create a strong password"
-                value={form.password}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange("password", e.target.value)}
-                className={errors.password ? "border-red-400" : ""}
-              />
-              {errors.password && (
-                <p className="text-red-500 text-xs mt-1">{errors.password}</p>
-              )}
-            </div>
-
-            {/* DATE OF BIRTH */}
-            <div className="mb-6">
-              <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
-                Date of Birth
-              </Label>
-              <Input
-                type="date"
-                value={form.dob}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange("dob", e.target.value)}
-                className={errors.dob ? "border-red-400" : ""}
-              />
-              {errors.dob && (
-                <p className="text-red-500 text-xs mt-1">{errors.dob}</p>
-              )}
             </div>
 
             {/* ROLE SELECTION */}

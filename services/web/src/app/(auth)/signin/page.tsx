@@ -13,14 +13,12 @@ interface FormData {
   firstName: string;
   lastName: string;
   email: string;
-  password: "";
 }
 
 interface FormErrors {
   firstName?: string;
   lastName?: string;
   email?: string;
-  password?: string;
   wallet?: string;
 }
 
@@ -29,7 +27,6 @@ export default function SignInPage() {
     firstName: "",
     lastName: "",
     email: "",
-    password: "",
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const { address, isConnected } = useAccount();
@@ -40,9 +37,6 @@ export default function SignInPage() {
     if (!form.lastName.trim()) e.lastName = "Last name is required.";
     if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
       e.email = "A valid email is required.";
-    // if (!form.password || form.password.length < 8)
-    //   e.password = "Password must be at least 8 characters.";
-    if (!isConnected) e.wallet = "Please connect your wallet before continuing.";
     return e;
   }
 
@@ -133,24 +127,6 @@ function handleSubmit() {
               />
               {errors.email && (
                 <p className="text-red-500 text-xs mt-1">{errors.email}</p>
-              )}
-            </div>
-
-            <div className="mb-6">
-              <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
-                Password
-              </Label>
-              <Input
-                type="password"
-                placeholder="Enter your password"
-                value={form.password}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  handleChange("password", e.target.value)
-                }
-                className={errors.password ? "border-red-400" : ""}
-              />
-              {errors.password && (
-                <p className="text-red-500 text-xs mt-1">{errors.password}</p>
               )}
             </div>
 
