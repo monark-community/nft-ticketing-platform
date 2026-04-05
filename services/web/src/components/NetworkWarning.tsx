@@ -17,7 +17,7 @@ export function NetworkGuard() {
     <div className="w-full bg-yellow-50 border-b border-yellow-200 px-6 py-3 flex items-center justify-between">
       <div className="flex items-center gap-2">
         <p className="text-sm font-semibold text-yellow-800">
-          Wrong network detected. Please switch to Ethereum Mainnet or Sepolia testnet.
+          Wrong network detected. Please switch to Sepolia testnet.
         </p>
       </div>
       <button
