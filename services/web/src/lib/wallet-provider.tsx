@@ -14,7 +14,7 @@ const connectors = connectorsForWallets(
   ],
   {
     appName: "SmartPass",
-    projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
+    projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "fdaa36a9671b9ad5ebf2b56559ace1d7",
   }
 );
 
