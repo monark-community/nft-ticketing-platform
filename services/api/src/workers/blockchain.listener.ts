@@ -9,7 +9,7 @@ const CONTRACT_ABI = [
   'event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)',
 
   // Emitted when a new ticket NFT is minted
-  'event TicketMinted(uint256 indexed tokenId, address indexed owner, uint256 indexed eventId)',
+  'event TicketMinted(uint256 indexed tokenId, uint256 indexed eventId, address indexed to, string tokenURI)',
 
   // Emitted when a ticket is checked in at the event
   'event TicketCheckedIn(uint256 indexed tokenId, address indexed scanner)',
@@ -52,7 +52,7 @@ export async function startBlockchainListener(): Promise<void> {
   });
 
   // TicketMinted — insert a new ticket row when a ticket is minted on-chain
-  contract.on('TicketMinted', async (tokenId: bigint, owner: string, eventId: bigint) => {
+  contract.on('TicketMinted', async (tokenId: bigint, eventId: bigint, to: string, _tokenURI: string) => {
     try {
       const event = await prisma.event.findFirst({
         where: { contract_event_id: eventId },
@@ -72,16 +72,16 @@ export async function startBlockchainListener(): Promise<void> {
 
       await prisma.ticket.upsert({
         where: { token_id: tokenId },
-        update: { owner_wallet: owner.toLowerCase() },
+        update: { owner_wallet: to.toLowerCase() },
         create: {
           token_id: tokenId,
           event_id: event.id,
           ticket_type_id: defaultTicketType.id,
-          owner_wallet: owner.toLowerCase(),
+          owner_wallet: to.toLowerCase(),
         },
       });
 
-      logger.info(`TicketMinted: token ${tokenId} minted for event ${event.id} to ${owner}`);
+      logger.info(`TicketMinted: token ${tokenId} minted for event ${event.id} to ${to}`);
     } catch (err) {
       logger.error(`TicketMinted handler error for token ${tokenId}`, { error: err });
     }
