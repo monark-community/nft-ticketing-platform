@@ -14,11 +14,11 @@ const CONTRACT_ABI = [
   // Emitted when a ticket is checked in at the event
   'event TicketCheckedIn(uint256 indexed tokenId, address indexed scanner)',
 
-  // Emitted when a whitelist entry is synced on-chain
-  'event WhitelistUpdated(uint256 indexed eventId, address indexed wallet)',
+  // Emitted when a whitelist entry is added or removed on-chain
+  'event WhitelistUpdated(uint256 indexed eventId, address indexed wallet, bool status)',
 
-  // Emitted when a scanner role is synced on-chain
-  'event ScannerUpdated(uint256 indexed eventId, address indexed wallet)',
+  // Emitted when a scanner is added or removed on-chain
+  'event ScannerUpdated(uint256 indexed eventId, address indexed wallet, bool status)',
 ];
 
 export async function startBlockchainListener(): Promise<void> {
@@ -110,8 +110,8 @@ export async function startBlockchainListener(): Promise<void> {
     }
   });
 
-  // WhitelistUpdated — mark the whitelist entry as synced to chain
-  contract.on('WhitelistUpdated', async (eventId: bigint, wallet: string) => {
+  // WhitelistUpdated — sync or remove whitelist entry based on status bool
+  contract.on('WhitelistUpdated', async (eventId: bigint, wallet: string, status: boolean) => {
     try {
       const event = await prisma.event.findFirst({
         where: { contract_event_id: eventId },
@@ -119,19 +119,25 @@ export async function startBlockchainListener(): Promise<void> {
 
       if (!event) return;
 
-      await prisma.whitelist.updateMany({
-        where: { event_id: event.id, wallet: wallet.toLowerCase() },
-        data: { synced_to_chain: true },
-      });
-
-      logger.info(`WhitelistUpdated: wallet ${wallet} synced for event ${event.id}`);
+      if (status) {
+        await prisma.whitelist.updateMany({
+          where: { event_id: event.id, wallet: wallet.toLowerCase() },
+          data: { synced_to_chain: true },
+        });
+        logger.info(`WhitelistUpdated: wallet ${wallet} synced for event ${event.id}`);
+      } else {
+        await prisma.whitelist.deleteMany({
+          where: { event_id: event.id, wallet: wallet.toLowerCase() },
+        });
+        logger.info(`WhitelistUpdated: wallet ${wallet} removed from event ${event.id}`);
+      }
     } catch (err) {
       logger.error('WhitelistUpdated handler error', { error: err });
     }
   });
 
-  // ScannerUpdated — mark the scanner entry as synced to chain
-  contract.on('ScannerUpdated', async (eventId: bigint, wallet: string) => {
+  // ScannerUpdated — sync or remove scanner entry based on status bool
+  contract.on('ScannerUpdated', async (eventId: bigint, wallet: string, status: boolean) => {
     try {
       const event = await prisma.event.findFirst({
         where: { contract_event_id: eventId },
@@ -139,12 +145,18 @@ export async function startBlockchainListener(): Promise<void> {
 
       if (!event) return;
 
-      await prisma.scanner.updateMany({
-        where: { event_id: event.id, wallet: wallet.toLowerCase() },
-        data: { synced_to_chain: true },
-      });
-
-      logger.info(`ScannerUpdated: wallet ${wallet} synced for event ${event.id}`);
+      if (status) {
+        await prisma.scanner.updateMany({
+          where: { event_id: event.id, wallet: wallet.toLowerCase() },
+          data: { synced_to_chain: true },
+        });
+        logger.info(`ScannerUpdated: wallet ${wallet} synced for event ${event.id}`);
+      } else {
+        await prisma.scanner.deleteMany({
+          where: { event_id: event.id, wallet: wallet.toLowerCase() },
+        });
+        logger.info(`ScannerUpdated: wallet ${wallet} removed from event ${event.id}`);
+      }
     } catch (err) {
       logger.error('ScannerUpdated handler error', { error: err });
     }
