@@ -1,0 +1,177 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User roles enumeration
+enum UserRole {
+  ADMIN
+  EVENT_ORGANIZER
+  CUSTOMER
+}
+
+// Event status enumeration
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+// Ticket status enumeration
+enum TicketStatus {
+  AVAILABLE
+  SOLD
+  TRANSFERRED
+  BURNED
+  EXPIRED
+}
+
+// User model
+model User {
+  id                    String      @id @default(cuid())
+  email                 String      @unique
+  username              String      @unique
+  walletAddress         String      @unique
+  firstName             String?
+  lastName              String?
+  profilePicture        String?
+  role                  UserRole    @default(CUSTOMER)
+  isVerified            Boolean     @default(false)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  
+  // Relations
+  ownedEvents           Event[]     @relation("organizer")
+  ownedTickets          Ticket[]    @relation("owner")
+  transactions          Transaction[]
+  blockchainCaches      BlockchainCache[]
+
+  @@index([email])
+  @@index([walletAddress])
+  @@index([role])
+}
+
+// Event model
+model Event {
+  id                    String      @id @default(cuid())
+  title                 String
+  description           String?
+  category              String?
+  startDate             DateTime
+  endDate               DateTime?
+  location              String?
+  imageUrl              String?
+  maxTickets            Int
+  totalTicketsSold      Int         @default(0)
+  pricePerTicket        Decimal     @db.Decimal(18, 2)
+  status                EventStatus @default(DRAFT)
+  organizerId           String
+  contractAddress       String?     // Smart contract address for NFT
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  // Relations
+  organizer             User        @relation("organizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  tickets               Ticket[]    @relation("event")
+  transactions          Transaction[]
+  blockchainCaches      BlockchainCache[]
+
+  @@index([organizerId])
+  @@index([status])
+  @@index([startDate])
+  @@index([contractAddress])
+}
+
+// Ticket (NFT) model
+model Ticket {
+  id                    String      @id @default(cuid())
+  tokenId               String      @unique  // Smart contract token ID
+  eventId               String
+  ownerId               String
+  price                 Decimal     @db.Decimal(18, 2)
+  status                TicketStatus @default(AVAILABLE)
+  transferredFrom       String?     // Previous owner address
+  transferredDate       DateTime?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  // Relations
+  event                 Event       @relation("event", fields: [eventId], references: [id], onDelete: Cascade)
+  owner                 User        @relation("owner", fields: [ownerId], references: [id], onDelete: Cascade)
+  transactions          Transaction[]
+  blockchainCaches      BlockchainCache[]
+
+  @@index([eventId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([tokenId])
+}
+
+// Transaction model for tracking all blockchain interactions
+model Transaction {
+  id                    String      @id @default(cuid())
+  transactionHash       String      @unique
+  userId                String
+  eventId               String?
+  ticketId              String?
+  transactionType       String      // "MINT", "TRANSFER", "BURN", "PURCHASE"
+  amount                Decimal?    @db.Decimal(18, 2)
+  status                String      // "PENDING", "CONFIRMED", "FAILED"
+  blockNumber           BigInt?
+  gasUsed               BigInt?
+  gasPrice              String?
+  nonce                 Int? //what is this
+  createdAt             DateTime    @default(now())
+  confirmedAt           DateTime?
+
+  // Relations
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event                 Event?      @relation(fields: [eventId], references: [id], onDelete: SetNull) 
+  ticket                Ticket?     @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([ticketId])
+  @@index([transactionHash])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Blockchain Cache model for syncing with blockchain
+model BlockchainCache {
+  id                    String      @id @default(cuid())
+  contractAddress       String
+  eventId               String?
+  ticketId              String?
+  userId                String?
+  blockchainEventType   String      // "Transfer", "Mint", "Burn", etc.
+  blockNumber           BigInt
+  transactionHash       String
+  indexed               Boolean     @default(false) 
+  indexedAt             DateTime?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  data                  Json?       // Store additional blockchain event data
+
+  // Relations
+  event                 Event?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  ticket                Ticket?     @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  user                  User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([transactionHash, blockchainEventType])
+  @@index([contractAddress])
+  @@index([eventId])
+  @@index([ticketId])
+  @@index([userId])
+  @@index([indexed])
+  @@index([blockNumber])
+}
