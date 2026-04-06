@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,8 +10,9 @@ datasource db {
 // User roles enumeration
 enum UserRole {
   ADMIN
-  EVENT_ORGANIZER
+  ORGANIZER
   CUSTOMER
+  SCANNER
 }
 
 // Event status enumeration
@@ -33,9 +31,11 @@ enum TicketStatus {
   TRANSFERRED
   BURNED
   EXPIRED
+  VALID
+  USED
 }
 
-// User model
+// Represents a user in the system
 model User {
   id                    String      @id @default(cuid())
   email                 String      @unique
@@ -43,38 +43,41 @@ model User {
   walletAddress         String      @unique
   firstName             String?
   lastName              String?
+  nickname              String?
   profilePicture        String?
   role                  UserRole    @default(CUSTOMER)
   isVerified            Boolean     @default(false)
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
-  
+
   // Relations
   ownedEvents           Event[]     @relation("organizer")
   ownedTickets          Ticket[]    @relation("owner")
+  checkinLogs           CheckinLog[]
   transactions          Transaction[]
   blockchainCaches      BlockchainCache[]
 
   @@index([email])
   @@index([walletAddress])
   @@index([role])
+  @@index([username])
 }
 
-// Event model
+// Represents an event in the system
 model Event {
   id                    String      @id @default(cuid())
   title                 String
   description           String?
-  category              String?
+  location              String?
   startDate             DateTime
   endDate               DateTime?
-  location              String?
   imageUrl              String?
+  ipfsHash              String?
+  category              String?
+  organizerId           String
   maxTickets            Int
   totalTicketsSold      Int         @default(0)
-  pricePerTicket        Decimal     @db.Decimal(18, 2)
   status                EventStatus @default(DRAFT)
-  organizerId           String
   contractAddress       String?     // Smart contract address for NFT
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
@@ -82,6 +85,9 @@ model Event {
   // Relations
   organizer             User        @relation("organizer", fields: [organizerId], references: [id], onDelete: Cascade)
   tickets               Ticket[]    @relation("event")
+  ticketTypes           TicketType[]  
+  scanners              Scanner[]
+  whitelistedUsers      WhitelistedUser[]
   transactions          Transaction[]
   blockchainCaches      BlockchainCache[]
 
@@ -89,34 +95,59 @@ model Event {
   @@index([status])
   @@index([startDate])
   @@index([contractAddress])
+  @@index([title])
+  @@index([category])
 }
 
-// Ticket (NFT) model
+// Represents a ticket type for an event
+model TicketType {
+  id            String   @id @default(cuid())
+  eventId       String
+  name          String
+  description   String?
+  price         Decimal  @db.Decimal(18, 8)
+  supply        Int
+  sold          Int      @default(0)
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  tickets       Ticket[]
+
+  @@index([eventId])
+  @@index([name])
+}
+
+// Represents a ticket (NFT) in the system
 model Ticket {
   id                    String      @id @default(cuid())
   tokenId               String      @unique  // Smart contract token ID
   eventId               String
-  ownerId               String
-  price                 Decimal     @db.Decimal(18, 2)
+  ticketOwnerId         String
   status                TicketStatus @default(AVAILABLE)
   transferredFrom       String?     // Previous owner address
   transferredDate       DateTime?
+  usedAt                DateTime?
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
 
   // Relations
   event                 Event       @relation("event", fields: [eventId], references: [id], onDelete: Cascade)
-  owner                 User        @relation("owner", fields: [ownerId], references: [id], onDelete: Cascade)
+  ticketOwner           User        @relation("owner", fields: [ticketOwnerId], references: [id], onDelete: Cascade)
+  ticketType            TicketType  
+  checkinLogs           CheckinLog[]
   transactions          Transaction[]
   blockchainCaches      BlockchainCache[]
 
   @@index([eventId])
-  @@index([ownerId])
+  @@index([ticketOwnerId])
   @@index([status])
   @@index([tokenId])
 }
 
-// Transaction model for tracking all blockchain interactions
+// Represents a transaction for blockchain interactions
 model Transaction {
   id                    String      @id @default(cuid())
   transactionHash       String      @unique
@@ -129,7 +160,7 @@ model Transaction {
   blockNumber           BigInt?
   gasUsed               BigInt?
   gasPrice              String?
-  nonce                 Int? //what is this
+  nonce                 Int?
   createdAt             DateTime    @default(now())
   confirmedAt           DateTime?
 
@@ -144,9 +175,10 @@ model Transaction {
   @@index([transactionHash])
   @@index([status])
   @@index([createdAt])
+  @@index([transactionType])
 }
 
-// Blockchain Cache model for syncing with blockchain
+// Represents blockchain cache for syncing with blockchain
 model BlockchainCache {
   id                    String      @id @default(cuid())
   contractAddress       String
@@ -174,4 +206,44 @@ model BlockchainCache {
   @@index([userId])
   @@index([indexed])
   @@index([blockNumber])
+}
+
+// Represents a scanner for event check-ins
+model Scanner {
+  id              String   @id @default(cuid())
+  eventId         String
+  wallet          String
+  syncedToChain   Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, wallet])
+}
+
+// Represents a whitelist for event access
+model WhitelistedUser {
+  id              String   @id @default(cuid())
+  eventId         String
+  wallet          String
+  syncedToChain   Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, wallet])
+}
+
+// Represents a check-in log for tickets
+model CheckinLog {
+  id              String   @id @default(cuid())
+  tokenId         Int
+  scannerWallet   String
+  checkedInAt     DateTime @default(now())
+
+  ticket          Ticket   @relation(fields: [tokenId], references: [tokenId])
+  scanner         User     @relation(fields: [scannerWallet], references: [walletAddress])
+
+  @@index([tokenId])
+  @@index([scannerWallet])
 }
