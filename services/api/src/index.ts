@@ -6,7 +6,7 @@ dotenv.config();
 
 const app: Express = express();
 // default port (3001) is the same as api port in docker-compose.yml
-const port = process.env.PORT || 3001; 
+const port = process.env.API_PORT || 3001; 
 const prisma = new PrismaClient();
 
 app.use(express.json());
