@@ -1,17 +1,17 @@
 -- CreateEnum
-CREATE TYPE "Role" AS ENUM ('ATTENDEE', 'ORGANIZER', 'SCANNER', 'ADMIN');
+CREATE TYPE "Role" AS ENUM ('USER', 'ORGANIZER', 'SCANNER', 'ADMIN');
 
 -- CreateEnum
-CREATE TYPE "EventStatus" AS ENUM ('DRAFT', 'FROZEN', 'PUBLISHED', 'CANCELLED');
+CREATE TYPE "EventStatus" AS ENUM ('DRAFT', 'FROZEN', 'PUBLISHED');
 
 -- CreateEnum
-CREATE TYPE "TicketStatus" AS ENUM ('VALID', 'USED', 'CANCELLED');
+CREATE TYPE "TicketStatus" AS ENUM ('VALID', 'USED');
 
 -- CreateTable
 CREATE TABLE "User" (
     "wallet_address" TEXT NOT NULL,
     "nonce" TEXT,
-    "role" "Role" NOT NULL DEFAULT 'ATTENDEE',
+    "role" "Role" NOT NULL DEFAULT 'USER',
     "email" TEXT,
     "nickname" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -31,7 +31,7 @@ CREATE TABLE "Event" (
     "end_date" TIMESTAMP(3),
     "image_url" TEXT,
     "ipfs_hash" TEXT,
-    "contract_event_id" INTEGER,
+    "contract_event_id" BIGINT,
     "status" "EventStatus" NOT NULL DEFAULT 'DRAFT',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -57,7 +57,7 @@ CREATE TABLE "TicketType" (
 
 -- CreateTable
 CREATE TABLE "Ticket" (
-    "token_id" INTEGER NOT NULL,
+    "token_id" BIGINT NOT NULL,
     "event_id" TEXT NOT NULL,
     "ticket_type_id" TEXT NOT NULL,
     "owner_wallet" TEXT NOT NULL,
@@ -74,6 +74,7 @@ CREATE TABLE "Scanner" (
     "id" TEXT NOT NULL,
     "event_id" TEXT NOT NULL,
     "wallet" TEXT NOT NULL,
+    "assigned_by" TEXT NOT NULL,
     "synced_to_chain" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -85,6 +86,7 @@ CREATE TABLE "Whitelist" (
     "id" TEXT NOT NULL,
     "event_id" TEXT NOT NULL,
     "wallet" TEXT NOT NULL,
+    "added_by" TEXT NOT NULL,
     "synced_to_chain" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -94,7 +96,7 @@ CREATE TABLE "Whitelist" (
 -- CreateTable
 CREATE TABLE "CheckinLog" (
     "id" TEXT NOT NULL,
-    "token_id" INTEGER NOT NULL,
+    "token_id" BIGINT NOT NULL,
     "scanner_wallet" TEXT NOT NULL,
     "checked_in_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
