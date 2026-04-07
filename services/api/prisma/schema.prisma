@@ -7,122 +7,244 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  USER
-  ORGANIZER
-  SCANNER
+// User roles enumeration
+enum UserRole {
   ADMIN
+  ORGANIZER
+  CUSTOMER
+  SCANNER
 }
 
+// Event status enumeration
 enum EventStatus {
   DRAFT
-  FROZEN
   PUBLISHED
+  LIVE
+  COMPLETED
+  CANCELLED
 }
 
+// Ticket status enumeration
 enum TicketStatus {
+  AVAILABLE
+  SOLD
+  TRANSFERRED
+  BURNED
+  EXPIRED
   VALID
   USED
 }
 
+// Represents a user in the system
 model User {
-  wallet_address String   @id
-  nonce          String?
-  role           Role     @default(USER)
-  email          String?  @unique
-  nickname       String?
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  id                    String      @id @default(cuid())
+  email                 String      @unique
+  username              String      @unique
+  walletAddress         String      @unique
+  nonce                 String?
+  firstName             String?
+  lastName              String?
+  nickname              String?
+  profilePicture        String?
+  role                  UserRole    @default(CUSTOMER)
+  isVerified            Boolean     @default(false)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 
-  events         Event[]
-  checkin_logs   CheckinLog[]
+  // Relations
+  ownedEvents           Event[]     @relation("organizer")
+  ownedTickets          Ticket[]    @relation("owner")
+  checkinLogs           CheckinLog[]
+  transactions          Transaction[]
+  blockchainCaches      BlockchainCache[]
+
+  @@index([email])
+  @@index([walletAddress])
+  @@index([role])
+  @@index([username])
 }
 
+// Represents an event in the system
 model Event {
-  id                 String      @id @default(cuid())
-  organizer_wallet   String
-  title              String
-  description        String?
-  location           String?
-  start_date         DateTime
-  end_date           DateTime?
-  image_url          String?
-  ipfs_hash          String?
-  contract_event_id  BigInt?     @unique
-  status             EventStatus @default(DRAFT)
-  created_at         DateTime    @default(now())
-  updated_at         DateTime    @updatedAt
+  id                    String      @id @default(cuid())
+  title                 String
+  description           String?
+  location              String?
+  startDate             DateTime
+  endDate               DateTime?
+  imageUrl              String?
+  ipfsHash              String?
+  category              String?
+  organizerId           String
+  maxTickets            Int
+  totalTicketsSold      Int         @default(0)
+  status                EventStatus @default(DRAFT)
+  contractAddress       String?     // Smart contract address for NFT
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 
-  organizer          User         @relation(fields: [organizer_wallet], references: [wallet_address])
-  ticket_types       TicketType[]
-  tickets            Ticket[]
-  scanners           Scanner[]
-  whitelist          Whitelist[]
+  // Relations
+  organizer             User        @relation("organizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  tickets               Ticket[]    @relation("event")
+  ticketTypes           TicketType[]  
+  scanners              Scanner[]
+  whitelistedUsers      WhitelistedUser[]
+  transactions          Transaction[]
+  blockchainCaches      BlockchainCache[]
+
+  @@index([organizerId])
+  @@index([status])
+  @@index([startDate])
+  @@index([contractAddress])
+  @@index([title])
+  @@index([category])
 }
 
+// Represents a ticket type for an event
 model TicketType {
   id            String   @id @default(cuid())
-  event_id      String
+  eventId       String
   name          String
   description   String?
   price         Decimal  @db.Decimal(18, 8)
   supply        Int
   sold          Int      @default(0)
   metadata      Json?
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  event         Event    @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  // Relations
+  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   tickets       Ticket[]
+
+  @@index([eventId])
+  @@index([name])
 }
 
+// Represents a ticket (NFT) in the system
 model Ticket {
-  token_id       BigInt       @id
-  event_id       String
-  ticket_type_id String
-  owner_wallet   String
-  status         TicketStatus @default(VALID)
-  used_at        DateTime?
-  minted_at      DateTime     @default(now())
-  updated_at     DateTime     @updatedAt
+  id                    String      @id @default(cuid())
+  tokenId               String      @unique  // Smart contract token ID
+  eventId               String
+  ticketOwnerId         String
+  status                TicketStatus @default(AVAILABLE)
+  transferredFrom       String?     // Previous owner address
+  transferredDate       DateTime?
+  usedAt                DateTime?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 
-  event          Event        @relation(fields: [event_id], references: [id])
-  ticket_type    TicketType   @relation(fields: [ticket_type_id], references: [id])
-  checkin_logs   CheckinLog[]
+  // Relations
+  event                 Event       @relation("event", fields: [eventId], references: [id], onDelete: Cascade)
+  ticketOwner           User        @relation("owner", fields: [ticketOwnerId], references: [id], onDelete: Cascade)
+  ticketType            TicketType  
+  checkinLogs           CheckinLog[]
+  transactions          Transaction[]
+  blockchainCaches      BlockchainCache[]
+
+  @@index([eventId])
+  @@index([ticketOwnerId])
+  @@index([status])
+  @@index([tokenId])
 }
 
+// Represents a transaction for blockchain interactions
+model Transaction {
+  id                    String      @id @default(cuid())
+  transactionHash       String      @unique
+  userId                String
+  eventId               String?
+  ticketId              String?
+  transactionType       String      // "MINT", "TRANSFER", "BURN", "PURCHASE"
+  amount                Decimal?    @db.Decimal(18, 2)
+  status                String      // "PENDING", "CONFIRMED", "FAILED"
+  blockNumber           BigInt?
+  gasUsed               BigInt?
+  gasPrice              String?
+  nonce                 Int?
+  createdAt             DateTime    @default(now())
+  confirmedAt           DateTime?
+
+  // Relations
+  user                  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event                 Event?      @relation(fields: [eventId], references: [id], onDelete: SetNull) 
+  ticket                Ticket?     @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([ticketId])
+  @@index([transactionHash])
+  @@index([status])
+  @@index([createdAt])
+  @@index([transactionType])
+}
+
+// Represents blockchain cache for syncing with blockchain
+model BlockchainCache {
+  id                    String      @id @default(cuid())
+  contractAddress       String
+  eventId               String?
+  ticketId              String?
+  userId                String?
+  blockchainEventType   String      // "Transfer", "Mint", "Burn", etc.
+  blockNumber           BigInt
+  transactionHash       String
+  indexed               Boolean     @default(false) 
+  indexedAt             DateTime?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  data                  Json?       // Store additional blockchain event data
+
+  // Relations
+  event                 Event?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  ticket                Ticket?     @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  user                  User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([transactionHash, blockchainEventType])
+  @@index([contractAddress])
+  @@index([eventId])
+  @@index([ticketId])
+  @@index([userId])
+  @@index([indexed])
+  @@index([blockNumber])
+}
+
+// Represents a scanner for event check-ins
 model Scanner {
   id              String   @id @default(cuid())
-  event_id        String
+  eventId         String
   wallet          String
-  assigned_by     String
-  synced_to_chain Boolean  @default(false)
-  created_at      DateTime @default(now())
+  syncedToChain   Boolean  @default(false)
+  createdAt       DateTime @default(now())
 
-  event           Event    @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  @@unique([event_id, wallet])
+  @@unique([eventId, wallet])
 }
 
-model Whitelist {
+// Represents a whitelist for event access
+model WhitelistedUser {
   id              String   @id @default(cuid())
-  event_id        String
+  eventId         String
   wallet          String
-  added_by        String
-  synced_to_chain Boolean  @default(false)
-  created_at      DateTime @default(now())
+  syncedToChain   Boolean  @default(false)
+  createdAt       DateTime @default(now())
 
-  event           Event    @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  @@unique([event_id, wallet])
+  @@unique([eventId, wallet])
 }
 
+// Represents a check-in log for tickets
 model CheckinLog {
   id              String   @id @default(cuid())
-  token_id        BigInt
-  scanner_wallet  String
-  checked_in_at   DateTime @default(now())
+  tokenId         Int
+  scannerWallet   String
+  checkedInAt     DateTime @default(now())
 
-  ticket          Ticket   @relation(fields: [token_id], references: [token_id])
-  scanner         User     @relation(fields: [scanner_wallet], references: [wallet_address])
+  ticket          Ticket   @relation(fields: [tokenId], references: [tokenId])
+  scanner         User     @relation(fields: [scannerWallet], references: [walletAddress])
+
+  @@index([tokenId])
+  @@index([scannerWallet])
 }
