@@ -41,7 +41,7 @@ model User {
   email                 String      @unique
   username              String      @unique
   walletAddress         String      @unique
-  nonce                 String?     @unique
+  nonce                 String?
   firstName             String?
   lastName              String?
   nickname              String?
