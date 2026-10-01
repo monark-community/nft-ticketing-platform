@@ -24,5 +24,5 @@ EXPOSE 3001
 
 ENTRYPOINT ["/usr/sbin/dumb-init", "--"]
 
-# Run the API dev script defined in package.json
-CMD ["npm", "run", "dev"]
+# Apply committed migrations before starting the API.
+CMD ["sh", "-c", "npm run db:migrate:deploy && npm run dev"]
