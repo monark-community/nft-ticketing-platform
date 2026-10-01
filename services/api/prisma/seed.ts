@@ -1,122 +1,112 @@
-import { PrismaClient } from '@prisma/client';
-
-// Centralized seed data
-const seedData = {
-  users: [
-    {
-      email: 'admin@nfttickets.local',
-      username: 'admin',
-      walletAddress: '0xAdminWalletAddress1234567890123456789012',
-      firstName: 'Admin',
-      lastName: 'User',
-      role: 'ADMIN',
-      isVerified: true,
-    },
-    {
-      email: 'organizer1@nfttickets.local',
-      username: 'organizer1',
-      walletAddress: '0xOrganizer1Address1234567890123456789012',
-      firstName: 'John',
-      lastName: 'Organizer',
-      role: 'EVENT_ORGANIZER',
-      isVerified: true,
-    },
-    {
-      email: 'organizer2@nfttickets.local',
-      username: 'organizer2',
-      walletAddress: '0xOrganizer2Address1234567890123456789012',
-      firstName: 'Jane',
-      lastName: 'Organizer',
-      role: 'EVENT_ORGANIZER',
-      isVerified: true,
-    },
-    {
-      email: 'customer1@nfttickets.local',
-      username: 'customer1',
-      walletAddress: '0xCustomer1Address1234567890123456789012',
-      firstName: 'Alice',
-      lastName: 'Customer',
-      role: 'CUSTOMER',
-      isVerified: true,
-    },
-    {
-      email: 'customer2@nfttickets.local',
-      username: 'customer2',
-      walletAddress: '0xCustomer2Address1234567890123456789012',
-      firstName: 'Bob',
-      lastName: 'Customer',
-      role: 'CUSTOMER',
-      isVerified: true,
-    },
-  ],
-  events: [
-    {
-      id: 'event-1',
-      title: 'Crypto Concert 2024',
-      description: 'A live concert celebrating cryptocurrency and blockchain technology',
-      category: 'Concert',
-      startDate: new Date('2024-06-15T20:00:00Z'),
-      endDate: new Date('2024-06-15T23:00:00Z'),
-      location: 'San Francisco, CA',
-      maxTickets: 1000,
-      pricePerTicket: '99.99',
-      status: 'PUBLISHED',
-      contractAddress: '0x1234567890123456789012345678901234567890',
-    },
-    {
-      id: 'event-2',
-      title: 'NFT Art Expo 2024',
-      description: 'Premier digital art exhibition featuring NFT artists',
-      category: 'Exhibition',
-      startDate: new Date('2024-07-01T10:00:00Z'),
-      endDate: new Date('2024-07-05T18:00:00Z'),
-      location: 'New York, NY',
-      maxTickets: 500,
-      pricePerTicket: '149.99',
-      status: 'PUBLISHED',
-      contractAddress: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
-    },
-  ],
-};
+import { EventStatus, PrismaClient, Role } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+const users = [
+	{
+		wallet_address: "0x0000000000000000000000000000000000000001",
+		email: "admin@nfttickets.local",
+		first_name: "Admin",
+		last_name: "User",
+		role: Role.ADMIN,
+	},
+	{
+		wallet_address: "0x0000000000000000000000000000000000000002",
+		email: "organizer@nfttickets.local",
+		first_name: "John",
+		last_name: "Organizer",
+		role: Role.ORGANIZER,
+	},
+	{
+		wallet_address: "0x0000000000000000000000000000000000000003",
+		email: "user@nfttickets.local",
+		first_name: "Alice",
+		last_name: "User",
+		role: Role.USER,
+	},
+];
+
+const events = [
+	{
+		id: "event-1",
+		organizer_wallet: users[1].wallet_address,
+		title: "Crypto Concert 2026",
+		description: "A live concert celebrating blockchain technology.",
+		location: "San Francisco, CA",
+		category: "Concert",
+		start_date: new Date("2026-11-15T20:00:00Z"),
+		end_date: new Date("2026-11-15T23:00:00Z"),
+		contract_event_id: 1n,
+		status: EventStatus.PUBLISHED,
+	},
+	{
+		id: "event-2",
+		organizer_wallet: users[1].wallet_address,
+		title: "NFT Art Expo 2026",
+		description: "A digital art exhibition featuring NFT artists.",
+		location: "New York, NY",
+		category: "Exhibition",
+		start_date: new Date("2026-12-01T10:00:00Z"),
+		end_date: new Date("2026-12-05T18:00:00Z"),
+		contract_event_id: 2n,
+		status: EventStatus.PUBLISHED,
+	},
+];
+
+const ticketTypes = [
+	{
+		id: "ticket-type-1",
+		event_id: "event-1",
+		name: "General Admission",
+		description: "Standard event access.",
+		price: "99.99",
+		supply: 1000,
+	},
+	{
+		id: "ticket-type-2",
+		event_id: "event-2",
+		name: "General Admission",
+		description: "Standard exhibition access.",
+		price: "149.99",
+		supply: 500,
+	},
+];
+
 async function main() {
-  console.log('Starting database seed...');
+	console.log("Starting database seed...");
 
-  // Seed users
-  for (const user of seedData.users) {
-    const createdUser = await prisma.user.upsert({
-      where: { email: user.email },
-      update: {},
-      create: user,
-    });
-    console.log('Created user:', { email: createdUser.email, role: createdUser.role });
-  }
+	for (const user of users) {
+		await prisma.user.upsert({
+			where: { wallet_address: user.wallet_address },
+			update: user,
+			create: user,
+		});
+	}
 
-  // Seed events
-  for (const event of seedData.events) {
-    if (!event.contractAddress) {
-      console.error(`Contract address is missing for event: ${event.id}`);
-      continue;
-    }
+	for (const event of events) {
+		await prisma.event.upsert({
+			where: { id: event.id },
+			update: event,
+			create: event,
+		});
+	}
 
-    const createdEvent = await prisma.event.upsert({
-      where: { id: event.id },
-      update: {},
-      create: event,
-    });
-    console.log('Created event:', { id: createdEvent.id, title: createdEvent.title });
-  }
+	for (const ticketType of ticketTypes) {
+		await prisma.ticketType.upsert({
+			where: { id: ticketType.id },
+			update: ticketType,
+			create: ticketType,
+		});
+	}
 
-  console.log('Database seed completed successfully!');
+	console.log("Database seed completed successfully.");
 }
 
 main()
-  .catch((e) => {
-    console.error('Seed error:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+	.catch((error) => {
+		console.error("Seed error:", error);
+		process.exit(1);
+	})
+	.finally(async () => {
+		await prisma.$disconnect();
+	});
