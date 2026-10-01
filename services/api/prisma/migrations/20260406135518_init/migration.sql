@@ -2,15 +2,17 @@
 CREATE TYPE "Role" AS ENUM ('USER', 'ORGANIZER', 'SCANNER', 'ADMIN');
 
 -- CreateEnum
-CREATE TYPE "EventStatus" AS ENUM ('DRAFT', 'FROZEN', 'PUBLISHED');
+CREATE TYPE "EventStatus" AS ENUM ('DRAFT', 'FROZEN', 'PUBLISHED', 'LIVE', 'ENDED');
 
 -- CreateEnum
-CREATE TYPE "TicketStatus" AS ENUM ('VALID', 'USED');
+CREATE TYPE "TicketStatus" AS ENUM ('VALID', 'USED', 'AVAILABLE');
 
 -- CreateTable
 CREATE TABLE "User" (
     "wallet_address" TEXT NOT NULL,
     "nonce" TEXT,
+    "first_name" TEXT,
+    "last_name" TEXT,
     "role" "Role" NOT NULL DEFAULT 'USER',
     "email" TEXT,
     "nickname" TEXT,
@@ -27,6 +29,7 @@ CREATE TABLE "Event" (
     "title" TEXT NOT NULL,
     "description" TEXT,
     "location" TEXT,
+    "category" TEXT,
     "start_date" TIMESTAMP(3) NOT NULL,
     "end_date" TIMESTAMP(3),
     "image_url" TEXT,
@@ -110,6 +113,9 @@ CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 CREATE UNIQUE INDEX "Event_contract_event_id_key" ON "Event"("contract_event_id");
 
 -- CreateIndex
+CREATE INDEX "Event_category_idx" ON "Event"("category");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Scanner_event_id_wallet_key" ON "Scanner"("event_id", "wallet");
 
 -- CreateIndex
@@ -138,3 +144,4 @@ ALTER TABLE "CheckinLog" ADD CONSTRAINT "CheckinLog_token_id_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "CheckinLog" ADD CONSTRAINT "CheckinLog_scanner_wallet_fkey" FOREIGN KEY ("scanner_wallet") REFERENCES "User"("wallet_address") ON DELETE RESTRICT ON UPDATE CASCADE;
+
