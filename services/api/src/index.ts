@@ -61,45 +61,6 @@ app.get("/db-health", async (_req: Request, res: Response) => {
 	}
 });
 
-// Get all events
-app.get("/api/events", async (_req: Request, res: Response) => {
-	try {
-		const events = await prisma.event.findMany({
-			include: {
-				organizer: true,
-			},
-		});
-		res.json(events);
-	} catch (error) {
-		res.status(500).json({ error: String(error) });
-	}
-});
-
-// Get all users
-app.get("/api/users", async (_req: Request, res: Response) => {
-	try {
-		const users = await prisma.user.findMany();
-		res.json(users);
-	} catch (error) {
-		res.status(500).json({ error: String(error) });
-	}
-});
-
-// Get all tickets
-app.get("/api/tickets", async (_req: Request, res: Response) => {
-	try {
-		const tickets = await prisma.ticket.findMany({
-			include: {
-				event: true,
-				ticket_type: true,
-			},
-		});
-		res.json(tickets);
-	} catch (error) {
-		res.status(500).json({ error: String(error) });
-	}
-});
-
 // All API routes
 app.use("/api", routes);
 

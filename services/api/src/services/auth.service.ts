@@ -55,6 +55,6 @@ export function issueJWT(wallet_address: string, role: string): string {
   return jwt.sign(
     { wallet_address, role },
     process.env.JWT_SECRET as string,
-    { expiresIn: process.env.JWT_EXPIRES_IN ?? '1h' }
+    { expiresIn: (process.env.JWT_EXPIRES_IN ?? '1h') as jwt.SignOptions['expiresIn'] }
   );
 }
