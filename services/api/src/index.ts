@@ -1,305 +1,133 @@
-import express, { Express, Request, Response, NextFunction } from 'express';
-
-import helmet from 'helmet';
-
-import cors from 'cors';
-
-import cookieParser from 'cookie-parser';
-
-import dotenv from 'dotenv';
-
-import { PrismaClient } from '@prisma/client';
-
-import routes from './routes';
-
-  
+import express, { Express, Request, Response, NextFunction } from "express";
+import helmet from "helmet";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import dotenv from "dotenv";
+import { PrismaClient } from "@prisma/client";
+import routes from "./routes";
+import { startBlockchainListener } from "./workers/blockchain.listener";
 
 dotenv.config();
 
-  
-
 const app: Express = express();
-
 const PORT = process.env.API_PORT || 3001;
-
 const prisma = new PrismaClient();
 
-  
-
-// Security headers
-
-app.use(helmet());
-
-  
-
-// CORS — allow frontend origin with credentials (cookies)
-
-app.use(
-
-  cors({
-
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-
-    credentials: true,
-
-  })
-
+app.set("json replacer", (_key: string, value: unknown) =>
+	typeof value === "bigint" ? value.toString() : value,
 );
 
-  
+// Security headers
+app.use(helmet());
+
+// CORS — allow frontend origin with credentials (cookies)
+app.use(
+	cors({
+		origin: process.env.FRONTEND_URL || "http://localhost:3000",
+		credentials: true,
+	}),
+);
 
 // Body parsing
-
 app.use(express.json());
-
 app.use(express.urlencoded({ extended: true }));
-
 app.use(cookieParser());
 
-  
-
 // Health check endpoint
-
-app.get('/health', (_req: Request, res: Response) => {
-
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-
+app.get("/health", (_req: Request, res: Response) => {
+	res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
-
-  
 
 // Database health check endpoint
+app.get("/db-health", async (_req: Request, res: Response) => {
+	try {
+		await prisma.$queryRaw`SELECT 1`;
 
-app.get('/db-health', async (_req: Request, res: Response) => {
+		res.json({
+			status: "ok",
 
-  try {
+			message: "Database connection is healthy",
 
-    await prisma.$queryRaw`SELECT 1`;
+			timestamp: new Date().toISOString(),
+		});
+	} catch (error) {
+		res.status(500).json({
+			status: "error",
 
-    res.json({
+			message: "Database connection failed",
 
-      status: 'ok',
-
-      message: 'Database connection is healthy',
-
-      timestamp: new Date().toISOString(),
-
-    });
-
-  } catch (error) {
-
-    res.status(500).json({
-
-      status: 'error',
-
-      message: 'Database connection failed',
-
-      error: String(error),
-
-    });
-
-  }
-
+			error: String(error),
+		});
+	}
 });
-
-  
 
 // Get all events
-
-app.get('/api/events', async (_req: Request, res: Response) => {
-
-  try {
-
-    const events = await prisma.event.findMany({
-
-      include: {
-
-        organizer: true,
-
-      },
-
-    });
-
-    res.json(events);
-
-  } catch (error) {
-
-    res.status(500).json({ error: String(error) });
-
-  }
-
+app.get("/api/events", async (_req: Request, res: Response) => {
+	try {
+		const events = await prisma.event.findMany({
+			include: {
+				organizer: true,
+			},
+		});
+		res.json(events);
+	} catch (error) {
+		res.status(500).json({ error: String(error) });
+	}
 });
-
-  
 
 // Get all users
-
-app.get('/api/users', async (_req: Request, res: Response) => {
-
-  try {
-
-    const users = await prisma.user.findMany();
-
-    res.json(users);
-
-  } catch (error) {
-
-    res.status(500).json({ error: String(error) });
-
-  }
-
+app.get("/api/users", async (_req: Request, res: Response) => {
+	try {
+		const users = await prisma.user.findMany();
+		res.json(users);
+	} catch (error) {
+		res.status(500).json({ error: String(error) });
+	}
 });
-
-  
 
 // Get all tickets
-
-app.get('/api/tickets', async (_req: Request, res: Response) => {
-
-  try {
-
-    const tickets = await prisma.ticket.findMany({
-
-      include: {
-
-        event: true,
-
-        owner: true,
-
-      },
-
-    });
-
-    res.json(tickets);
-
-  } catch (error) {
-
-    res.status(500).json({ error: String(error) });
-
-  }
-
+app.get("/api/tickets", async (_req: Request, res: Response) => {
+	try {
+		const tickets = await prisma.ticket.findMany({
+			include: {
+				event: true,
+				ticket_type: true,
+			},
+		});
+		res.json(tickets);
+	} catch (error) {
+		res.status(500).json({ error: String(error) });
+	}
 });
-
-  
-
-// Get all transactions
-
-app.get('/api/transactions', async (_req: Request, res: Response) => {
-
-  try {
-
-    const transactions = await prisma.transaction.findMany({
-
-      include: {
-
-        user: true,
-
-        event: true,
-
-        ticket: true,
-
-      },
-
-    });
-
-    res.json(transactions);
-
-  } catch (error) {
-
-    res.status(500).json({ error: String(error) });
-
-  }
-
-});
-
-  
-
-// Get blockchain cache
-
-app.get('/api/blockchain-cache', async (_req: Request, res: Response) => {
-
-  try {
-
-    const cache = await prisma.blockchainCache.findMany({
-
-      include: {
-
-        event: true,
-
-        ticket: true,
-
-        user: true,
-
-      },
-
-    });
-
-    res.json(cache);
-
-  } catch (error) {
-
-    res.status(500).json({ error: String(error) });
-
-  }
-
-});
-
-  
 
 // All API routes
-
-app.use('/api', routes);
-
-  
+app.use("/api", routes);
 
 // 404 handler
-
 app.use((_req, res) => {
-
-  res.status(404).json({ error: 'Not found' });
-
+	res.status(404).json({ error: "Not found" });
 });
-
-  
 
 // Global error handler
-
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+	console.error(err.stack);
 
-  console.error(err.stack);
-
-  res.status(500).json({ error: 'Internal server error' });
-
+	res.status(500).json({ error: "Internal server error" });
 });
-
-  
 
 // Start server
-
 app.listen(PORT, () => {
-
-  console.log(`NFTicketPass API running on port ${PORT}`);
-
-  console.log(`Health check: http://localhost:${PORT}/health`);
-
-  console.log(`Database health: http://localhost:${PORT}/db-health`);
-
-startBlockchainListener();
-
+	console.log(`NFTicketPass API running on port ${PORT}`);
+	console.log(`Health check: http://localhost:${PORT}/health`);
+	console.log(`Database health: http://localhost:${PORT}/db-health`);
+	startBlockchainListener();
 });
-
-  
 
 // Graceful shutdown
 
-process.on('SIGINT', async () => {
-
-  await prisma.$disconnect();
-
-  process.exit(0);
-
+process.on("SIGINT", async () => {
+	await prisma.$disconnect();
+	process.exit(0);
 });
-
-  
 
 export default app;

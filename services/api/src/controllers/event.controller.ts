@@ -117,8 +117,20 @@ export async function postPublishEvent(req: Request, res: Response): Promise<voi
     return;
   }
 
+  let contractEventId: bigint;
   try {
-    const result = await publishEvent(req.params.id, req.user!.wallet_address, contract_event_id);
+    contractEventId = BigInt(contract_event_id);
+  } catch {
+    res.status(400).json({ error: 'contract_event_id must be an integer' });
+    return;
+  }
+  if (contractEventId < 0n) {
+    res.status(400).json({ error: 'contract_event_id must be non-negative' });
+    return;
+  }
+
+  try {
+    const result = await publishEvent(req.params.id, req.user!.wallet_address, contractEventId);
 
     if (result === null) { res.status(404).json({ error: 'Event not found' }); return; }
     if (result === 'forbidden') { res.status(403).json({ error: 'Not your event' }); return; }
