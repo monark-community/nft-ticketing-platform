@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID } from "node:crypto";
 import { EventStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 
