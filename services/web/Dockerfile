@@ -15,14 +15,17 @@ RUN npm install
 COPY . .
 
 # Create a non-root user to run the application
+# (mkdir .next so the /app/.next dev volume inherits nodejs ownership)
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+    adduser -S nodejs -u 1001 && \
+    mkdir -p /app/.next && \
+    chown -R nodejs:nodejs /app
 
 USER nodejs
 
 EXPOSE 3000
 
-ENTRYPOINT ["/usr/sbin/dumb-init", "--"]
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 
 # Start Next.js development server
 CMD ["npm", "run", "dev"]

@@ -49,6 +49,9 @@ services:
       context: ./services/web
       dockerfile: Dockerfile
     container_name: nft-ticketing-web
+    # Dev server runs with a bind mount (host-owned files), so run as root here.
+    # The image default stays non-root.
+    user: root
     environment:
       NODE_ENV: development
       PORT: ${WEB_PORT:-3000}
@@ -57,6 +60,7 @@ services:
     volumes:
       - ./services/web:/app
       - /app/node_modules
+      - /app/.next
     networks:
       - nft-network
 
