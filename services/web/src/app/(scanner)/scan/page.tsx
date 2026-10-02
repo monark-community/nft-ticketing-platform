@@ -1,14 +1,15 @@
 "use client";
 
+import { Navbar } from "@/components/Navbar";
+import { Input } from "@/components/ui/input";
+import { ConnectWalletButton } from "@/components/WalletConnectButton";
+import { useCheckInTicket } from "@/hooks/useCheckInTicket";
+import { TICKET_NFT_ADDRESS } from "@/lib/contracts/ticket-nft";
+import { verifyTicketQR, type TicketVerification } from "@/lib/verify-ticket";
+import type { IDetectedBarcode } from "@yudiel/react-qr-scanner";
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useAccount, useChainId, usePublicClient } from "wagmi";
-import type { IDetectedBarcode } from "@yudiel/react-qr-scanner";
-import { Navbar } from "@/components/Navbar";
-import { ConnectWalletButton } from "@/components/WalletConnectButton";
-import { Input } from "@/components/ui/input";
-import { TICKET_NFT_ADDRESS } from "@/lib/contracts/ticket-nft";
-import { verifyTicketQR, type TicketVerification } from "@/lib/verify-ticket";
 
 // The camera only exists in the browser, so skip server rendering for the scanner
 const Scanner = dynamic(
@@ -25,6 +26,7 @@ export default function ScanPage() {
   const [verifying, setVerifying] = useState(false);
   const [result, setResult] = useState<TicketVerification | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const checkIn = useCheckInTicket();
 
   const eventIdValid = /^\d+$/.test(eventIdInput);
   const scannerReady = isConnected && eventIdValid && !!TICKET_NFT_ADDRESS;
@@ -47,6 +49,7 @@ export default function ScanPage() {
 
   function scanNext() {
     setResult(null);
+    checkIn.reset();
   }
 
   return (
@@ -72,6 +75,7 @@ export default function ScanPage() {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                 setEventIdInput(e.target.value.trim());
                 setResult(null);
+                checkIn.reset();
               }}
             />
             {!isConnected && (
@@ -118,7 +122,7 @@ export default function ScanPage() {
               }`}
             >
               <p className={`text-lg font-bold ${result.ok ? "text-green-700" : "text-red-700"}`}>
-                {result.ok ? "✅ Ticket verified" : "❌ Ticket rejected"}
+                {result.ok ? "Ticket verified" : "Ticket rejected"}
               </p>
               {result.reason && <p className="text-sm text-red-700 mt-1">{result.reason}</p>}
               {result.qr && (
@@ -127,9 +131,35 @@ export default function ScanPage() {
                   {result.eventId !== undefined && ` · Event #${result.eventId}`}
                 </p>
               )}
+
+              {/* Check-in (#57): only offered once the ticket is verified */}
+              {result.ok && result.qr && checkIn.status !== "success" && (
+                <button
+                  onClick={() => checkIn.checkIn(BigInt(result.qr!.tokenId))}
+                  disabled={checkIn.isPending}
+                  className="mt-4 w-full bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2 rounded-lg"
+                >
+                  {checkIn.isPending ? "Checking in... confirm in your wallet" : "Check in ticket"}
+                </button>
+              )}
+              {checkIn.status === "success" && (
+                <div className="mt-4 rounded-md bg-green-100 border border-green-300 p-3">
+                  <p className="text-sm font-bold text-green-800">Checked in</p>
+                  {checkIn.txHash && (
+                    <p className="text-xs text-green-700 font-mono mt-1 break-all">
+                      TxID: {checkIn.txHash}
+                    </p>
+                  )}
+                </div>
+              )}
+              {checkIn.status === "error" && checkIn.error && (
+                <p className="mt-3 text-sm text-red-700">{checkIn.error}</p>
+              )}
+
               <button
                 onClick={scanNext}
-                className="mt-4 w-full bg-[#3a7bd5] hover:bg-[#2d63b0] text-white font-semibold py-2 rounded-lg"
+                disabled={checkIn.isPending}
+                className="mt-3 w-full bg-[#3a7bd5] hover:bg-[#2d63b0] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2 rounded-lg"
               >
                 Scan next ticket
               </button>
