@@ -16,7 +16,7 @@ export function Navbar() {
         <div className="w-8 h-8 bg-white/20 rounded flex items-center justify-center text-white text-sm font-bold">
           🎟
         </div>
-        <span className="text-white font-bold text-lg tracking-wide">SMARTPASS</span>
+        <span className="text-white font-bold text-lg tracking-wide">NFTOKENPASS</span>
       </div>
       <div className="flex items-center gap-8">
         <a href="#" className="text-white text-sm font-medium hover:underline">Event Listing</a>
