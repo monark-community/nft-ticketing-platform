@@ -1,7 +1,6 @@
 // Shared format for ticket QR codes. Used by My Tickets (generate) and the scanner (verify).
-// Spec: issue #54.
 
-export const QR_MAX_AGE_SECONDS = 60; // the attendee re-signs to refresh after this
+export const QR_MAX_AGE_SECONDS = 60; // the attendee re-signs to refresh after 60 sec
 
 export interface TicketQRData {
   tokenId: string;
@@ -27,7 +26,10 @@ export function buildCheckInMessage(data: TicketQRData): string {
   );
 }
 
-export function encodeTicketQR(data: TicketQRData, signature: `0x${string}`): string {
+export function encodeTicketQR(
+  data: TicketQRData,
+  signature: `0x${string}`,
+): string {
   const payload: SignedTicketQR = { ...data, signature };
   return JSON.stringify(payload);
 }
@@ -52,6 +54,9 @@ export function decodeTicketQR(raw: string): SignedTicketQR | null {
   }
 }
 
-export function isQRExpired(timestamp: number, nowSeconds = Math.floor(Date.now() / 1000)): boolean {
+export function isQRExpired(
+  timestamp: number,
+  nowSeconds = Math.floor(Date.now() / 1000),
+): boolean {
   return nowSeconds - timestamp > QR_MAX_AGE_SECONDS;
 }
