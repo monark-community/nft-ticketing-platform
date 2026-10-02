@@ -35,7 +35,7 @@ export async function getEvent(req: Request, res: Response): Promise<void> {
 }
 
 export async function postEvent(req: Request, res: Response): Promise<void> {
-  const { title, description, location, start_date, end_date, image_url } = req.body;
+  const { title, description, location, category, start_date, end_date, image_url } = req.body;
 
   if (!title || !start_date) {
     res.status(400).json({ error: 'title and start_date are required' });
@@ -47,6 +47,7 @@ export async function postEvent(req: Request, res: Response): Promise<void> {
       title,
       description,
       location,
+      category,
       start_date,
       end_date,
       image_url,

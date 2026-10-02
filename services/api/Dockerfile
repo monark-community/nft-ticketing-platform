@@ -14,6 +14,9 @@ RUN npm install
 # Copy source code
 COPY . .
 
+# Generate Prisma Client for the image's platform (ignores host node_modules via .dockerignore)
+RUN npx prisma generate
+
 # Create a non-root user to run the application
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001

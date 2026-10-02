@@ -2,7 +2,7 @@
 CREATE TYPE "Role" AS ENUM ('USER', 'ORGANIZER', 'SCANNER', 'ADMIN');
 
 -- CreateEnum
-CREATE TYPE "EventStatus" AS ENUM ('DRAFT', 'FROZEN', 'PUBLISHED', 'LIVE', 'ENDED');
+CREATE TYPE "EventStatus" AS ENUM ('DRAFT', 'FROZEN', 'PUBLISHED');
 
 -- CreateEnum
 CREATE TYPE "TicketStatus" AS ENUM ('VALID', 'USED', 'AVAILABLE');
