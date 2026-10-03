@@ -1,6 +1,7 @@
 "use client";
 
 import { Navbar } from "@/components/Navbar";
+import { ScanResult } from "@/components/ScanResult";
 import { Input } from "@/components/ui/input";
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
 import { useCheckInTicket } from "@/hooks/useCheckInTicket";
@@ -93,7 +94,7 @@ export default function ScanPage() {
 
           {/* Camera */}
           {scannerReady && (
-            <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+            <div className={`bg-white border border-gray-200 rounded-lg p-3 shadow-sm ${result ? "hidden" : ""}`}>
               <div className="rounded-md overflow-hidden aspect-square bg-black">
                 <Scanner
                   onScan={handleScan}
@@ -104,7 +105,7 @@ export default function ScanPage() {
                 />
               </div>
               <p className="text-xs text-gray-400 text-center mt-2">
-                {verifying ? "Verifying ticket…" : result ? "Scanner paused" : "Point the camera at the attendee's QR code"}
+                {verifying ? "Verifying ticket..." : "Point the camera at the attendee's QR code"}
               </p>
               {cameraError && (
                 <p className="text-sm text-red-600 text-center mt-2">
@@ -114,56 +115,16 @@ export default function ScanPage() {
             </div>
           )}
 
-          {/* Result (simple for now; full result screen comes in #58) */}
+          {/* Result (#58) */}
           {result && (
-            <div
-              className={`rounded-lg p-5 border shadow-sm ${
-                result.ok ? "bg-green-50 border-green-300" : "bg-red-50 border-red-300"
-              }`}
-            >
-              <p className={`text-lg font-bold ${result.ok ? "text-green-700" : "text-red-700"}`}>
-                {result.ok ? "Ticket verified" : "Ticket rejected"}
-              </p>
-              {result.reason && <p className="text-sm text-red-700 mt-1">{result.reason}</p>}
-              {result.qr && (
-                <p className="text-xs text-gray-600 mt-2">
-                  Ticket #{result.qr.tokenId}
-                  {result.eventId !== undefined && ` · Event #${result.eventId}`}
-                </p>
-              )}
-
-              {/* Check-in (#57): only offered once the ticket is verified */}
-              {result.ok && result.qr && checkIn.status !== "success" && (
-                <button
-                  onClick={() => checkIn.checkIn(BigInt(result.qr!.tokenId))}
-                  disabled={checkIn.isPending}
-                  className="mt-4 w-full bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2 rounded-lg"
-                >
-                  {checkIn.isPending ? "Checking in... confirm in your wallet" : "Check in ticket"}
-                </button>
-              )}
-              {checkIn.status === "success" && (
-                <div className="mt-4 rounded-md bg-green-100 border border-green-300 p-3">
-                  <p className="text-sm font-bold text-green-800">Checked in</p>
-                  {checkIn.txHash && (
-                    <p className="text-xs text-green-700 font-mono mt-1 break-all">
-                      TxID: {checkIn.txHash}
-                    </p>
-                  )}
-                </div>
-              )}
-              {checkIn.status === "error" && checkIn.error && (
-                <p className="mt-3 text-sm text-red-700">{checkIn.error}</p>
-              )}
-
-              <button
-                onClick={scanNext}
-                disabled={checkIn.isPending}
-                className="mt-3 w-full bg-[#3a7bd5] hover:bg-[#2d63b0] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2 rounded-lg"
-              >
-                Scan next ticket
-              </button>
-            </div>
+            <ScanResult
+              result={result}
+              checkInStatus={checkIn.status}
+              checkInError={checkIn.error}
+              txHash={checkIn.txHash}
+              onCheckIn={() => result.qr && checkIn.checkIn(BigInt(result.qr.tokenId))}
+              onScanNext={scanNext}
+            />
           )}
         </div>
       </div>
