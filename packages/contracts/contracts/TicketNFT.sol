@@ -20,6 +20,7 @@ contract TicketNFT is
     ReentrancyGuardUpgradeable
 {
     // State variables
+    // Upgradeable contract: only ADD new variables at the end; never reorder or remove (see UPGRADES.md).
     uint256 private tokenIdCounter;
     mapping(uint256 => bool) public isUsed;
     mapping(uint256 => mapping(address => bool)) private _whitelist;
@@ -31,6 +32,7 @@ contract TicketNFT is
     mapping(uint256 => address) public eventOrganizer;
     mapping(uint256 => mapping(address => bool)) public eventScanners;
     address public usdcToken;
+    bool public upgradesLocked;
 
     // Events
     event TicketMinted(uint256 indexed tokenId, uint256 indexed eventId, address indexed to, string tokenURI);
@@ -40,7 +42,7 @@ contract TicketNFT is
     event EventRoyaltyUpdated(uint256 indexed eventId, uint256 basisPoints);
     event TicketResold(uint256 indexed tokenId, address indexed from, address indexed to, uint256 price);
     event ScannerUpdated(uint256 indexed eventId, address indexed wallet, bool status);
-    
+    event UpgradesLocked(address indexed by);
 
     // Roles
     bytes32 public constant ORGANIZER_ROLE = keccak256("ORGANIZER_ROLE");
@@ -64,11 +66,23 @@ contract TicketNFT is
 
     }
 
-    function _authorizeUpgrade(address newImplementation)
+    function _authorizeUpgrade(address /* newImplementation */)
         internal
+        view
         override
         onlyRole(DEFAULT_ADMIN_ROLE)
-    {}
+    {
+        require(!upgradesLocked, "Upgrades are locked");
+    }
+
+    /// @notice Permanently disables all future upgrades. Cannot be undone.
+    /// Call this before any public sale so purchased tickets have fixed conditions.
+    /// The admin keeps its other powers (roles, royalties).
+    function lockUpgrades() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(!upgradesLocked, "Upgrades already locked");
+        upgradesLocked = true;
+        emit UpgradesLocked(msg.sender);
+    }
 
     function mintTicket(
         address to,
