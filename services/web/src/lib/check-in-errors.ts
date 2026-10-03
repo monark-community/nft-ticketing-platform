@@ -21,7 +21,6 @@ export const CHECK_IN_ERRORS = {
 
 // Different nodes word these errors differently (Hardhat: "Sender doesn't have enough funds",
 // most RPCs: "insufficient funds"), and viem sometimes wraps them as contract errors.
-// So check the wording first, before treating anything as a contract revert.
 const USER_REJECTED_PATTERN = /user (rejected|denied)/i;
 const INSUFFICIENT_FUNDS_PATTERN =
   /insufficient funds|(doesn't|does not) have enough funds|exceeds (the )?balance|exceeds transaction sender account balance/i;
