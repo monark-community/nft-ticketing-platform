@@ -2,10 +2,17 @@ import { ethers, upgrades } from "hardhat";
 
 async function main() {
     const [deployer] = await ethers.getSigners();
+    console.log("Deploying contracts with account:", deployer.address);
+
+    const MockUSDC = await ethers.getContractFactory("MockUSDC");
+    const mockUsdc = await MockUSDC.deploy();
+    await mockUsdc.waitForDeployment();
+    const usdcAddress = await mockUsdc.getAddress();
 
     const TicketNFT = await ethers.getContractFactory("TicketNFT");
-    const contract = await upgrades.deployProxy(TicketNFT, [deployer.address], {
-        initializer: "initialize"
+    const contract = await upgrades.deployProxy(TicketNFT, [deployer.address, usdcAddress], {
+        initializer: "initialize",
+        kind: "uups",
     });
     await contract.waitForDeployment();
 
