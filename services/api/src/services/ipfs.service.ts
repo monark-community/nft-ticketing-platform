@@ -1,5 +1,4 @@
 import { PinataSDK } from 'pinata';
-import { Readable } from 'stream';
 
 const pinata = new PinataSDK({
   pinataJwt: process.env.PINATA_JWT as string,
@@ -22,11 +21,11 @@ export async function pinImageToIPFS(
   }
 
   const file = new File([fileBuffer], fileName, { type: mimeType });
-  const result = await pinata.upload.public.file(file);
+  const result = await pinata.upload.file(file);
   return result.cid;
 }
 
 export async function pinMetadataToIPFS(metadata: Record<string, unknown>): Promise<string> {
-  const result = await pinata.upload.public.json(metadata);
+  const result = await pinata.upload.json(metadata);
   return result.cid;
 }

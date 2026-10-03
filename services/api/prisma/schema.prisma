@@ -23,57 +23,63 @@ enum EventStatus {
 enum TicketStatus {
   VALID
   USED
+  AVAILABLE
 }
 
 model User {
   wallet_address String   @id
   nonce          String?
+  first_name     String?
+  last_name      String?
   role           Role     @default(USER)
   email          String?  @unique
   nickname       String?
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
 
-  events         Event[]
-  checkin_logs   CheckinLog[]
+  organized_events Event[]      @relation("organizer")
+  checkin_logs     CheckinLog[]
 }
 
 model Event {
-  id                 String      @id @default(cuid())
-  organizer_wallet   String
-  title              String
-  description        String?
-  location           String?
-  start_date         DateTime
-  end_date           DateTime?
-  image_url          String?
-  ipfs_hash          String?
-  contract_event_id  BigInt?     @unique
-  status             EventStatus @default(DRAFT)
-  created_at         DateTime    @default(now())
-  updated_at         DateTime    @updatedAt
+  id                String      @id @default(uuid())
+  organizer_wallet  String
+  title             String
+  description       String?
+  location          String?
+  category          String?
+  start_date        DateTime
+  end_date          DateTime?
+  image_url         String?
+  ipfs_hash         String?
+  contract_event_id BigInt?     @unique
+  status            EventStatus @default(DRAFT)
+  created_at        DateTime    @default(now())
+  updated_at        DateTime    @updatedAt
 
-  organizer          User         @relation(fields: [organizer_wallet], references: [wallet_address])
-  ticket_types       TicketType[]
-  tickets            Ticket[]
-  scanners           Scanner[]
-  whitelist          Whitelist[]
+  organizer    User         @relation("organizer", fields: [organizer_wallet], references: [wallet_address], onDelete: Restrict)
+  ticket_types TicketType[]
+  tickets      Ticket[]
+  scanners     Scanner[]
+  whitelist    Whitelist[]
+
+  @@index([category])
 }
 
 model TicketType {
-  id            String   @id @default(cuid())
-  event_id      String
-  name          String
-  description   String?
-  price         Decimal  @db.Decimal(18, 8)
-  supply        Int
-  sold          Int      @default(0)
-  metadata      Json?
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  id          String   @id @default(uuid())
+  event_id    String
+  name        String
+  description String?
+  price       Decimal  @db.Decimal(18, 8)
+  supply      Int
+  sold        Int      @default(0)
+  metadata    Json?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 
-  event         Event    @relation(fields: [event_id], references: [id], onDelete: Cascade)
-  tickets       Ticket[]
+  event   Event    @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  tickets Ticket[]
 }
 
 model Ticket {
@@ -86,43 +92,43 @@ model Ticket {
   minted_at      DateTime     @default(now())
   updated_at     DateTime     @updatedAt
 
-  event          Event        @relation(fields: [event_id], references: [id])
-  ticket_type    TicketType   @relation(fields: [ticket_type_id], references: [id])
-  checkin_logs   CheckinLog[]
+  event        Event        @relation(fields: [event_id], references: [id], onDelete: Restrict)
+  ticket_type  TicketType   @relation(fields: [ticket_type_id], references: [id], onDelete: Restrict)
+  checkin_logs CheckinLog[]
 }
 
 model Scanner {
-  id              String   @id @default(cuid())
+  id              String   @id @default(uuid())
   event_id        String
   wallet          String
   assigned_by     String
   synced_to_chain Boolean  @default(false)
   created_at      DateTime @default(now())
 
-  event           Event    @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
 
   @@unique([event_id, wallet])
 }
 
 model Whitelist {
-  id              String   @id @default(cuid())
+  id              String   @id @default(uuid())
   event_id        String
   wallet          String
   added_by        String
   synced_to_chain Boolean  @default(false)
   created_at      DateTime @default(now())
 
-  event           Event    @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
 
   @@unique([event_id, wallet])
 }
 
 model CheckinLog {
-  id              String   @id @default(cuid())
-  token_id        BigInt
-  scanner_wallet  String
-  checked_in_at   DateTime @default(now())
+  id             String   @id @default(uuid())
+  token_id       BigInt
+  scanner_wallet String
+  checked_in_at  DateTime @default(now())
 
-  ticket          Ticket   @relation(fields: [token_id], references: [token_id])
-  scanner         User     @relation(fields: [scanner_wallet], references: [wallet_address])
+  ticket  Ticket @relation(fields: [token_id], references: [token_id], onDelete: Restrict)
+  scanner User   @relation(fields: [scanner_wallet], references: [wallet_address], onDelete: Restrict)
 }
