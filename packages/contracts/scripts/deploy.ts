@@ -1,23 +1,21 @@
-import { ethers, upgrades } from "hardhat";
+import { ethers, upgrades, network } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
 
 async function main() {
     const signers = await ethers.getSigners();
     const deployer = signers[0];
-    const organizer = signers[1];
 
     console.log("Deploying contracts with admin account:", deployer.address);
-    console.log("Organizer account:", organizer.address);
 
-    // 1. On déploie d'abord le faux token USDC pour les tests locaux
+    // Deploy MockUSDC contract first
     const MockUSDC = await ethers.getContractFactory("MockUSDC");
     const mockUsdc = await MockUSDC.deploy();
     await mockUsdc.waitForDeployment();
     const usdcAddress = await mockUsdc.getAddress();
     console.log("MockUSDC deployed to:", usdcAddress);
 
-    // 2. On déploie le contrat TicketNFT avec les DEUX arguments
+    // Deploy TicketNFT contract with the address of the deployed MockUSDC
     const TicketNFT = await ethers.getContractFactory("TicketNFT");
     
     // Ajout de usdcAddress dans le tableau des arguments
@@ -31,14 +29,23 @@ async function main() {
     const address = await contract.getAddress();
     console.log("TicketNFT deployed to:", address);
 
-    const organizerRole = await contract.ORGANIZER_ROLE();
-    const grantTx = await contract.grantRole(organizerRole, organizer.address);
-    await grantTx.wait();
-    console.log(`Organizer role granted to: ${organizer.address}`);
+    // Grant the ORGANIZER_ROLE to the second signer if available
+    if (signers.length < 1) {
+        const organizer = signers[1];
+        const organizerRole = await contract.ORGANIZER_ROLE();
+        const grantTx = await contract.grantRole(organizerRole, organizer.address);
+        await grantTx.wait();
+        console.log(`Organizer role granted to: ${organizer.address}`);
+    } else {
+        console.log("No organizer account available to grant role.");
+        
+    }
 
-    exportToFrontend(address, usdcAddress);
+    // Export the ABI and addresses to the frontend
+    await exportToFrontend(address, usdcAddress);
+}
 
-    function exportToFrontend(ticketNFTAddress: string, usdcAddress: string) {
+async function exportToFrontend(ticketNFTAddress: string, usdcAddress: string) {
         const targetDir = path.resolve(__dirname, "../../..", "services", "web", "src", "contracts");
 
         if (!fs.existsSync(targetDir)) {
@@ -55,11 +62,13 @@ async function main() {
                 JSON.stringify(artifact.abi, null, 2)
             );
 
+            // Export the addresses to a JSON file
+            const currentNetwork = await ethers.provider.getNetwork();
             const addresses = {
                 TicketNFT: ticketNFTAddress,
                 MockUSDC: usdcAddress,
-                network: "localhost",
-                chainId: 31337
+                network: network.name,
+                chainId: Number(currentNetwork.chainId),
             };
 
             fs.writeFileSync(
@@ -72,7 +81,7 @@ async function main() {
             console.error("Artifact not found. Make sure the contract is compiled.");
         }
     }
-}
+
 
 main().catch((error) => {
     console.error(error);
