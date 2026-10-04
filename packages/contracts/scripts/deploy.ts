@@ -30,7 +30,7 @@ async function main() {
     console.log("TicketNFT deployed to:", address);
 
     // Grant the ORGANIZER_ROLE to the second signer if available
-    if (signers.length < 1) {
+    if (signers.length > 1) {
         const organizer = signers[1];
         const organizerRole = await contract.ORGANIZER_ROLE();
         const grantTx = await contract.grantRole(organizerRole, organizer.address);
