@@ -18,7 +18,7 @@ async function main() {
     // Deploy TicketNFT contract with the address of the deployed MockUSDC
     const TicketNFT = await ethers.getContractFactory("TicketNFT");
     
-    // Ajout de usdcAddress dans le tableau des arguments
+    // Deploy the TicketNFT contract with the deployer's address and the MockUSDC address
     const contract = await upgrades.deployProxy(TicketNFT, [deployer.address, usdcAddress], {
         initializer: "initialize",
         kind: "uups",
