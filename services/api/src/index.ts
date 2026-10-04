@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -5,9 +6,14 @@ import cookieParser from 'cookie-parser';
 import routes from './routes';
 import { startBlockchainListener } from './workers/blockchain.listener';
 import logger from './lib/logger';
+import { prisma } from './lib/prisma';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || process.env.API_PORT || 3001;
+
+app.set('json replacer', (_key: string, value: unknown) =>
+  typeof value === 'bigint' ? value.toString() : value
+);
 
 // Security headers
 app.use(helmet());
@@ -27,7 +33,25 @@ app.use(cookieParser());
 
 // Health check
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Database health check
+app.get('/db-health', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({
+      status: 'ok',
+      message: 'Database connection is healthy',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    logger.error('Database health check failed', { error });
+    res.status(500).json({
+      status: 'error',
+      message: 'Database connection failed',
+    });
+  }
 });
 
 // All API routes
@@ -46,7 +70,15 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 app.listen(PORT, () => {
   logger.info(`NFTicketPass API running on port ${PORT}`);
+  logger.info(`Health check: http://localhost:${PORT}/health`);
+  logger.info(`Database health: http://localhost:${PORT}/db-health`);
   startBlockchainListener();
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  await prisma.$disconnect();
+  process.exit(0);
 });
 
 export default app;

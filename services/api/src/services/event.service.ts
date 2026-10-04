@@ -29,6 +29,7 @@ export async function createEvent(
     title: string;
     description?: string;
     location?: string;
+    category?: string;
     start_date: string;
     end_date?: string;
     image_url?: string;
@@ -40,6 +41,7 @@ export async function createEvent(
       title: data.title,
       description: data.description,
       location: data.location,
+      category: data.category,
       start_date: new Date(data.start_date),
       end_date: data.end_date ? new Date(data.end_date) : undefined,
       image_url: data.image_url,
@@ -55,6 +57,7 @@ export async function updateEvent(
     title?: string;
     description?: string;
     location?: string;
+    category?: string;
     start_date?: string;
     end_date?: string;
     image_url?: string;
@@ -90,7 +93,7 @@ export async function freezeEvent(id: string, organizerWallet: string, ipfsHash:
 export async function publishEvent(
   id: string,
   organizerWallet: string,
-  contractEventId: number
+  contractEventId: bigint
 ) {
   const event = await prisma.event.findUnique({ where: { id } });
   if (!event) return null;

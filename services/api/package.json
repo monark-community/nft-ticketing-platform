@@ -1,7 +1,7 @@
 {
   "name": "@nft-ticketing/api",
   "version": "0.1.0",
-  "description": "NFTicketPass Backend API",
+  "description": "NFT Ticketing Platform API",
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
@@ -9,12 +9,20 @@
     "start": "node dist/index.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
+    "prisma:seed": "ts-node prisma/seed.ts",
+    "db:push": "prisma db push",
+    "db:seed": "npm run prisma:seed"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
     "@prisma/client": "^5.14.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
     "ethers": "^6.13.0",
     "express": "^4.19.2",
     "express-rate-limit": "^7.3.1",
@@ -32,6 +40,7 @@
     "@types/multer": "^1.4.11",
     "@types/node": "^20.14.0",
     "prisma": "^5.14.0",
+    "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.5"
   }

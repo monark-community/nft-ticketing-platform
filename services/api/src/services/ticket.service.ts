@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 export async function getTicketsByWallet(walletAddress: string) {
@@ -52,7 +53,7 @@ export async function createTicketType(
       description: data.description,
       price: data.price,
       supply: data.supply,
-      metadata: data.metadata,
+      metadata: data.metadata as Prisma.InputJsonValue | undefined,
     },
   });
 }
