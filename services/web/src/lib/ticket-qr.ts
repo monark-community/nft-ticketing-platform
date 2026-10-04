@@ -18,7 +18,7 @@ export interface SignedTicketQR extends TicketQRData {
 // from the QR fields to recover the signer, then compares that with ownerOf(tokenId).
 export function buildCheckInMessage(data: TicketQRData): string {
   return (
-    `NFTicketPass check-in | contract: ${data.contractAddress}` +
+    `NFTOKENPASS check-in | contract: ${data.contractAddress}` +
     ` | chain: ${data.chainId}` +
     ` | token: ${data.tokenId}` +
     ` | event: ${data.eventId}` +

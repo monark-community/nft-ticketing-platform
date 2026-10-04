@@ -5,6 +5,7 @@ import { ScanResult } from "@/components/ScanResult";
 import { Input } from "@/components/ui/input";
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
 import { useCheckInTicket } from "@/hooks/useCheckInTicket";
+import { useScannerAuthorization } from "@/hooks/useScannerAuth";
 import { TICKET_NFT_ADDRESS } from "@/lib/contracts/ticket-nft";
 import { verifyTicketQR, type TicketVerification } from "@/lib/verify-ticket";
 import type { IDetectedBarcode } from "@yudiel/react-qr-scanner";
@@ -30,6 +31,7 @@ export default function ScanPage() {
   const checkIn = useCheckInTicket();
 
   const eventIdValid = /^\d+$/.test(eventIdInput);
+  const scannerAuth = useScannerAuthorization(eventIdValid ? BigInt(eventIdInput) : null);
   const scannerReady = isConnected && eventIdValid && !!TICKET_NFT_ADDRESS;
 
   async function handleScan(codes: IDetectedBarcode[]) {
@@ -46,6 +48,7 @@ export default function ScanPage() {
     });
     setResult(verification);
     setVerifying(false);
+    scannerAuth.refresh();
   }
 
   function scanNext() {
@@ -84,6 +87,12 @@ export default function ScanPage() {
                 <p className="text-sm text-gray-600">Connect the scanner wallet to start.</p>
                 <ConnectWalletButton />
               </div>
+            )}
+            {isConnected && eventIdValid && scannerAuth.status === "notAuthorized" && (
+              <p className="text-sm rounded-md bg-amber-50 border border-amber-300 px-3 py-2 text-amber-900">
+                This wallet is not a scanner for event #{eventIdInput}. You can still verify
+                tickets, but check-in will fail until the organizer adds this wallet as a scanner.
+              </p>
             )}
             {!TICKET_NFT_ADDRESS && (
               <p className="text-sm text-red-600">
@@ -124,6 +133,7 @@ export default function ScanPage() {
               txHash={checkIn.txHash}
               onCheckIn={() => result.qr && checkIn.checkIn(BigInt(result.qr.tokenId))}
               onScanNext={scanNext}
+              canCheckIn={scannerAuth.status !== "notAuthorized"}
             />
           )}
         </div>

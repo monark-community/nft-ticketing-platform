@@ -128,11 +128,25 @@ export async function verifyTicketQR({
     });
 
     // Rebuild the exact message from #54's format and check the signature against the owner
-    const signedByOwner = await verifyMessage({
-      address: owner,
-      message: buildCheckInMessage(qr),
-      signature: qr.signature,
-    });
+    // A malformed signature makes verifyMessage throw, so catch it here instead of
+    // letting it fall through to the "could not reach the blockchain" message below.
+    let signedByOwner: boolean;
+    try {
+      signedByOwner = await verifyMessage({
+        address: owner,
+        message: buildCheckInMessage(qr),
+        signature: qr.signature,
+      });
+    } catch {
+      return {
+        ok: false,
+        reason:
+          "QR code has an invalid signature. Ask the attendee to refresh it.",
+        qr,
+        eventId: onChainEventId,
+        owner,
+      };
+    }
     if (!signedByOwner) {
       return {
         ok: false,

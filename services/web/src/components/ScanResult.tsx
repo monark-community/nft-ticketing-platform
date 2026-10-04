@@ -14,6 +14,7 @@ interface Props {
   txHash: `0x${string}` | null;
   onCheckIn: () => void;
   onScanNext: () => void;
+  canCheckIn: boolean;
 }
 
 type View = "valid" | "checkedIn" | "rejected";
@@ -80,7 +81,7 @@ function DetailRow({ label, value, mono }: { label: string; value: string; mono?
   );
 }
 
-export function ScanResult({ result, checkInStatus, checkInError, txHash, onCheckIn, onScanNext }: Props) {
+export function ScanResult({ result, checkInStatus, checkInError, txHash, onCheckIn, onScanNext, canCheckIn }: Props) {
   const view: View = !result.ok ? "rejected" : checkInStatus === "success" ? "checkedIn" : "valid";
   const styles = STYLES[view];
   const heading = HEADINGS[view];
@@ -114,7 +115,11 @@ export function ScanResult({ result, checkInStatus, checkInError, txHash, onChec
           {txHash && <DetailRow label="Transaction" value={shortenHex(txHash)} mono />}
         </dl>
       )}
-
+      {view === "valid" && !canCheckIn && (
+        <p className="mt-4 rounded-lg bg-amber-50 border border-amber-300 px-4 py-3 text-sm font-medium text-amber-900">
+          This wallet is not a scanner for this event, so it cannot check the ticket in.
+        </p>
+      )}
       {/* Check-in error (ticket is still valid, the transaction failed) */}
       {view === "valid" && checkInStatus === "error" && checkInError && (
         <p className="mt-4 rounded-lg bg-amber-50 border border-amber-300 px-4 py-3 text-sm font-medium text-amber-900">
@@ -127,7 +132,7 @@ export function ScanResult({ result, checkInStatus, checkInError, txHash, onChec
         {view === "valid" && (
           <button
             onClick={onCheckIn}
-            disabled={pending}
+            disabled={pending || !canCheckIn}
             className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-lg font-bold py-3 rounded-lg"
           >
             {pending ? "Checking in... confirm in your wallet" : checkInStatus === "error" ? "Try check-in again" : "Check in ticket"}
