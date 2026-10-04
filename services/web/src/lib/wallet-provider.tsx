@@ -13,7 +13,7 @@ const connectors = connectorsForWallets(
     { groupName: "Other", wallets: [walletConnectWallet] },
   ],
   {
-    appName: "SmartPass",
+    appName: "NFTOKENPASS",
     projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
   }
 );

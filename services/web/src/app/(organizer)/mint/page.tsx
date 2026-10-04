@@ -42,7 +42,7 @@ function handleMint() {
       alert("Please select at least one ticket tier to mint.");
       return;
     }
-    console.log("✅ Minting tickets:", { ticketsToMint, ticketPrice, tiers: selected });
+    console.log(" Minting tickets:", { ticketsToMint, ticketPrice, tiers: selected });
     alert(`Minting ${ticketsToMint} NFT tickets at ${ticketPrice} USDC each.`);
   });
 }
