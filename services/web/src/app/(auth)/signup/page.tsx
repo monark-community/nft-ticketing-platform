@@ -79,7 +79,7 @@ function handleSubmit() {
           <div className="w-8 h-8 bg-white/20 rounded flex items-center justify-center text-white text-sm font-bold">
             🎟
           </div>
-          <span className="text-white font-bold text-lg tracking-wide">SMARTPASS</span>
+          <span className="text-white font-bold text-lg tracking-wide">NFTOKENPASS</span>
         </div>
         <a href="/signin" className="text-white text-sm font-medium hover:underline">
           Already have an account? Log in
