@@ -34,6 +34,20 @@ contract TicketNFT is
     address public usdcToken;
     bool public upgradesLocked;
 
+    
+    // Primary sale: tickets are minted at the moment of purchase.
+    struct EventSale {
+        uint256 price;          // in USDC's smallest unit
+        uint256 maxSupply;      // cap for all tickets of the event (sold + organizer-issued)
+        uint256 sold;
+        uint256 maxResalePrice; // 0 = no resale cap
+        string metadataURI;
+        bool active;
+    }
+    mapping(uint256 => EventSale) public eventSales;
+    mapping(uint256 => uint256) public eventRevenue;
+    mapping(uint256 => uint256) public organizerIssued;
+
     // Events
     event TicketMinted(uint256 indexed tokenId, uint256 indexed eventId, address indexed to, string tokenURI);
     event TicketCheckedIn(uint256 indexed tokenId, address indexed scanner);
@@ -43,6 +57,10 @@ contract TicketNFT is
     event TicketResold(uint256 indexed tokenId, address indexed from, address indexed to, uint256 price);
     event ScannerUpdated(uint256 indexed eventId, address indexed wallet, bool status);
     event UpgradesLocked(address indexed by);
+    event SaleConfigured(uint256 indexed eventId, uint256 price, uint256 maxSupply, uint256 maxResalePrice, string metadataURI);
+    event SaleStatusUpdated(uint256 indexed eventId, bool active);
+    event TicketPurchased(uint256 indexed tokenId, uint256 indexed eventId, address indexed buyer, uint256 price);
+    event RevenueWithdrawn(uint256 indexed eventId, address indexed organizer, uint256 amount);
 
     // Roles
     bytes32 public constant ORGANIZER_ROLE = keccak256("ORGANIZER_ROLE");
@@ -93,6 +111,7 @@ contract TicketNFT is
         if (presaleActive[eventId]) {
             require(_whitelist[eventId][to], "Address not whitelisted for presale");
         }
+        _countOrganizerIssued(eventId, 1);
         uint256 tokenId = tokenIdCounter;
         tokenIdCounter++;
 
@@ -125,7 +144,7 @@ contract TicketNFT is
             recipients.length == maxPrices.length,
             "Array lengths must match"
         );
-
+        _countOrganizerIssued(eventId, recipients.length);
         if (presaleActive[eventId]) {
             for (uint256 i = 0; i < recipients.length; i++) {
                 require(_whitelist[eventId][recipients[i]], "Address not whitelisted for presale");
@@ -221,6 +240,7 @@ contract TicketNFT is
         public onlyRole(DEFAULT_ADMIN_ROLE) 
     {
         require(basisPoints <= 10000, "Basis points must be less than or equal to 10000");
+        require(eventSales[eventId].sold == 0, "Royalty locked: tickets already sold");
         royaltyPercentage[eventId] = basisPoints;
         emit EventRoyaltyUpdated(eventId, basisPoints);
     }
@@ -280,5 +300,103 @@ contract TicketNFT is
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
+    }
+
+    // ---------------------------------------------------------------------
+    // Primary sale: the organizer sets up the sale, buyers mint on purchase
+    // ---------------------------------------------------------------------
+
+    /// @notice Sets (or updates) the primary sale terms for an event.
+    /// The first organizer to configure an event becomes its organizer.
+    /// Terms are locked once the first ticket is sold.
+    function configureSale(
+        uint256 eventId,
+        uint256 price,
+        uint256 maxSupply,
+        uint256 resalePriceCap,
+        string memory metadataURI
+    ) public onlyRole(ORGANIZER_ROLE) {
+        address organizer = eventOrganizer[eventId];
+        require(organizer == address(0) || organizer == msg.sender, "Not the event organizer");
+        require(eventSales[eventId].sold == 0, "Sale terms locked: tickets already sold");
+        require(maxSupply > 0, "Max supply must be greater than zero");
+        require(maxSupply >= organizerIssued[eventId], "Max supply is below tickets already issued");
+        require(bytes(metadataURI).length > 0, "Metadata URI is required");
+
+        if (organizer == address(0)) {
+            eventOrganizer[eventId] = msg.sender;
+        }
+
+        EventSale storage sale = eventSales[eventId];
+        sale.price = price;
+        sale.maxSupply = maxSupply;
+        sale.maxResalePrice = resalePriceCap;
+        sale.metadataURI = metadataURI;
+
+        emit SaleConfigured(eventId, price, maxSupply, resalePriceCap, metadataURI);
+    }
+
+    /// @notice Opens or pauses ticket sales for an event (allowed even after sales start).
+    function setSaleActive(uint256 eventId, bool active) public onlyRole(ORGANIZER_ROLE) {
+        require(eventOrganizer[eventId] == msg.sender, "Not the event organizer");
+        require(eventSales[eventId].maxSupply > 0, "Sale not configured");
+        eventSales[eventId].active = active;
+        emit SaleStatusUpdated(eventId, active);
+    }
+
+    /// @notice Buys a ticket: pulls the price in USDC from the buyer (approve first)
+    /// and mints the ticket directly to them.
+    function buyTicket(uint256 eventId) public nonReentrant returns (uint256 tokenId) {
+        EventSale storage sale = eventSales[eventId];
+        require(sale.active, "Sale is not active");
+        require(sale.sold + organizerIssued[eventId] < sale.maxSupply, "Sold out");
+        if (presaleActive[eventId]) {
+            require(_whitelist[eventId][msg.sender], "Address not whitelisted for presale");
+        }
+
+        if (sale.price > 0) {
+            require(
+                IERC20(usdcToken).transferFrom(msg.sender, address(this), sale.price),
+                "USDC payment failed"
+            );
+        }
+
+        sale.sold++;
+        eventRevenue[eventId] += sale.price;
+
+        tokenId = tokenIdCounter;
+        tokenIdCounter++;
+        tokenEventId[tokenId] = eventId;
+        if (sale.maxResalePrice > 0) {
+            maxResalePrice[tokenId] = sale.maxResalePrice;
+        }
+
+        _safeMint(msg.sender, tokenId);
+        _setTokenURI(tokenId, sale.metadataURI);
+
+        emit TicketMinted(tokenId, eventId, msg.sender, sale.metadataURI);
+        emit TicketPurchased(tokenId, eventId, msg.sender, sale.price);
+    }
+
+    /// @notice Sends the event's accumulated sale revenue to its organizer.
+    function withdraw(uint256 eventId) public nonReentrant {
+        require(eventOrganizer[eventId] == msg.sender, "Not the event organizer");
+        uint256 amount = eventRevenue[eventId];
+        require(amount > 0, "No revenue to withdraw");
+
+        eventRevenue[eventId] = 0;
+        require(IERC20(usdcToken).transfer(msg.sender, amount), "USDC transfer failed");
+
+        emit RevenueWithdrawn(eventId, msg.sender, amount);
+    }
+
+    /// @dev Counts organizer-issued tickets (mintTicket/batchMint) toward the event's
+    /// supply cap. Events without a configured sale have no cap.
+    function _countOrganizerIssued(uint256 eventId, uint256 amount) internal {
+        uint256 cap = eventSales[eventId].maxSupply;
+        if (cap > 0) {
+            require(eventSales[eventId].sold + organizerIssued[eventId] + amount <= cap, "Exceeds max supply");
+        }
+        organizerIssued[eventId] += amount;
     }
 }
