@@ -89,7 +89,7 @@ describe("TicketNFT - Organizer-Issued Tickets", function () {
 
     it("Should not lock the event's terms", async function () {
         await ticketNFT.connect(organizer).issueTickets(1, 0, [user1.address]);
-        await ticketNFT.connect(organizer).configureEvent(1, (await ticketNFT.eventConfigs(1)).endTime, 500, 11000);
+        await ticketNFT.connect(organizer).configureEvent(1, (await ticketNFT.eventConfigs(1)).endTime, 500, 11000, 0);
         await ticketNFT.connect(organizer).updateTicketType(1, 0, 75n, 5, "ipfs://event-1-type-0-v2");
         expect((await ticketNFT.ticketTypes(1, 0)).price).to.equal(75);
     });

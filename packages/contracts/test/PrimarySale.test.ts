@@ -33,7 +33,7 @@ describe("TicketNFT - Primary Sale & Revenue", function () {
 
     /** Event 1 with GA (type 0) and VIP (type 1), 10% royalty, 110% resale cap, sale open. */
     async function openSale(gaSupply = 100, vipSupply = 10) {
-        await ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 1000, 11000);
+        await ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 1000, 11000, 0);
         await ticketNFT.connect(organizer).addTicketType(EVENT_ID, PRICE, gaSupply, GA_URI);
         await ticketNFT.connect(organizer).addTicketType(EVENT_ID, VIP_PRICE, vipSupply, VIP_URI);
         await ticketNFT.connect(organizer).setSaleActive(EVENT_ID, true);
@@ -41,9 +41,9 @@ describe("TicketNFT - Primary Sale & Revenue", function () {
 
     describe("Event setup", function () {
         it("lets an organizer configure an event and registers them as its organizer", async function () {
-            await expect(ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 500, 11000))
+            await expect(ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 500, 11000, 0))
                 .to.emit(ticketNFT, "EventConfigured")
-                .withArgs(EVENT_ID, organizer.address, END_TIME, 500, 11000);
+                .withArgs(EVENT_ID, organizer.address, END_TIME, 500, 11000, 0);
 
             const config = await ticketNFT.eventConfigs(EVENT_ID);
             expect(config.endTime).to.equal(END_TIME);
@@ -56,14 +56,14 @@ describe("TicketNFT - Primary Sale & Revenue", function () {
 
         it("rejects accounts without the organizer role", async function () {
             await expect(
-                ticketNFT.connect(hacker).configureEvent(EVENT_ID, END_TIME, 500, 11000)
+                ticketNFT.connect(hacker).configureEvent(EVENT_ID, END_TIME, 500, 11000, 0)
             ).to.be.revertedWithCustomError(ticketNFT, "AccessControlUnauthorizedAccount");
         });
 
         it("prevents another organizer from managing someone else's event", async function () {
             await openSale();
             await expect(
-                ticketNFT.connect(otherOrganizer).configureEvent(EVENT_ID, END_TIME, 0, 0)
+                ticketNFT.connect(otherOrganizer).configureEvent(EVENT_ID, END_TIME, 0, 0, 0)
             ).to.be.revertedWith("Not the event organizer");
             await expect(
                 ticketNFT.connect(otherOrganizer).addTicketType(EVENT_ID, 1n, 10, "ipfs://x")
@@ -79,21 +79,21 @@ describe("TicketNFT - Primary Sale & Revenue", function () {
         it("validates the end time, royalty and resale cap", async function () {
             const past = BigInt(await time.latest());
             await expect(
-                ticketNFT.connect(organizer).configureEvent(EVENT_ID, past, 500, 11000)
+                ticketNFT.connect(organizer).configureEvent(EVENT_ID, past, 500, 11000, 0)
             ).to.be.revertedWith("End time must be in the future");
             await expect(
-                ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 10001, 11000)
+                ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 10001, 11000, 0)
             ).to.be.revertedWith("Royalty cannot exceed 100%");
             await expect(
-                ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 500, 9999)
+                ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 500, 9999, 0)
             ).to.be.revertedWith("Resale cap must be 0 or at least 100% of face value");
-            await ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 500, 0);
+            await ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 500, 0, 0);
         });
     });
 
     describe("Ticket types", function () {
         it("adds ticket types with sequential IDs", async function () {
-            await ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 1000, 11000);
+            await ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 1000, 11000, 0);
 
             await expect(ticketNFT.connect(organizer).addTicketType(EVENT_ID, PRICE, 100, GA_URI))
                 .to.emit(ticketNFT, "TicketTypeConfigured").withArgs(EVENT_ID, 0, PRICE, 100, GA_URI);
@@ -114,7 +114,7 @@ describe("TicketNFT - Primary Sale & Revenue", function () {
         });
 
         it("rejects zero supply and an empty metadata URI", async function () {
-            await ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 1000, 11000);
+            await ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 1000, 11000, 0);
             await expect(
                 ticketNFT.connect(organizer).addTicketType(EVENT_ID, PRICE, 0, GA_URI)
             ).to.be.revertedWith("Max supply must be greater than zero");
@@ -156,7 +156,7 @@ describe("TicketNFT - Primary Sale & Revenue", function () {
 
     describe("Sale status", function () {
         it("can't open a sale without ticket types", async function () {
-            await ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 1000, 11000);
+            await ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 1000, 11000, 0);
             await expect(
                 ticketNFT.connect(organizer).setSaleActive(EVENT_ID, true)
             ).to.be.revertedWith("No ticket types");
@@ -312,7 +312,7 @@ describe("TicketNFT - Primary Sale & Revenue", function () {
 
         it("keeps each event's revenue separate", async function () {
             await openSale();
-            await ticketNFT.connect(otherOrganizer).configureEvent(2, END_TIME, 0, 0);
+            await ticketNFT.connect(otherOrganizer).configureEvent(2, END_TIME, 0, 0, 0);
             await ticketNFT.connect(otherOrganizer).addTicketType(2, PRICE * 2n, 100, "ipfs://event-2");
             await ticketNFT.connect(otherOrganizer).setSaleActive(2, true);
 
@@ -341,7 +341,7 @@ describe("TicketNFT - Primary Sale & Revenue", function () {
     describe("Event terms locked once sales start", function () {
         it("allows changing the event's terms before the first sale", async function () {
             await openSale();
-            await ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 500, 12000);
+            await ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 500, 12000, 0);
             expect(await ticketNFT.royaltyPercentage(EVENT_ID)).to.equal(500);
             expect((await ticketNFT.eventConfigs(EVENT_ID)).resaleCapBps).to.equal(12000);
         });
@@ -350,14 +350,14 @@ describe("TicketNFT - Primary Sale & Revenue", function () {
             await openSale();
             await ticketNFT.connect(buyer).buyTickets(EVENT_ID, 0, 1);
             await expect(
-                ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 500, 12000)
+                ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 500, 12000, 0)
             ).to.be.revertedWith("Event terms locked: tickets already sold");
         });
 
         it("does not lock the terms when only organizer-issued tickets exist", async function () {
             await openSale();
             await ticketNFT.connect(organizer).issueTickets(EVENT_ID, 0, [buyer.address]);
-            await ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 500, 12000);
+            await ticketNFT.connect(organizer).configureEvent(EVENT_ID, END_TIME, 500, 12000, 0);
             expect(await ticketNFT.royaltyPercentage(EVENT_ID)).to.equal(500);
         });
 

@@ -25,18 +25,18 @@ export async function futureTime(seconds = ONE_WEEK): Promise<bigint> {
 
 /**
  * Configures an event and adds one ticket type (type 0).
- * Defaults: free tickets, supply 100, no royalty, no resale cap, ends in one week.
+ * Defaults: free tickets, supply 100, no royalty, no resale cap, no per-wallet limit, ends in one week.
  */
 export async function setupEvent(
     ticketNFT: any,
     organizer: any,
     eventId: number,
-    options: { price?: bigint; maxSupply?: number; royaltyBps?: number; resaleCapBps?: number; endTime?: bigint } = {}
+    options: { price?: bigint; maxSupply?: number; royaltyBps?: number; resaleCapBps?: number; perWalletLimit?: number; endTime?: bigint } = {}
 ) {
     const endTime = options.endTime ?? (await futureTime());
     await ticketNFT
         .connect(organizer)
-        .configureEvent(eventId, endTime, options.royaltyBps ?? 0, options.resaleCapBps ?? 0);
+        .configureEvent(eventId, endTime, options.royaltyBps ?? 0, options.resaleCapBps ?? 0, options.perWalletLimit ?? 0);
     await ticketNFT
         .connect(organizer)
         .addTicketType(eventId, options.price ?? 0n, options.maxSupply ?? 100, `ipfs://event-${eventId}-type-0`);
