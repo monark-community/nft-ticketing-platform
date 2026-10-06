@@ -240,6 +240,17 @@
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "SafeERC20FailedOperation",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "UUPSUnauthorizedCallContext",
     "type": "error"
@@ -355,6 +366,12 @@
         "indexed": false,
         "internalType": "uint256",
         "name": "resaleCapBps",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "perWalletLimit",
         "type": "uint256"
       }
     ],
@@ -1009,6 +1026,11 @@
         "internalType": "uint256",
         "name": "resaleCapBps",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "perWalletLimit",
+        "type": "uint256"
       }
     ],
     "name": "configureEvent",
@@ -1055,6 +1077,11 @@
         "internalType": "bool",
         "name": "active",
         "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "perWalletLimit",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -1117,6 +1144,30 @@
         "internalType": "bool",
         "name": "",
         "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "eventTicketsHeld",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
