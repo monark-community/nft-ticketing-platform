@@ -1,5 +1,11 @@
 import { Request, Response } from 'express';
-import { createOrganizerRequest, getLatestOrganizerRequest } from '../services/organizer.service';
+import { OrganizerRequestStatus } from '@prisma/client';
+import {
+  createOrganizerRequest,
+  getLatestOrganizerRequest,
+  listOrganizerRequests,
+  rejectOrganizerRequest,
+} from '../services/organizer.service';
 
 function optionalText(value: unknown, maxLength: number): string | undefined | null {
   if (value === undefined || value === null || value === '') return undefined;
@@ -44,5 +50,40 @@ export async function getMyOrganizerRequest(req: Request, res: Response): Promis
     res.json(request);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch organizer request' });
+  }
+}
+
+// --- Admin side ---
+
+export async function getOrganizerRequests(req: Request, res: Response): Promise<void> {
+  const status = req.query.status as string | undefined;
+
+  if (status !== undefined && !Object.values(OrganizerRequestStatus).includes(status as OrganizerRequestStatus)) {
+    res.status(400).json({ error: `status must be one of [${Object.values(OrganizerRequestStatus).join(', ')}]` });
+    return;
+  }
+
+  try {
+    const requests = await listOrganizerRequests(status as OrganizerRequestStatus | undefined);
+    res.json(requests);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch organizer requests' });
+  }
+}
+
+export async function postRejectOrganizerRequest(req: Request, res: Response): Promise<void> {
+  const reason = optionalText(req.body.reason, 1000);
+  if (reason === null) {
+    res.status(400).json({ error: 'reason must be text (max 1000)' });
+    return;
+  }
+
+  try {
+    const result = await rejectOrganizerRequest(req.params.id, req.user!.wallet_address, reason);
+    if (result === null) { res.status(404).json({ error: 'Organizer request not found' }); return; }
+    if (result === 'not_pending') { res.status(409).json({ error: 'Only pending requests can be rejected' }); return; }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reject organizer request' });
   }
 }
