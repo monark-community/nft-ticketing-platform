@@ -3,3 +3,4 @@ export * from './event.service';
 export * from './ipfs.service';
 export * from './ticket.service';
 export * from './operations.service';
+export * from './organizer.service';
