@@ -1,5 +1,6 @@
 import { expect } from "chai";
-import { ethers, upgrades } from "hardhat";
+import { ethers } from "hardhat";
+import { deployTicketNFT, setupEvent } from "./helpers";
 
 describe("TicketNFT - Whitelist Mechanism", function () {
     let ticketNFT: any;
@@ -7,20 +8,14 @@ describe("TicketNFT - Whitelist Mechanism", function () {
 
     beforeEach(async function () {
         [admin, organizer, hacker, whitelisted, notWhitelisted] = await ethers.getSigners();
-
-        const MockUSDC = await ethers.getContractFactory("MockUSDC");
-        const mockUSDC = await MockUSDC.deploy();
-
-        const TicketNFTFactory = await ethers.getContractFactory("TicketNFT");
-        ticketNFT = await upgrades.deployProxy(
-            TicketNFTFactory,
-            [admin.address, await mockUSDC.getAddress()],
-            { kind: "uups" }
-        );
-
-        const ORGANIZER_ROLE = await ticketNFT.ORGANIZER_ROLE();
-        await ticketNFT.grantRole(ORGANIZER_ROLE, organizer.address);
+        ({ ticketNFT } = await deployTicketNFT(admin));
+        await ticketNFT.grantRole(await ticketNFT.ORGANIZER_ROLE(), organizer.address);
     });
+
+    async function openFreeSale() {
+        await setupEvent(ticketNFT, organizer, 1);
+        await ticketNFT.connect(organizer).setSaleActive(1, true);
+    }
 
     it("Should allow organizer to add and remove from whitelist", async function () {
         await ticketNFT.connect(organizer).addToWhitelist(1, whitelisted.address);
@@ -44,29 +39,28 @@ describe("TicketNFT - Whitelist Mechanism", function () {
         ).to.be.revertedWithCustomError(ticketNFT, "AccessControlUnauthorizedAccount");
     });
 
-    it("Should allow whitelisted address to mint during presale", async function () {
+    it("Should allow whitelisted address to buy during presale", async function () {
+        await openFreeSale();
         await ticketNFT.connect(organizer).addToWhitelist(1, whitelisted.address);
         await ticketNFT.connect(organizer).setPresaleActive(1, true);
 
-        await expect(
-            ticketNFT.connect(organizer).mintTicket(whitelisted.address, "ipfs://test", 1, 0)
-        ).to.not.be.reverted;
+        await expect(ticketNFT.connect(whitelisted).buyTickets(1, 0, 1)).to.not.be.reverted;
     });
 
     it("Should reject non-whitelisted address during presale", async function () {
+        await openFreeSale();
         await ticketNFT.connect(organizer).setPresaleActive(1, true);
 
         await expect(
-            ticketNFT.connect(organizer).mintTicket(notWhitelisted.address, "ipfs://test", 1, 0)
+            ticketNFT.connect(notWhitelisted).buyTickets(1, 0, 1)
         ).to.be.revertedWith("Address not whitelisted for presale");
     });
 
-    it("Should allow anyone to mint during public sale", async function () {
+    it("Should allow anyone to buy during public sale", async function () {
+        await openFreeSale();
         await ticketNFT.connect(organizer).setPresaleActive(1, false);
 
-        await expect(
-            ticketNFT.connect(organizer).mintTicket(notWhitelisted.address, "ipfs://test", 1, 0)
-        ).to.not.be.reverted;
+        await expect(ticketNFT.connect(notWhitelisted).buyTickets(1, 0, 1)).to.not.be.reverted;
     });
 
     it("Should emit WhitelistUpdated event", async function () {
@@ -94,29 +88,23 @@ describe("TicketNFT - Whitelist Mechanism", function () {
         ).to.be.revertedWith("Batch size cannot exceed 100");
     });
 
-    it("Should reject non-whitelisted address in batch mint during presale", async function () {
-        await ticketNFT.connect(organizer).addToWhitelist(1, whitelisted.address);
+    it("Should not apply the presale whitelist to organizer-issued tickets", async function () {
+        await setupEvent(ticketNFT, organizer, 1);
         await ticketNFT.connect(organizer).setPresaleActive(1, true);
 
         await expect(
-            ticketNFT.connect(organizer).batchMint(
-                [whitelisted.address, notWhitelisted.address],
-                ["ipfs://uri1", "ipfs://uri2"],
-                [0, 0],
-                1
-            )
-        ).to.be.revertedWith("Address not whitelisted for presale");
+            ticketNFT.connect(organizer).issueTickets(1, 0, [notWhitelisted.address])
+        ).to.not.be.reverted;
     });
 
     it("Should transition correctly from presale to public sale", async function () {
+        await openFreeSale();
         await ticketNFT.connect(organizer).setPresaleActive(1, true);
         await expect(
-            ticketNFT.connect(organizer).mintTicket(notWhitelisted.address, "ipfs://test", 1, 0)
+            ticketNFT.connect(notWhitelisted).buyTickets(1, 0, 1)
         ).to.be.revertedWith("Address not whitelisted for presale");
 
         await ticketNFT.connect(organizer).setPresaleActive(1, false);
-        await expect(
-            ticketNFT.connect(organizer).mintTicket(notWhitelisted.address, "ipfs://test", 1, 0)
-        ).to.not.be.reverted;
+        await expect(ticketNFT.connect(notWhitelisted).buyTickets(1, 0, 1)).to.not.be.reverted;
     });
 });
