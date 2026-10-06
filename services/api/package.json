@@ -13,7 +13,8 @@
     "db:studio": "prisma studio",
     "prisma:seed": "ts-node prisma/seed.ts",
     "db:push": "prisma db push",
-    "db:seed": "npm run prisma:seed"
+    "db:seed": "npm run prisma:seed",
+    "admin:set": "ts-node prisma/set-admin.ts"
   },
   "keywords": [],
   "author": "",
