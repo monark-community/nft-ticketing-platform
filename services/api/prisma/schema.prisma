@@ -20,6 +20,12 @@ enum EventStatus {
   PUBLISHED
 }
 
+enum OrganizerRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum TicketStatus {
   VALID
   USED
@@ -39,8 +45,30 @@ model User {
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
 
-  organized_events Event[]      @relation("organizer")
-  checkin_logs     CheckinLog[]
+  organized_events   Event[]            @relation("organizer")
+  checkin_logs       CheckinLog[]
+  organizer_requests OrganizerRequest[]
+}
+
+// A user's application to become an organizer. Approval happens on-chain: the
+// admin grants ORGANIZER_ROLE from their own wallet and the blockchain listener
+// marks the request APPROVED when it sees the RoleGranted event.
+model OrganizerRequest {
+  id                String                 @id @default(uuid())
+  wallet            String
+  organization_name String?
+  message           String?
+  status            OrganizerRequestStatus @default(PENDING)
+  reviewed_by       String?
+  reviewed_at       DateTime?
+  rejection_reason  String?
+  tx_hash           String?
+  created_at        DateTime               @default(now())
+  updated_at        DateTime               @updatedAt
+
+  user User @relation(fields: [wallet], references: [wallet_address], onDelete: Cascade)
+
+  @@index([wallet, status])
 }
 
 model Event {
