@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { prisma } from '../lib/prisma';
+import { loadCurrentUser } from '../lib/currentUser';
 
 // Email is collected as the second step of account creation (DB design Q&A, Q1).
 // The column is nullable because the user row is created at login, so the
@@ -11,10 +11,7 @@ export async function requireEmail(req: Request, res: Response, next: NextFuncti
   }
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { wallet_address: req.user.wallet_address },
-      select: { email: true },
-    });
+    const user = await loadCurrentUser(req);
 
     if (!user?.email) {
       res.status(403).json({ error: 'Email required to complete account setup', code: 'EMAIL_REQUIRED' });

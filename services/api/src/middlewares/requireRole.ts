@@ -1,17 +1,30 @@
 import { Request, Response, NextFunction } from 'express';
+import { loadCurrentUser } from '../lib/currentUser';
 
 export function requireRole(...roles: string[]) {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (!req.user) {
       res.status(401).json({ error: 'Unauthorized: not authenticated' });
       return;
     }
 
-    if (!roles.includes(req.user.role)) {
-      res.status(403).json({ error: `Forbidden: requires one of [${roles.join(', ')}]` });
-      return;
-    }
+    try {
+      // Role is read from the database, not the JWT, so it can't be stale
+      const user = await loadCurrentUser(req);
+      if (!user) {
+        res.status(401).json({ error: 'Unauthorized: user not found' });
+        return;
+      }
 
-    next();
+      if (!roles.includes(user.role)) {
+        res.status(403).json({ error: `Forbidden: requires one of [${roles.join(', ')}]` });
+        return;
+      }
+
+      req.user.role = user.role;
+      next();
+    } catch (err) {
+      next(err);
+    }
   };
 }

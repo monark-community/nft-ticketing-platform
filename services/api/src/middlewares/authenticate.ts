@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import type { CurrentUser } from '../lib/currentUser';
 
 export interface JwtPayload {
   wallet_address: string;
@@ -10,6 +11,7 @@ declare global {
   namespace Express {
     interface Request {
       user?: JwtPayload;
+      currentUser?: CurrentUser | null;
     }
   }
 }
