@@ -48,7 +48,7 @@ locked before any public sale**, so purchased tickets have fixed conditions.
 
 `lockUpgrades()` (admin only) sets `upgradesLocked = true`. After that, every upgrade
 attempt reverts with "Upgrades are locked". **There is no unlock function: this is
-irreversible.** The admin keeps its other powers (granting roles, setting royalties).
+irreversible.** The admin keeps its other powers (granting and revoking roles).
 
 To lock (requires `CONFIRM=yes` as a safety check):
 - macOS/Linux: `PROXY_ADDRESS=0x... CONFIRM=yes npx hardhat run scripts/lock-upgrades.ts --network <network>`

@@ -19,12 +19,13 @@ async function main() {
     const ORGANIZER_ROLE = await contract.ORGANIZER_ROLE();
     await contract.grantRole(ORGANIZER_ROLE, deployer.address);
 
-    const tx = await contract.mintTicket(
-        deployer.address,
-        "ipfs://QmTest123/ticket-metadata.json",
-        1,
-        0
-    );
+    // Event 1: ends in 30 days, 5% royalty, resale cap 110% of face value
+    const endTime = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
+    await (await contract.configureEvent(1, endTime, 500, 11000)).wait();
+    // Ticket type 0: free, 100 tickets
+    await (await contract.addTicketType(1, 0, 100, "ipfs://QmTest123/ticket-metadata.json")).wait();
+
+    const tx = await contract.issueTickets(1, 0, [deployer.address]);
     await tx.wait();
 
     const owner = await contract.ownerOf(0);
