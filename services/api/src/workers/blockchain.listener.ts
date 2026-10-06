@@ -1,6 +1,9 @@
 import { ethers } from 'ethers';
 import { prisma } from '../lib/prisma';
 import logger from '../lib/logger';
+import { approveOrganizerFromChain, revokeOrganizerFromChain } from '../services/organizer.service';
+
+const ORGANIZER_ROLE = ethers.id('ORGANIZER_ROLE');
 
 // NOTE: This ABI is derived from the events described in the API Design Doc (Section 6).
 // It must be replaced with the actual compiled contract ABI once the smart contract is finalized.
@@ -19,6 +22,10 @@ const CONTRACT_ABI = [
 
   // Emitted when a scanner is added or removed on-chain
   'event ScannerUpdated(uint256 indexed eventId, address indexed wallet, bool status)',
+
+  // OpenZeppelin AccessControl — emitted when an admin grants or revokes a role
+  'event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)',
+  'event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender)',
 ];
 
 export async function startBlockchainListener(): Promise<void> {
@@ -159,6 +166,41 @@ export async function startBlockchainListener(): Promise<void> {
       }
     } catch (err) {
       logger.error('ScannerUpdated handler error', { error: err });
+    }
+  });
+
+  // RoleGranted — an admin approved an organizer from their own wallet
+  contract.on(
+    'RoleGranted',
+    async (role: string, account: string, sender: string, payload: ethers.ContractEventPayload) => {
+      if (role !== ORGANIZER_ROLE) return;
+
+      try {
+        const result = await approveOrganizerFromChain(
+          account.toLowerCase(),
+          sender.toLowerCase(),
+          payload.log.transactionHash
+        );
+        if (result === 'approved') {
+          logger.info(`RoleGranted: ${account} approved as organizer by ${sender}`);
+        } else {
+          logger.warn(`RoleGranted: organizer role for ${account} not synced (${result})`);
+        }
+      } catch (err) {
+        logger.error(`RoleGranted handler error for ${account}`, { error: err });
+      }
+    }
+  );
+
+  // RoleRevoked — an admin removed an organizer
+  contract.on('RoleRevoked', async (role: string, account: string, sender: string) => {
+    if (role !== ORGANIZER_ROLE) return;
+
+    try {
+      const result = await revokeOrganizerFromChain(account.toLowerCase());
+      logger.info(`RoleRevoked: organizer role for ${account} revoked by ${sender} (${result})`);
+    } catch (err) {
+      logger.error(`RoleRevoked handler error for ${account}`, { error: err });
     }
   });
 

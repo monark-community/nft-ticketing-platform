@@ -60,3 +60,36 @@ export async function rejectOrganizerRequest(id: string, adminWallet: string, re
     },
   });
 }
+
+// --- On-chain sync (called by the blockchain listener) ---
+
+// ORGANIZER_ROLE was granted on-chain by an admin wallet. The chain is the source
+// of truth, so the user is promoted even if they never submitted a request.
+export async function approveOrganizerFromChain(wallet: string, grantedBy: string, txHash: string) {
+  const user = await prisma.user.findUnique({ where: { wallet_address: wallet } });
+  if (!user) return 'unknown_user';
+  if (user.role === 'ADMIN') return 'skipped_admin';
+
+  const pending = await prisma.organizerRequest.findFirst({
+    where: { wallet, status: 'PENDING' },
+    orderBy: { created_at: 'desc' },
+  });
+  const review = { status: 'APPROVED' as const, reviewed_by: grantedBy, reviewed_at: new Date(), tx_hash: txHash };
+
+  await prisma.$transaction([
+    prisma.user.update({ where: { wallet_address: wallet }, data: { role: 'ORGANIZER' } }),
+    pending
+      ? prisma.organizerRequest.update({ where: { id: pending.id }, data: review })
+      : prisma.organizerRequest.create({ data: { wallet, ...review } }),
+  ]);
+  return 'approved';
+}
+
+// ORGANIZER_ROLE was revoked on-chain, so the user goes back to USER
+export async function revokeOrganizerFromChain(wallet: string) {
+  const result = await prisma.user.updateMany({
+    where: { wallet_address: wallet, role: 'ORGANIZER' },
+    data: { role: 'USER' },
+  });
+  return result.count > 0 ? 'revoked' : 'not_organizer';
+}
