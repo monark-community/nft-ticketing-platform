@@ -8,6 +8,7 @@ import "@openzeppelin/contracts-upgradeable/token/common/ERC2981Upgradeable.sol"
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 contract TicketNFT is 
@@ -19,6 +20,8 @@ contract TicketNFT is
     UUPSUpgradeable,
     ReentrancyGuardUpgradeable
 {
+    using SafeERC20 for IERC20;
+
     // State variables
     // Upgradeable contract: only ADD new variables at the end; never reorder or remove (see UPGRADES.md).
     uint256 private tokenIdCounter;
@@ -42,6 +45,7 @@ contract TicketNFT is
         uint256 sold;           // paid tickets across all types; event terms lock once this is > 0
         bool configured;
         bool active;
+        uint256 perWalletLimit; // max tickets one wallet may hold for the event (checked on platform purchases/resales); 0 = no limit
     }
 
     struct TicketType {
@@ -57,6 +61,7 @@ contract TicketNFT is
     mapping(uint256 => uint256) public eventRevenue;
     mapping(uint256 => uint256) public tokenTicketType;
     mapping(uint256 => uint256) public tokenFaceValue;
+    mapping(uint256 => mapping(address => uint256)) public eventTicketsHeld; // eventId => wallet => tickets held
 
     // Events
     event TicketMinted(uint256 indexed tokenId, uint256 indexed eventId, uint256 typeId, address indexed to, string tokenURI);
@@ -66,7 +71,7 @@ contract TicketNFT is
     event TicketResold(uint256 indexed tokenId, address indexed from, address indexed to, uint256 price);
     event ScannerUpdated(uint256 indexed eventId, address indexed wallet, bool status);
     event UpgradesLocked(address indexed by);
-    event EventConfigured(uint256 indexed eventId, address indexed organizer, uint256 endTime, uint256 royaltyBps, uint256 resaleCapBps);
+    event EventConfigured(uint256 indexed eventId, address indexed organizer, uint256 endTime, uint256 royaltyBps, uint256 resaleCapBps, uint256 perWalletLimit);
     event TicketTypeConfigured(uint256 indexed eventId, uint256 indexed typeId, uint256 price, uint256 maxSupply, string metadataURI);
     event SaleStatusUpdated(uint256 indexed eventId, bool active);
     event TicketPurchased(uint256 indexed tokenId, uint256 indexed eventId, uint256 typeId, address indexed buyer, uint256 price);
@@ -126,7 +131,15 @@ contract TicketNFT is
     /// @param endTime When the event ends (unix timestamp). After it, sales stop and resale is uncapped.
     /// @param royaltyBps Royalty paid to the organizer on every resale, in basis points (500 = 5%).
     /// @param resaleCapBps Resale cap as % of face value in basis points (11000 = 110%); 0 = no cap.
-    function configureEvent(uint256 eventId, uint256 endTime, uint256 royaltyBps, uint256 resaleCapBps)
+    /// @param perWalletLimit Max tickets one wallet may hold for this event, checked on platform
+    /// purchases and resales (plain transfers are never blocked); 0 = no limit.
+    function configureEvent(
+        uint256 eventId,
+        uint256 endTime,
+        uint256 royaltyBps,
+        uint256 resaleCapBps,
+        uint256 perWalletLimit
+    )
         public onlyRole(ORGANIZER_ROLE)
     {
         address organizer = eventOrganizer[eventId];
@@ -143,10 +156,11 @@ contract TicketNFT is
 
         config.endTime = endTime;
         config.resaleCapBps = resaleCapBps;
+        config.perWalletLimit = perWalletLimit;
         config.configured = true;
         royaltyPercentage[eventId] = royaltyBps;
 
-        emit EventConfigured(eventId, msg.sender, endTime, royaltyBps, resaleCapBps);
+        emit EventConfigured(eventId, msg.sender, endTime, royaltyBps, resaleCapBps, perWalletLimit);
     }
 
     /// @notice Adds a ticket type (e.g. General Admission, VIP). Returns its type ID (0, 1, 2, ...).
@@ -216,18 +230,23 @@ contract TicketNFT is
         if (presaleActive[eventId]) {
             require(_whitelist[eventId][msg.sender], "Address not whitelisted for presale");
         }
-
-        uint256 total = ticketType.price * quantity;
-        if (total > 0) {
+        if (config.perWalletLimit > 0) {
             require(
-                IERC20(usdcToken).transferFrom(msg.sender, address(this), total),
-                "USDC payment failed"
+                eventTicketsHeld[eventId][msg.sender] + quantity <= config.perWalletLimit,
+                "Per-wallet limit reached"
             );
         }
 
+        uint256 total = ticketType.price * quantity;
+
+        // Effects before interactions
         ticketType.sold += quantity;
         config.sold += quantity;
         eventRevenue[eventId] += total;
+
+        if (total > 0) {
+            IERC20(usdcToken).safeTransferFrom(msg.sender, address(this), total);
+        }
 
         firstTokenId = tokenIdCounter;
         for (uint256 i = 0; i < quantity; i++) {
@@ -260,7 +279,7 @@ contract TicketNFT is
         require(amount > 0, "No revenue to withdraw");
 
         eventRevenue[eventId] = 0;
-        require(IERC20(usdcToken).transfer(msg.sender, amount), "USDC transfer failed");
+        IERC20(usdcToken).safeTransfer(msg.sender, amount);
 
         emit RevenueWithdrawn(eventId, msg.sender, amount);
     }
@@ -371,24 +390,23 @@ contract TicketNFT is
         if (resaleCapApplies(tokenId)) {
             require(salePrice <= maxResalePriceOf(tokenId), "Sale price exceeds maximum resale price");
         }
+        uint256 limit = eventConfigs[tokenEventId[tokenId]].perWalletLimit;
+        if (limit > 0) {
+            require(eventTicketsHeld[tokenEventId[tokenId]][buyer] + 1 <= limit, "Per-wallet limit reached");
+        }
 
         IERC20 usdc = IERC20(usdcToken);
-
-        require(
-            usdc.transferFrom(buyer, address(this), salePrice),
-            "USDC transfer from buyer failed"
-        );
-
         (address royaltyReceiver, uint256 royaltyAmount) = royaltyInfo(tokenId, salePrice);
         uint256 sellerAmount = salePrice - royaltyAmount;
 
-        if (royaltyAmount > 0) {
-            require(usdc.transfer(royaltyReceiver, royaltyAmount), "Royalty transfer failed");
-        }
-
-        require(usdc.transfer(msg.sender, sellerAmount), "Seller transfer failed");
-
+        // Effects before interactions
         _transfer(msg.sender, buyer, tokenId);
+
+        usdc.safeTransferFrom(buyer, address(this), salePrice);
+        if (royaltyAmount > 0) {
+            usdc.safeTransfer(royaltyReceiver, royaltyAmount);
+        }
+        usdc.safeTransfer(msg.sender, sellerAmount);
 
         emit TicketResold(tokenId, msg.sender, buyer, salePrice);
     }
@@ -412,6 +430,23 @@ contract TicketNFT is
         _setTokenURI(tokenId, uri);
 
         emit TicketMinted(tokenId, eventId, typeId, to, uri);
+    }
+
+    /// @dev Keeps per-event holdings up to date on every mint and transfer, including plain transfers
+    /// and outside marketplaces. It only counts; the limit is enforced in buyTickets() and resell().
+    function _update(address to, uint256 tokenId, address auth)
+        internal
+        override
+        returns (address from)
+    {
+        from = super._update(to, tokenId, auth);
+        uint256 eventId = tokenEventId[tokenId];
+        if (from != address(0)) {
+            eventTicketsHeld[eventId][from] -= 1;
+        }
+        if (to != address(0)) {
+            eventTicketsHeld[eventId][to] += 1;
+        }
     }
 
     // Overrides functions
