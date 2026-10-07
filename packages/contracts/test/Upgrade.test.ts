@@ -1,5 +1,6 @@
 import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
+import { setupEvent } from "./helpers";
 
 describe("TicketNFT - Upgrades", function () {
     let ticketNFT: any;
@@ -20,9 +21,8 @@ describe("TicketNFT - Upgrades", function () {
 
         // Create some state before upgrading, so we can check it survives
         await ticketNFT.grantRole(await ticketNFT.ORGANIZER_ROLE(), organizer.address);
-        await ticketNFT
-            .connect(organizer)
-            .mintTicket(attendee.address, "ipfs://ticket-1", 1, 0);
+        await setupEvent(ticketNFT, organizer, 1);
+        await ticketNFT.connect(organizer).issueTickets(1, 0, [attendee.address]);
     });
 
     it("keeps the same address and all existing data after an upgrade", async function () {
@@ -36,7 +36,7 @@ describe("TicketNFT - Upgrades", function () {
 
         // Existing data is untouched
         expect(await upgraded.ownerOf(0)).to.equal(attendee.address);
-        expect(await upgraded.tokenURI(0)).to.equal("ipfs://ticket-1");
+        expect(await upgraded.tokenURI(0)).to.equal("ipfs://event-1-type-0");
         expect(await upgraded.tokenEventId(0)).to.equal(1n);
         expect(
             await upgraded.hasRole(await upgraded.ORGANIZER_ROLE(), organizer.address)
@@ -91,7 +91,9 @@ describe("TicketNFT - Upgrades", function () {
 
         it("keeps the admin's other powers after locking", async function () {
             await ticketNFT.lockUpgrades();
-            await expect(ticketNFT.setRoyaltyPercentage(1, 500)).to.not.be.reverted;
+            await expect(
+                ticketNFT.grantRole(await ticketNFT.ORGANIZER_ROLE(), attendee.address)
+            ).to.not.be.reverted;
         });
     });
 });
