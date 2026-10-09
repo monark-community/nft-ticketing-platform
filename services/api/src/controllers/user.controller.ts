@@ -9,6 +9,8 @@ export async function getMe(req: Request, res: Response): Promise<void> {
         wallet_address: true,
         role: true,
         email: true,
+        first_name: true,
+        last_name: true,
         nickname: true,
         created_at: true,
       },
@@ -26,16 +28,18 @@ export async function getMe(req: Request, res: Response): Promise<void> {
 }
 
 export async function updateMe(req: Request, res: Response): Promise<void> {
-  const { nickname, email } = req.body;
+  const { nickname, email, first_name, last_name } = req.body;
 
   try {
     const user = await prisma.user.update({
       where: { wallet_address: req.user!.wallet_address },
-      data: { nickname, email },
+      data: { nickname, email, first_name, last_name },
       select: {
         wallet_address: true,
         role: true,
         email: true,
+        first_name: true,
+        last_name: true,
         nickname: true,
       },
     });
