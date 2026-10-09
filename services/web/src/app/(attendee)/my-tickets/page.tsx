@@ -3,12 +3,15 @@
 import { Navbar } from "@/components/Navbar";
 import { TicketQRCode } from "@/components/TicketQRCode";
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
+import { useHasMounted } from "@/hooks/useHasMounted";
 import { useOwnedTickets } from "@/hooks/useOwnedTickets";
 import { useAccount } from "wagmi";
 
 export default function MyTicketsPage() {
-  const { isConnected } = useAccount();
-  const { tickets, loading, error, reload } = useOwnedTickets();
+  const { isConnected: walletConnected } = useAccount();
+  const hasMounted = useHasMounted();
+  // Treat the wallet as disconnected until mount, so the first client render matches the server (#220)
+  const isConnected = hasMounted && walletConnected;  const { tickets, loading, error, reload } = useOwnedTickets();
 
   return (
     <div className="min-h-screen bg-[#f0f4fb] flex flex-col">

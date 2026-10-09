@@ -5,6 +5,7 @@ import { ScanResult } from "@/components/ScanResult";
 import { Input } from "@/components/ui/input";
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
 import { useCheckInTicket } from "@/hooks/useCheckInTicket";
+import { useHasMounted } from "@/hooks/useHasMounted";
 import { useScannerAuthorization } from "@/hooks/useScannerAuth";
 import { TICKET_NFT_ADDRESS } from "@/lib/contracts/ticket-nft";
 import { verifyTicketQR, type TicketVerification } from "@/lib/verify-ticket";
@@ -20,7 +21,10 @@ const Scanner = dynamic(
 );
 
 export default function ScanPage() {
-  const { isConnected } = useAccount();
+  const { isConnected: walletConnected } = useAccount();
+  const hasMounted = useHasMounted();
+  // Treat the wallet as disconnected until mount, so the first client render matches the server (#220)
+  const isConnected = hasMounted && walletConnected;
   const chainId = useChainId();
   const publicClient = usePublicClient();
 

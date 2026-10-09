@@ -1,10 +1,12 @@
 "use client";
 
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
+import { useHasMounted } from "@/hooks/useHasMounted";
 import { useAccount } from "wagmi";
 
 export function Navbar() {
   const { address, isConnected } = useAccount();
+  const hasMounted = useHasMounted();
 
   const shortAddress = address
     ? `${address.slice(0, 6)}…${address.slice(-4)}`
@@ -22,7 +24,10 @@ export function Navbar() {
         <a href="#" className="text-white text-sm font-medium hover:underline">Event Listing</a>
         <a href="#" className="text-white text-sm font-medium hover:underline">My Events</a>
         <a href="#" className="text-white text-sm font-medium hover:underline">Create Event</a>
-        {isConnected && shortAddress ? (
+                {/* The server can't know the wallet state, so render this part only after mount (#220) */}
+        {!hasMounted ? (
+          <div className="h-9 w-40" aria-hidden="true" />
+        ) : isConnected && shortAddress ? (
           <div className="flex items-center gap-2 bg-white/20 rounded-full px-3 py-1">
             <span className="text-white text-sm font-mono">{shortAddress}</span>
             <div className="w-6 h-6 rounded-full bg-yellow-400" />
