@@ -1,8 +1,8 @@
 "use client";
 
+import { TICKET_NFT_ADDRESS, ticketNftAbi } from "@/lib/contracts/ticket-nft";
 import { useCallback, useEffect, useState } from "react";
 import { useAccount, usePublicClient } from "wagmi";
-import { ticketNftAbi, TICKET_NFT_ADDRESS } from "@/lib/contracts/ticket-nft";
 
 export interface OwnedTicket {
   tokenId: bigint;
@@ -22,10 +22,6 @@ export function useOwnedTickets() {
 
   const load = useCallback(async () => {
     if (!address || !publicClient) return;
-    if (!TICKET_NFT_ADDRESS) {
-      setError("Ticket contract address is not configured (NEXT_PUBLIC_TICKET_CONTRACT_ADDRESS).");
-      return;
-    }
     const contract = TICKET_NFT_ADDRESS;
 
     setLoading(true);
@@ -39,21 +35,26 @@ export function useOwnedTickets() {
         fromBlock: BigInt(0),
       });
 
+      // The JSON ABI has no exact types, so tell TypeScript what Transfer's args look like
       const candidateIds = Array.from(
-        new Set(logs.map((log) => log.args.tokenId).filter((id): id is bigint => id !== undefined))
+        new Set(
+          logs
+            .map((log) => (log.args as { tokenId?: bigint }).tokenId)
+            .filter((id): id is bigint => id !== undefined),
+        ),
       );
 
       const results = await Promise.all(
         candidateIds.map(async (tokenId) => {
-          const owner = await publicClient.readContract({
+          const owner = (await publicClient.readContract({
             address: contract,
             abi: ticketNftAbi,
             functionName: "ownerOf",
             args: [tokenId],
-          });
+          })) as `0x${string}`;
           if (owner.toLowerCase() !== address.toLowerCase()) return null;
 
-          const [eventId, isUsed] = await Promise.all([
+          const [eventId, isUsed] = (await Promise.all([
             publicClient.readContract({
               address: contract,
               abi: ticketNftAbi,
@@ -66,15 +67,17 @@ export function useOwnedTickets() {
               functionName: "isUsed",
               args: [tokenId],
             }),
-          ]);
+          ])) as [bigint, boolean];
           return { tokenId, eventId, isUsed };
-        })
+        }),
       );
 
       setTickets(results.filter((t): t is OwnedTicket => t !== null));
     } catch (err) {
       console.error("Failed to load tickets:", err);
-      setError("Could not load your tickets. Check that you're on the right network.");
+      setError(
+        "Could not load your tickets. Check that you're on the right network.",
+      );
     } finally {
       setLoading(false);
     }

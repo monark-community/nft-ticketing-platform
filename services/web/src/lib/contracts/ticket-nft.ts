@@ -1,91 +1,13 @@
-// Minimal TicketNFT ABI: only the functions, events and errors the frontend uses.
-// Source: packages/contracts/contracts/TicketNFT.sol
-export const ticketNftAbi = [
-  {
-    type: "function",
-    name: "ownerOf",
-    stateMutability: "view",
-    inputs: [{ name: "tokenId", type: "uint256" }],
-    outputs: [{ name: "", type: "address" }],
-  },
-  {
-    type: "function",
-    name: "tokenEventId",
-    stateMutability: "view",
-    inputs: [{ name: "tokenId", type: "uint256" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "isUsed",
-    stateMutability: "view",
-    inputs: [{ name: "tokenId", type: "uint256" }],
-    outputs: [{ name: "", type: "bool" }],
-  },
-  {
-    type: "function",
-    name: "isValidTicket",
-    stateMutability: "view",
-    inputs: [{ name: "tokenId", type: "uint256" }],
-    outputs: [{ name: "", type: "bool" }],
-  },
-  {
-    type: "function",
-    name: "eventScanners",
-    stateMutability: "view",
-    inputs: [
-      { name: "eventId", type: "uint256" },
-      { name: "wallet", type: "address" },
-    ],
-    outputs: [{ name: "", type: "bool" }],
-  },
-  {
-    type: "function",
-    name: "checkInTicket",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "tokenId", type: "uint256" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "hasRole",
-    stateMutability: "view",
-    inputs: [
-      { name: "role", type: "bytes32" },
-      { name: "account", type: "address" },
-    ],
-    outputs: [{ name: "", type: "bool" }],
-  },
-  {
-    type: "function",
-    name: "ORGANIZER_ROLE",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "bytes32" }],
-  },
-  {
-    type: "event",
-    name: "Transfer",
-    inputs: [
-      { name: "from", type: "address", indexed: true },
-      { name: "to", type: "address", indexed: true },
-      { name: "tokenId", type: "uint256", indexed: true },
-    ],
-  },
-  {
-    type: "event",
-    name: "TicketCheckedIn",
-    inputs: [
-      { name: "tokenId", type: "uint256", indexed: true },
-      { name: "scanner", type: "address", indexed: true },
-    ],
-  },
-  {
-    type: "error",
-    name: "ERC721NonexistentToken",
-    inputs: [{ name: "tokenId", type: "uint256" }],
-  },
-] as const;
+// TicketNFT contract details for the frontend.
+// Single source of truth: both JSON files are written by packages/contracts/scripts/deploy.ts (#174),
+// so redeploying the contract updates the ABI and address here automatically (#218).
 
-export const TICKET_NFT_ADDRESS = process.env
-  .NEXT_PUBLIC_TICKET_CONTRACT_ADDRESS as `0x${string}` | undefined;
+import ticketNftAbiJson from "@/contracts/TicketNFT.json";
+import addresses from "@/contracts/addresses.json";
+import type { Abi } from "viem";
+
+// JSON imports lose the exact ABI types, so viem can't infer return types from this ABI.
+// Callers cast each readContract result to the Solidity return type instead.
+export const ticketNftAbi = ticketNftAbiJson as Abi;
+
+export const TICKET_NFT_ADDRESS = addresses.TicketNFT as `0x${string}`;

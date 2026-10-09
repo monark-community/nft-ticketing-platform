@@ -79,7 +79,8 @@ export async function verifyTicketQR({
   //    not the QR's eventId, which is only used to rebuild the signed message (#56).
   //    isUsed is also read so staff get a clearer reason than "invalid".
   try {
-    const [isValid, isUsed, onChainEventId] = await Promise.all([
+    // Cast to the Solidity return types (the JSON ABI has no exact types)
+    const [isValid, isUsed, onChainEventId] = (await Promise.all([
       publicClient.readContract({
         address: expectedContract,
         abi: ticketNftAbi,
@@ -98,7 +99,7 @@ export async function verifyTicketQR({
         functionName: "tokenEventId",
         args: [tokenId],
       }),
-    ]);
+    ])) as [boolean, boolean, bigint];
 
     if (!isValid) {
       return {
@@ -120,12 +121,12 @@ export async function verifyTicketQR({
 
     // 5. Was the QR signed by the ticket's current owner? (#56)
     //    Read ownerOf only now: it reverts for tickets that don't exist.
-    const owner = await publicClient.readContract({
+    const owner = (await publicClient.readContract({
       address: expectedContract,
       abi: ticketNftAbi,
       functionName: "ownerOf",
       args: [tokenId],
-    });
+    })) as `0x${string}`;
 
     // Rebuild the exact message from #54's format and check the signature against the owner
     // A malformed signature makes verifyMessage throw, so catch it here instead of
