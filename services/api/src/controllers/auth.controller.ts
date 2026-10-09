@@ -42,7 +42,8 @@ export async function verifySignature(req: Request, res: Response): Promise<void
       maxAge: 60 * 60 * 1000, // 1 hour
     });
 
-    res.json({ wallet_address: user.wallet_address, role: user.role });
+    // profile_complete: false tells the frontend to show the email step of account creation
+    res.json(user);
   } catch (err) {
     res.status(500).json({ error: 'Authentication failed' });
   }
