@@ -1,8 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
-import { useAccount, useChainId, useSignMessage } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { TICKET_NFT_ADDRESS } from "@/lib/contracts/ticket-nft";
 import {
@@ -11,6 +8,9 @@ import {
   QR_MAX_AGE_SECONDS,
   type TicketQRData,
 } from "@/lib/ticket-qr";
+import { QRCodeSVG } from "qrcode.react";
+import { useEffect, useState } from "react";
+import { useAccount, useChainId, useSignMessage } from "wagmi";
 
 interface Props {
   tokenId: bigint;
@@ -41,7 +41,7 @@ export function TicketQRCode({ tokenId, eventId }: Props) {
   }, [expiresAt]);
 
   async function generate() {
-    if (!address || !TICKET_NFT_ADDRESS) return;
+    if (!address) return;
     setError(null);
 
     const data: TicketQRData = {

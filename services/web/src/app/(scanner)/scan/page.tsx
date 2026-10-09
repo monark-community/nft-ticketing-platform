@@ -32,11 +32,11 @@ export default function ScanPage() {
 
   const eventIdValid = /^\d+$/.test(eventIdInput);
   const scannerAuth = useScannerAuthorization(eventIdValid ? BigInt(eventIdInput) : null);
-  const scannerReady = isConnected && eventIdValid && !!TICKET_NFT_ADDRESS;
+  const scannerReady = isConnected && eventIdValid;
 
   async function handleScan(codes: IDetectedBarcode[]) {
     const raw = codes[0]?.rawValue;
-    if (!raw || verifying || result || !publicClient || !TICKET_NFT_ADDRESS) return;
+    if (!raw || verifying || result || !publicClient) return;
 
     setVerifying(true);
     const verification = await verifyTicketQR({
@@ -92,11 +92,6 @@ export default function ScanPage() {
               <p className="text-sm rounded-md bg-amber-50 border border-amber-300 px-3 py-2 text-amber-900">
                 This wallet is not a scanner for event #{eventIdInput}. You can still verify
                 tickets, but check-in will fail until the organizer adds this wallet as a scanner.
-              </p>
-            )}
-            {!TICKET_NFT_ADDRESS && (
-              <p className="text-sm text-red-600">
-                Ticket contract address is not configured (NEXT_PUBLIC_TICKET_CONTRACT_ADDRESS).
               </p>
             )}
           </div>

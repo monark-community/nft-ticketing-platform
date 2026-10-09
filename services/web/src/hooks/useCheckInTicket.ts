@@ -1,9 +1,9 @@
 "use client";
 
+import { CHECK_IN_ERRORS, getCheckInErrorMessage } from "@/lib/check-in-errors";
+import { TICKET_NFT_ADDRESS, ticketNftAbi } from "@/lib/contracts/ticket-nft";
 import { useState } from "react";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
-import { ticketNftAbi, TICKET_NFT_ADDRESS } from "@/lib/contracts/ticket-nft";
-import { CHECK_IN_ERRORS, getCheckInErrorMessage } from "@/lib/check-in-errors";
 
 type CheckInStatus = "idle" | "pending" | "success" | "error";
 
@@ -18,7 +18,7 @@ export function useCheckInTicket() {
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
 
   async function checkIn(tokenId: bigint) {
-    if (!address || !publicClient || !TICKET_NFT_ADDRESS) return;
+    if (!address || !publicClient) return;
 
     setStatus("pending");
     setError(null);
@@ -59,5 +59,12 @@ export function useCheckInTicket() {
     setTxHash(null);
   }
 
-  return { checkIn, reset, status, error, txHash, isPending: status === "pending" };
+  return {
+    checkIn,
+    reset,
+    status,
+    error,
+    txHash,
+    isPending: status === "pending",
+  };
 }
