@@ -8,6 +8,10 @@ import { Label } from "@/components/ui/label";
 import { useWalletGuard } from "@/hooks/WalletGuard";
 import { useState } from "react";
 import { useAccount } from "wagmi";
+import { useRouter } from "next/navigation";
+import { useWalletAuth } from "@/hooks/useWalletAuth";
+import { apiClient } from "@/lib/api";
+import { StringToBoolean } from "class-variance-authority/types";
 // If '@/components/ui/label' does not exist, create 'src/components/ui/label.tsx' with a Label component.
 
 interface FormData {
@@ -24,6 +28,7 @@ interface FormErrors {
   email?: string;
   wallet?: string;
   role?: string;
+  api?: string;
 }
 
 export default function CreateAccountPage() {
@@ -37,6 +42,10 @@ export default function CreateAccountPage() {
 
   const [errors, setErrors] = useState<FormErrors>({});
   const { address, isConnected } = useAccount();
+
+  const router = useRouter();
+  const { isAuthenticated, requestNonceAndSign } = useWalletAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // --- Validation ---
   function validate(): FormErrors {
@@ -59,7 +68,38 @@ function handleSubmit() {
   const e = validate();
   setErrors(e);
   if (Object.keys(e).length > 0) return;
-  requireWallet(() => {
+  requireWallet(async () => {
+    try {
+      setIsSubmitting(true);
+      setErrors((prev) => ({ ...prev, api: undefined}));
+
+      if (!isAuthenticated) {
+        const user = await requestNonceAndSign();
+        if (!user) {
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      await apiClient("/api/users/me", {
+        method: "PUT",
+        data: {
+          email: form.email.trim(),
+          first_name: form.firstName.trim(),
+          last_name: form.lastName.trim(),
+          nickname: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
+        },
+      });
+
+      router.push("/")
+    } catch (err: any) {
+      setErrors((prev) => ({
+        ...prev,
+        api: err.message || "Failed to update profile",
+      }));
+    } finally {
+      setIsSubmitting(false);
+    }
     console.log("✅ Form submitted:", { ...form, walletAddress: address });
     alert(`Account ready!\nWallet: ${address}`);
   });
@@ -221,11 +261,15 @@ function handleSubmit() {
 </div>
 
             {/* SUBMIT */}
+            {errors.api && (
+              <p className="text-red-500 text-xs mb-3 text-center">{errors.api}</p>
+            )}
             <Button
               onClick={handleSubmit}
-              className="w-full bg-[#4f35c2] hover:bg-[#3d28a0] text-white font-bold py-3 text-base rounded-lg"
+              disabled={isSubmitting}
+              className="w-full bg-[#4f35c2] hover:bg-[#3d28a0] text-white font-bold py-3 text-base rounded-lg disabled:opacity-50"
             >
-              Create My Account
+              {isSubmitting ? "Creating account..." : "Create My Account"}
             </Button>
 
             <p className="text-center text-sm text-gray-500 mt-4">

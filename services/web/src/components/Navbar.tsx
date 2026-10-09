@@ -2,9 +2,11 @@
 
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
 import { useAccount } from "wagmi";
+import { useWalletAuth } from "@/hooks/useWalletAuth";
 
 export function Navbar() {
   const { address, isConnected } = useAccount();
+  const { logout, user } = useWalletAuth();
 
   const shortAddress = address
     ? `${address.slice(0, 6)}…${address.slice(-4)}`
@@ -23,9 +25,21 @@ export function Navbar() {
         <a href="#" className="text-white text-sm font-medium hover:underline">My Events</a>
         <a href="#" className="text-white text-sm font-medium hover:underline">Create Event</a>
         {isConnected && shortAddress ? (
-          <div className="flex items-center gap-2 bg-white/20 rounded-full px-3 py-1">
-            <span className="text-white text-sm font-mono">{shortAddress}</span>
-            <div className="w-6 h-6 rounded-full bg-yellow-400" />
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-white/20 rounded-full px-3 py-1">
+              <span className="text-white text-sm font-mono">{shortAddress}</span>
+              {user?.role && (
+                <span className="text-[10px] font-bold bg-yellow-400 text-black px-1.5 py-0.5 rounded-full uppercase">
+                  {user.role}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => logout()}
+              className="text-xs text-white/80 hover:text-white underline cursor-pointer"
+            >
+              Disconnect
+            </button>
           </div>
         ) : (
           <ConnectWalletButton />
