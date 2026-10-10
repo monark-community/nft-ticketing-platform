@@ -1,5 +1,6 @@
 "use client";
 
+import { useHasMounted } from "@/hooks/useHasMounted";
 import { useAccount, useSwitchChain } from "wagmi";
 import { sepolia } from "wagmi/chains";
 
@@ -8,8 +9,9 @@ import { sepolia } from "wagmi/chains";
 export function NetworkGuard() {
   const { isConnected, chainId } = useAccount();
   const { switchChain } = useSwitchChain();
+  const hasMounted = useHasMounted();
 
-  if (!isConnected) return null;
+  if (!hasMounted || !isConnected) return null;
   if (!chainId) return null;
   if (SUPPORTED_CHAIN_IDS.includes(chainId as typeof SUPPORTED_CHAIN_IDS[number])) return null;
 

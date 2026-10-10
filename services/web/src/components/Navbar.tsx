@@ -24,7 +24,7 @@ export function Navbar() {
         <a href="#" className="text-white text-sm font-medium hover:underline">Event Listing</a>
         <a href="#" className="text-white text-sm font-medium hover:underline">My Events</a>
         <a href="#" className="text-white text-sm font-medium hover:underline">Create Event</a>
-                {/* The server can't know the wallet state, so render this part only after mount (#220) */}
+        {/* The server can't know the wallet state, so render this part only after mount (#220) */}
         {!hasMounted ? (
           <div className="h-9 w-40" aria-hidden="true" />
         ) : isConnected && shortAddress ? (
