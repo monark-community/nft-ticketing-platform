@@ -5,7 +5,7 @@
 
 import { runTransactionSteps, type TransactionClient } from "@/lib/transactions/run-transaction";
 import { IDLE_TX_STATE, type TxState, type TxStep } from "@/lib/transactions/types";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 
 interface Options {
@@ -19,8 +19,14 @@ export function useTransaction({ getErrorMessage, timeoutMs }: Options) {
   const { writeContractAsync } = useWriteContract();
   const [state, setState] = useState<TxState>(IDLE_TX_STATE);
 
+  // Prevents duplicate submissions (#106). A ref, not state: it changes immediately,
+  // so a fast double-click can't start a second run before React re-renders.
+  const inFlight = useRef(false);
+
   async function run(steps: TxStep[]): Promise<boolean> {
     if (!address || !publicClient || steps.length === 0) return false;
+    if (inFlight.current) return false;
+    inFlight.current = true;
 
     const client: TransactionClient = {
       simulate: async (step, account) => {
@@ -31,20 +37,26 @@ export function useTransaction({ getErrorMessage, timeoutMs }: Options) {
       waitForReceipt: (hash, options) => publicClient.waitForTransactionReceipt({ hash, ...options }),
     };
 
-    return runTransactionSteps({
-      steps,
-      account: address,
-      client,
-      onUpdate: setState,
-      getErrorMessage,
-      timeoutMs,
-    });
+    try {
+      return await runTransactionSteps({
+        steps,
+        account: address,
+        client,
+        onUpdate: setState,
+        getErrorMessage,
+        timeoutMs,
+      });
+    } finally {
+      inFlight.current = false;
+    }
   }
 
   function reset() {
+    if (inFlight.current) return; // never hide a transaction that is still in progress
     setState(IDLE_TX_STATE);
   }
 
+  // Callers should disable their action buttons while busy, including "still pending" (#106)
   const isBusy =
     state.phase === "preparing" ||
     state.phase === "awaitingWallet" ||
