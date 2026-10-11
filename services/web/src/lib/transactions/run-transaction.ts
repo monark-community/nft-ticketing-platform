@@ -2,6 +2,7 @@
 // Kept free of React so the sequencing can be tested on its own; useTransaction wraps it.
 
 import type { Address, Hash, TransactionReceipt } from "viem";
+import { TransactionRevertedError } from "./errors";
 import type { TxState, TxStep } from "./types";
 
 export interface TransactionClient {
@@ -43,7 +44,13 @@ export async function runTransactionSteps({
       const hash = await client.write(request);
 
       update({ phase: "confirming", hash });
-      await client.waitForReceipt(hash);
+      const receipt = await client.waitForReceipt(hash);
+
+      // Mined, but the contract reverted (e.g. state changed between simulation and mining).
+      // A later step must not run, so stop the sequence here (#103).
+      if (receipt.status !== "success") {
+        throw new TransactionRevertedError(hash);
+      }
     }
 
     update({ phase: "success" });
