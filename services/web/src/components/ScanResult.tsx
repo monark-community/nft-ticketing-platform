@@ -12,7 +12,6 @@ type CheckInStatus = "idle" | "pending" | "success" | "error";
 interface Props {
   result: TicketVerification;
   checkInStatus: CheckInStatus;
-  checkInError: string | null;
   txHash: `0x${string}` | null;
   transaction: TxState;
   explorerUrl: string | null;
@@ -85,7 +84,7 @@ function DetailRow({ label, value, mono }: { label: string; value: string; mono?
   );
 }
 
-export function ScanResult({ result, checkInStatus, checkInError, txHash, transaction, explorerUrl, onCheckIn, onScanNext, canCheckIn }: Props) {
+export function ScanResult({ result, checkInStatus, txHash, transaction, explorerUrl, onCheckIn, onScanNext, canCheckIn }: Props) {
   const view: View = !result.ok ? "rejected" : checkInStatus === "success" ? "checkedIn" : "valid";
   const styles = STYLES[view];
   const heading = HEADINGS[view];
@@ -124,17 +123,11 @@ export function ScanResult({ result, checkInStatus, checkInError, txHash, transa
           This wallet is not a scanner for this event, so it cannot check the ticket in.
         </p>
       )}
-      {/* Check-in progress (#102) */}
-      {view === "valid" && pending && (
+      {/* Check-in progress (#102) and failure (#105). The green "Checked in" panel above is the success state. */}
+      {view === "valid" && (pending || checkInStatus === "error") && (
         <div className="mt-4">
           <TransactionStatus state={transaction} explorerUrl={explorerUrl} />
         </div>
-      )}
-      {/* Check-in error (ticket is still valid, the transaction failed) */}
-      {view === "valid" && checkInStatus === "error" && checkInError && (
-        <p className="mt-4 rounded-lg bg-amber-50 border border-amber-300 px-4 py-3 text-sm font-medium text-amber-900">
-          Check-in failed: {checkInError}
-        </p>
       )}
 
       {/* Actions */}

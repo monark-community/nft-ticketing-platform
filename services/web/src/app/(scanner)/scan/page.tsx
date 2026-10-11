@@ -128,7 +128,6 @@ export default function ScanPage() {
             <ScanResult
               result={result}
               checkInStatus={checkIn.status}
-              checkInError={checkIn.error}
               txHash={checkIn.txHash}
               transaction={checkIn.transaction}
               explorerUrl={checkIn.explorerUrl}
