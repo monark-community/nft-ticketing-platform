@@ -9,13 +9,20 @@ const PHASE_TEXT: Partial<Record<TxState["phase"], string>> = {
   preparing: "Preparing transaction...",
   awaitingWallet: "Confirm the transaction in your wallet",
   confirming: "Transaction sent. Waiting for confirmation...",
+  stillPending:
+    "This is taking longer than usual. The transaction is still pending and may still confirm, so don't send it again.",
 };
 
 function shortenHash(hash: string) {
   return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
 }
 
-export function TransactionStatus({ state }: { state: TxState }) {
+interface Props {
+  state: TxState;
+  explorerUrl?: string | null;
+}
+
+export function TransactionStatus({ state, explorerUrl }: Props) {
   const text = PHASE_TEXT[state.phase];
   if (!text) return null;
 
@@ -32,7 +39,19 @@ export function TransactionStatus({ state }: { state: TxState }) {
         <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" aria-hidden="true" />
         {text}
       </p>
-      {state.hash && <p className="mt-1 font-mono text-xs text-blue-800">Tx: {shortenHash(state.hash)}</p>}
+      {state.note && <p className="mt-1 text-xs">{state.note}</p>}
+      {state.hash && (
+        <p className="mt-1 font-mono text-xs text-blue-800">
+          Tx:{" "}
+          {explorerUrl ? (
+            <a href={`${explorerUrl}/tx/${state.hash}`} target="_blank" rel="noreferrer" className="underline">
+              {shortenHash(state.hash)}
+            </a>
+          ) : (
+            shortenHash(state.hash)
+          )}
+        </p>
+      )}
     </div>
   );
 }

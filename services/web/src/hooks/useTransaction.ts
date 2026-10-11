@@ -10,10 +10,11 @@ import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 
 interface Options {
   getErrorMessage: (err: unknown) => string;
+  timeoutMs?: number;
 }
 
-export function useTransaction({ getErrorMessage }: Options) {
-  const { address } = useAccount();
+export function useTransaction({ getErrorMessage, timeoutMs }: Options) {
+  const { address, chain } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
   const [state, setState] = useState<TxState>(IDLE_TX_STATE);
@@ -27,17 +28,31 @@ export function useTransaction({ getErrorMessage }: Options) {
         return request;
       },
       write: (request) => writeContractAsync(request as Parameters<typeof writeContractAsync>[0]),
-      waitForReceipt: (hash) => publicClient.waitForTransactionReceipt({ hash }),
+      waitForReceipt: (hash, options) => publicClient.waitForTransactionReceipt({ hash, ...options }),
     };
 
-    return runTransactionSteps({ steps, account: address, client, onUpdate: setState, getErrorMessage });
+    return runTransactionSteps({
+      steps,
+      account: address,
+      client,
+      onUpdate: setState,
+      getErrorMessage,
+      timeoutMs,
+    });
   }
 
   function reset() {
     setState(IDLE_TX_STATE);
   }
 
-  const isBusy = state.phase === "preparing" || state.phase === "awaitingWallet" || state.phase === "confirming";
+  const isBusy =
+    state.phase === "preparing" ||
+    state.phase === "awaitingWallet" ||
+    state.phase === "confirming" ||
+    state.phase === "stillPending";
 
-  return { state, run, reset, isBusy };
+  // Block explorer for the connected chain (Sepolia has Etherscan; the local Hardhat node has none)
+  const explorerUrl = chain?.blockExplorers?.default.url ?? null;
+
+  return { state, run, reset, isBusy, explorerUrl };
 }

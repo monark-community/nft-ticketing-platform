@@ -8,6 +8,7 @@ export type TxPhase =
   | "preparing" // simulating, to catch reverts before the wallet opens
   | "awaitingWallet" // waiting for the user to confirm in their wallet
   | "confirming" // sent, waiting to be included in a block
+  | "stillPending" // past the timeout but not failed: it may still confirm, so don't resend (#104)
   | "success"
   | "error";
 
@@ -30,6 +31,7 @@ export interface TxState {
   stepIndex: number; // which step is active (0-based)
   hash: Hash | null; // hash of the active step's transaction, once sent
   error: string | null;
+  note: string | null; // extra info, e.g. the transaction was sped up in the wallet
 }
 
 export const IDLE_TX_STATE: TxState = {
@@ -38,4 +40,5 @@ export const IDLE_TX_STATE: TxState = {
   stepIndex: 0,
   hash: null,
   error: null,
+  note: null,
 };

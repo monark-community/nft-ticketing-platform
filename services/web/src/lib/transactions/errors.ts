@@ -18,6 +18,9 @@ export const TX_ERRORS = {
   revertedOnChain:
     "The transaction was sent but failed on-chain (it reverted). Nothing changed, but the gas fee was spent.",
   network: "Could not reach the blockchain network. Check your connection and try again.",
+  cancelled: "The transaction was cancelled in your wallet before it confirmed.",
+  replaced:
+    "The transaction was replaced by a different transaction from your wallet, so it did not go through.",
   unknown: "The transaction failed. Please try again.",
 };
 
@@ -36,6 +39,15 @@ export class TransactionRevertedError extends Error {
   constructor(public hash: string) {
     super(`Transaction ${hash} reverted on-chain`);
     this.name = "TransactionRevertedError";
+  }
+}
+
+// Thrown by the runner when the wallet cancelled or replaced a pending transaction (#104).
+// A sped-up ("repriced") transaction is not an error: the runner keeps tracking the new one.
+export class TransactionReplacedError extends Error {
+  constructor(public reason: "cancelled" | "replaced") {
+    super(`Transaction was ${reason}`);
+    this.name = "TransactionReplacedError";
   }
 }
 
@@ -66,6 +78,9 @@ export function getTransactionErrorMessage(err: unknown, overrides: ErrorOverrid
   }
   if (err instanceof TransactionRevertedError) {
     return messages.revertedOnChain;
+  }
+  if (err instanceof TransactionReplacedError) {
+    return err.reason === "cancelled" ? messages.cancelled : messages.replaced;
   }
 
   // The contract would revert: caught while simulating, before anything was sent

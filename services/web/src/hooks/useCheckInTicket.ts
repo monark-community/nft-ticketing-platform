@@ -41,5 +41,6 @@ export function useCheckInTicket() {
     txHash: tx.state.hash,
     isPending: status === "pending",
     transaction: tx.state,
+    explorerUrl: tx.explorerUrl,
   };
 }

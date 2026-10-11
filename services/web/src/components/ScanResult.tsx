@@ -15,6 +15,7 @@ interface Props {
   checkInError: string | null;
   txHash: `0x${string}` | null;
   transaction: TxState;
+  explorerUrl: string | null;
   onCheckIn: () => void;
   onScanNext: () => void;
   canCheckIn: boolean;
@@ -84,7 +85,7 @@ function DetailRow({ label, value, mono }: { label: string; value: string; mono?
   );
 }
 
-export function ScanResult({ result, checkInStatus, checkInError, txHash, transaction, onCheckIn, onScanNext, canCheckIn }: Props) {
+export function ScanResult({ result, checkInStatus, checkInError, txHash, transaction, explorerUrl, onCheckIn, onScanNext, canCheckIn }: Props) {
   const view: View = !result.ok ? "rejected" : checkInStatus === "success" ? "checkedIn" : "valid";
   const styles = STYLES[view];
   const heading = HEADINGS[view];
@@ -126,7 +127,7 @@ export function ScanResult({ result, checkInStatus, checkInError, txHash, transa
       {/* Check-in progress (#102) */}
       {view === "valid" && pending && (
         <div className="mt-4">
-          <TransactionStatus state={transaction} />
+          <TransactionStatus state={transaction} explorerUrl={explorerUrl} />
         </div>
       )}
       {/* Check-in error (ticket is still valid, the transaction failed) */}
