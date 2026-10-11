@@ -14,21 +14,22 @@ NFTokenPass is an NFT ticketing platform designed to fix common issues like scal
 
 ## Key Features
 
-- 🚀 **Event Organizer Dashboard** - Create and manage events easily. Organizers can mint NFT tickets with specific details like seat numbers, dates, and prices.
-- ✅ **Wallet-Based Login** - Secure authentication for everyone. Users connect their crypto wallets (MetaMask) to buy, view, and store their tickets.
-- 🔄 **Fair Resale Market** - Smart contracts automatically enforce price limits and royalties on secondary sales, preventing scalping and ensuring creators get paid.
-- 📱 **Secure Check-in System** - Verify tickets instantly at the venue using a QR code scanner or a cryptographic wallet signature to prevent fraud.
-- 💾 **Dynamic Metadata** - Tickets are not just images; they store essential data directly on the blockchain.
+- 🎟️ **Ticket Types & Purchases** - Organizers set up events with multiple ticket types (e.g. General Admission, VIP). Tickets are minted as NFTs at the moment of purchase, paid in USDC.
+- ✅ **Wallet-Based Login** - Users sign in with their crypto wallet (MetaMask or WalletConnect). No passwords.
+- 🔄 **Fair Resale** - Resales on the platform respect the organizer's price cap and pay the organizer a royalty. Once a ticket is used or the event is over, it becomes a collectible with no price cap.
+- 🛡️ **Anti-Scalping Rules** - Per-wallet ticket limits and presale whitelists for each event.
+- 📱 **Secure Check-in** - Attendees show a time-limited QR code signed by their wallet. Scanners verify it on-chain at the door, so screenshots can't be reused.
+- 💾 **Permanent Metadata** - Event images and ticket metadata are stored on IPFS.
 
 ---
 
 ## Team & Roles
 
-* **Yassine Hassoune:** Lead Blockchain Developer – *Smart Contract architecture, Solidity testing, Security.*
-* **Abd-Ennour Souit:** Backend & DevOps Engineer – *API (Express), Database design, Cloud deployment (Render).*
-* **Dan Dushime:** Frontend Architect – *Next.js structure, Routing, State management.*
-* **Zachary:** Web3 Integrator – *Wallet connection (RainbowKit/Wagmi), Blockchain-to-Frontend logic.*
-* **Liam Madgett:** UI/UX Designer & Dev – *Component library (shadcn/ui), User experience flows, Responsiveness.*
+* **Abd-Ennour Souit:** Smart Contract Developer 
+* **Yassine Hassoune:** Smart Contract Developer 
+* **Liam Madgett:** Backend & Database Developer 
+* **Dan Dushime:** Frontend Developer 
+* **Zach Shewan:** DevOps & Database Developer
 
 ---
 ## 🎯 Objectives & Success Criteria
@@ -42,7 +43,7 @@ NFTokenPass is an NFT ticketing platform designed to fix common issues like scal
 3.  **Validation:** A "scan-to-enter" system that verifies ownership in < 2 seconds.
 
 **Criteria for Success**
-* Successful deployment on a Testnet (e.g., Sepolia or Tenderly).
+* Successful deployment on the Sepolia testnet.
 * Zero critical security vulnerabilities in the Smart Contracts.
 * Seamless user onboarding (users can buy a ticket without complex crypto knowledge).
 
@@ -53,23 +54,28 @@ NFTokenPass is an NFT ticketing platform designed to fix common issues like scal
 ```
 nft-ticketing-platform/
 ├── packages/
-│   ├── shared/                   # Shared types and utilities
-│   ├── smart-contracts/          # Solidity contracts + ZK circuits
-│   │   ├── contracts/            # Smart contracts
-│   │   ├── circuits/             # Circom ZK circuits
-│   │   └── test/                 # Contract tests
-│   └── subgraph/                 # The Graph indexing
+│   └── contracts/                # Smart contracts (Hardhat + Solidity)
+│       ├── contracts/            # TicketNFT.sol, MockUSDC.sol
+│       ├── scripts/              # Deploy, upgrade and lock scripts
+│       ├── test/                 # Contract tests
+│       ├── README.md             # Contract setup and deployment
+│       └── UPGRADES.md           # Upgrade and lock process
 ├── services/
-│   ├── api/                      # Backend API (Node.js + PostgreSQL)
-│   │   ├── src/controllers/      # API endpoints
-│   │   └── src/middlewares/      # Auth, validation
-│   │   ├── src/models/           # Data Models
-│   │   ├── src/routes/           # API Routes with OpenAPI documentation
-│   │   ├── src/services/         # Business logic
+│   ├── api/                      # Backend API (Express + PostgreSQL via Prisma)
+│   │   ├── prisma/               # Database schema, migrations, seed
+│   │   └── src/
+│   │       ├── controllers/      # Request handlers
+│   │       ├── middlewares/      # Auth, roles, rate limiting
+│   │       ├── routes/           # API routes
+│   │       ├── services/         # Business logic
+│   │       └── workers/          # Blockchain event listener
 │   └── web/                      # Frontend (Next.js + React)
-│       ├── app/                  # App router pages
-│       ├── components/           # UI components
-│       └── services/             # API clients, blockchain
+│       └── src/
+│           ├── app/              # App router pages
+│           ├── components/       # UI components
+│           ├── contracts/        # Contract ABI and addresses (exported by the deploy script)
+│           ├── hooks/            # React hooks
+│           └── lib/              # Wallet setup, helpers
 ├── docker-compose.yml            # Local Docker setup (api + web + db)
 └── DOCKER.md                     # Docker usage and deployment guide
 ```
@@ -86,33 +92,39 @@ The easiest way to run the NFTokenPass platform is using Docker and Docker Compo
 - [Docker](https://docs.docker.com/get-docker/) (version 20.10 or higher)
 - [Docker Compose](https://docs.docker.com/compose/install/) (version 1.29 or higher)
 - [Git](https://git-scm.com/)
+- A free WalletConnect project ID from [cloud.reown.com](https://cloud.reown.com)
 
 #### Setup Instructions
 
 1. **Clone the repository:**
-   ```bash
+```bash
    git clone https://github.com/monark-community/nft-ticketing-platform.git
    cd nft-ticketing-platform
-   ```
+```
 
 2. **Create environment configuration:**
-   ```bash
-   # Copy the Docker environment example
+```bash
+   # Docker settings
    cp .env.docker.example .env
-   
-   # Edit .env with your specific configuration (optional for development)
-   # nano .env  # or your preferred editor
-   ```
+
+   # API settings: set at least JWT_SECRET (any string for local development)
+   cp services/api/.env.example services/api/.env
+```
+   Then create `services/web/.env.local` containing:
+```
+   NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=<your_project_id>
+```
+   Without it, the web app returns a 500 error.
 
 3. **Build and start the services:**
-   ```bash
-   # Start services (development)
+```bash
    docker-compose up --build
-   ```
+```
+   Database migrations run automatically when the API starts. If you ran the project before the database setup changed, reset your local database first with `docker-compose down -v`.
 
 4. **Access the application:**
    - **Web Frontend:** http://localhost:3000
-   - **API Server:** http://localhost:3001
+   - **API Server:** http://localhost:3001 (health check: `/health`, database check: `/db-health`)
    - **Database:** localhost:5432 (PostgreSQL)
 
 #### Common Docker Commands
@@ -136,7 +148,7 @@ docker-compose down -v
 docker-compose build
 
 # Run a command in a container
-docker-compose exec api npm run migrate
+docker-compose exec api npm run db:migrate:deploy
 docker-compose exec web npm run build
 
 # Access a service shell
@@ -175,15 +187,66 @@ All services use environment variables for configuration:
 |-------|----------|
 | Port already in use | Change ports in docker-compose.yml or stop other services using those ports |
 | Database connection errors | Ensure `db` service is running: `docker-compose ps` and check logs with `docker-compose logs db` |
+| Web app returns a 500 error | Set `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` in `services/web/.env.local` |
+| Migration errors after pulling | Reset the local database: `docker-compose down -v`, then `docker-compose up --build` |
 | Out of disk space | Run `docker system prune -a` to remove unused images |
 | Changes not reflecting | Rebuild services: `docker-compose build --no-cache` |
 | Permission denied | Run with `sudo` or add your user to docker group: `sudo usermod -aG docker $USER` |
+
+### Local Blockchain Development
+
+To run the smart contracts on a local blockchain, deploy them, and connect MetaMask, see the [contracts README](./packages/contracts/README.md). For upgrading or locking the deployed contract, see [UPGRADES.md](./packages/contracts/UPGRADES.md).
+
+### Running Without Docker
+
+Requires Node.js 20.9 or higher and a running PostgreSQL database.
+
+```bash
+# API (http://localhost:3001)
+cd services/api
+npm install
+cp .env.example .env          # then set DATABASE_URL and JWT_SECRET
+npm run db:generate
+npm run db:migrate:deploy
+npm run dev
+
+# Web (http://localhost:3000), in a second terminal
+cd services/web
+npm install
+npm run dev                   # needs services/web/.env.local (see above)
+```
 
 ---
 
 ## Available Scripts
 
-Coming soon
+**Smart contracts** (`packages/contracts`)
+
+| Command | Description |
+|---------|-------------|
+| `npx hardhat test` | Run all contract tests |
+| `npx hardhat node` | Start a local blockchain |
+| `npx hardhat run scripts/deploy.ts --network localhost` | Deploy locally and export the ABI to the frontend |
+
+**API** (`services/api`)
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start the API with auto-reload |
+| `npm run build` / `npm start` | Build and run the compiled API |
+| `npm run db:generate` | Generate the Prisma client |
+| `npm run db:migrate` | Create and apply a migration (development) |
+| `npm run db:migrate:deploy` | Apply existing migrations |
+| `npm run db:seed` | Seed the database |
+| `npm run db:studio` | Open Prisma Studio |
+
+**Web** (`services/web`)
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start the development server |
+| `npm run build` / `npm start` | Build and run the production app |
+| `npm run lint` | Run ESLint |
 
 ## Deployment
 
@@ -192,17 +255,19 @@ Coming soon
 ## Architecture & Risks
 ### Expected Architecture
 
-* Blockchain: Handles ownership, transfers, and royalties (Solidity).
+* Blockchain: Handles ownership, sales, check-in, transfers and royalties (Solidity, Sepolia testnet).
 
-* Backend: Indexes events and stores heavy metadata (images/descriptions) to save gas.
+* Backend: Stores user accounts, event details and a cache of on-chain data, kept in sync by a blockchain event listener.
 
-* Frontend: Next.js application interacting with API and Blockchain via RPC.
+* IPFS: Stores event images and ticket metadata permanently.
+
+* Frontend: Next.js application interacting with the API and the blockchain via RPC.
 
 ### Anticipated Risks
 
-* Gas Fees: High transaction costs could deter users. Mitigation: Deploying on optimized L2 testnets.
+* Gas Fees: High transaction costs could deter users. Mitigation: deploying on low-cost networks.
 
-* Smart Contract Bugs: Immutable code means bugs are permanent. Mitigation: Using OpenZeppelin libraries and 100% test coverage.
+* Smart Contract Bugs: Immutable code means bugs are permanent. Mitigation: Using OpenZeppelin libraries, extensive automated tests, and keeping the contract upgradeable until it is locked before the public sale.
 
 ## Legal & Social Implications
 ### Legal Considerations
@@ -213,19 +278,20 @@ Coming soon
 
 ### Social Impact
 
-* Fairness: The system prevents scalpers from buying bulk tickets using bots, ensuring fair access for real fans.
+* Fairness: Per-wallet limits and resale price caps make it harder for scalpers to buy tickets in bulk, ensuring fairer access for real fans.
 
 * Environmental Impact: By choosing Proof-of-Stake networks, our carbon footprint is negligible compared to legacy Proof-of-Work chains.
 
 ## Documentation
 
 - Docker setup and deployment guide: [DOCKER.md](./DOCKER.md)
+- Smart contracts: [packages/contracts/README.md](./packages/contracts/README.md)
 - Additional docs: [docs/README.md](./docs/README.md)
 
 
 ## Contribution
 
-See [CONTRIBUTION.md](./CONTRIBUTION.md) to learn about contributions guidelines.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) to learn about contributions guidelines.
 
 ## Code of Conduct
 
