@@ -3,6 +3,8 @@
 // Result screen for the ticket scanner (#58).
 
 
+import { TransactionStatus } from "@/components/TransactionStatus";
+import type { TxState } from "@/lib/transactions/types";
 import type { TicketVerification } from "@/lib/verify-ticket";
 
 type CheckInStatus = "idle" | "pending" | "success" | "error";
@@ -12,6 +14,7 @@ interface Props {
   checkInStatus: CheckInStatus;
   checkInError: string | null;
   txHash: `0x${string}` | null;
+  transaction: TxState;
   onCheckIn: () => void;
   onScanNext: () => void;
   canCheckIn: boolean;
@@ -81,7 +84,7 @@ function DetailRow({ label, value, mono }: { label: string; value: string; mono?
   );
 }
 
-export function ScanResult({ result, checkInStatus, checkInError, txHash, onCheckIn, onScanNext, canCheckIn }: Props) {
+export function ScanResult({ result, checkInStatus, checkInError, txHash, transaction, onCheckIn, onScanNext, canCheckIn }: Props) {
   const view: View = !result.ok ? "rejected" : checkInStatus === "success" ? "checkedIn" : "valid";
   const styles = STYLES[view];
   const heading = HEADINGS[view];
@@ -120,6 +123,12 @@ export function ScanResult({ result, checkInStatus, checkInError, txHash, onChec
           This wallet is not a scanner for this event, so it cannot check the ticket in.
         </p>
       )}
+      {/* Check-in progress (#102) */}
+      {view === "valid" && pending && (
+        <div className="mt-4">
+          <TransactionStatus state={transaction} />
+        </div>
+      )}
       {/* Check-in error (ticket is still valid, the transaction failed) */}
       {view === "valid" && checkInStatus === "error" && checkInError && (
         <p className="mt-4 rounded-lg bg-amber-50 border border-amber-300 px-4 py-3 text-sm font-medium text-amber-900">
@@ -135,7 +144,7 @@ export function ScanResult({ result, checkInStatus, checkInError, txHash, onChec
             disabled={pending || !canCheckIn}
             className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-lg font-bold py-3 rounded-lg"
           >
-            {pending ? "Checking in... confirm in your wallet" : checkInStatus === "error" ? "Try check-in again" : "Check in ticket"}
+            {pending ? "Checking in..." : checkInStatus === "error" ? "Try check-in again" : "Check in ticket"}
           </button>
         )}
         <button
