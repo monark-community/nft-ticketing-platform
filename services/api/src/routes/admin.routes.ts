@@ -7,7 +7,7 @@ import { requireRole } from '../middlewares/requireRole';
 const router = Router();
 
 // All admin routes require a signed-in ADMIN with a completed account
-router.use(authenticate, requireEmail, requireRole('ADMIN'));
+router.use(authenticate, requireRole('ADMIN'), requireEmail);
 
 // Organizer requests (approval is done on-chain via grantRole from the admin wallet)
 router.get('/organizer-requests', getOrganizerRequests);
