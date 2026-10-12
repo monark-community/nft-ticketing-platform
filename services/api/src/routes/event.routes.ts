@@ -24,25 +24,25 @@ router.get('/', publicRateLimiter, getEvents);
 router.get('/:id', publicRateLimiter, getEvent);
 
 // Organizer — event lifecycle
-router.post('/', authenticate, requireEmail, requireRole('ORGANIZER'), postEvent);
-router.put('/:id', authenticate, requireEmail, requireRole('ORGANIZER'), putEvent);
-router.post('/:id/freeze', authenticate, requireEmail, requireRole('ORGANIZER'), upload.single('image'), postFreezeEvent);
-router.post('/:id/publish', authenticate, requireEmail, requireRole('ORGANIZER'), postPublishEvent);
+router.post('/', authenticate, requireRole('ORGANIZER'), requireEmail, postEvent);
+router.put('/:id', authenticate, requireRole('ORGANIZER'), requireEmail, putEvent);
+router.post('/:id/freeze', authenticate, requireRole('ORGANIZER'), requireEmail, upload.single('image'), postFreezeEvent);
+router.post('/:id/publish', authenticate, requireRole('ORGANIZER'), requireEmail, postPublishEvent);
 
 // Public — ticket types
 router.get('/:id/ticket-types', publicRateLimiter, getTicketTypes);
 
 // Organizer — ticket types
-router.post('/:id/ticket-types', authenticate, requireEmail, requireRole('ORGANIZER'), postTicketType);
+router.post('/:id/ticket-types', authenticate, requireRole('ORGANIZER'), requireEmail, postTicketType);
 
 // Organizer — scanners
-router.get('/:id/scanners', authenticate, requireEmail, requireRole('ORGANIZER'), getScanners);
-router.post('/:id/scanners', authenticate, requireEmail, requireRole('ORGANIZER'), postScanner);
-router.delete('/:id/scanners/:wallet', authenticate, requireEmail, requireRole('ORGANIZER'), deleteScanner);
+router.get('/:id/scanners', authenticate, requireRole('ORGANIZER'), requireEmail, getScanners);
+router.post('/:id/scanners', authenticate, requireRole('ORGANIZER'), requireEmail, postScanner);
+router.delete('/:id/scanners/:wallet', authenticate, requireRole('ORGANIZER'), requireEmail, deleteScanner);
 
 // Organizer — whitelist
-router.get('/:id/whitelist', authenticate, requireEmail, requireRole('ORGANIZER'), getWhitelist);
-router.post('/:id/whitelist', authenticate, requireEmail, requireRole('ORGANIZER'), postWhitelist);
-router.delete('/:id/whitelist/:wallet', authenticate, requireEmail, requireRole('ORGANIZER'), deleteWhitelist);
+router.get('/:id/whitelist', authenticate, requireRole('ORGANIZER'), requireEmail, getWhitelist);
+router.post('/:id/whitelist', authenticate, requireRole('ORGANIZER'), requireEmail, postWhitelist);
+router.delete('/:id/whitelist/:wallet', authenticate, requireRole('ORGANIZER'), requireEmail, deleteWhitelist);
 
 export default router;

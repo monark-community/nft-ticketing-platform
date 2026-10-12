@@ -9,6 +9,6 @@ const router = Router();
 
 router.get('/', authenticate, requireEmail, getMyTickets);
 router.get('/:tokenId', publicRateLimiter, getTicket);
-router.get('/:tokenId/validate', authRateLimiter, authenticate, requireEmail, requireRole('SCANNER'), validateTicketEntry);
+router.get('/:tokenId/validate', authRateLimiter, authenticate, requireRole('SCANNER'), requireEmail, validateTicketEntry);
 
 export default router;
