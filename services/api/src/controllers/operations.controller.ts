@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { ethers } from 'ethers';
 import {
   listScanners,
   addScanner,
@@ -7,6 +8,10 @@ import {
   addToWhitelist,
   removeFromWhitelist,
 } from '../services/operations.service';
+
+function isWalletAddress(value: unknown): value is string {
+  return typeof value === 'string' && ethers.isAddress(value);
+}
 
 // --- Scanners ---
 
@@ -23,7 +28,7 @@ export async function getScanners(req: Request, res: Response): Promise<void> {
 
 export async function postScanner(req: Request, res: Response): Promise<void> {
   const { wallet } = req.body;
-  if (!wallet) { res.status(400).json({ error: 'wallet is required' }); return; }
+  if (!isWalletAddress(wallet)) { res.status(400).json({ error: 'wallet must be a valid wallet address' }); return; }
 
   try {
     const result = await addScanner(req.params.id, req.user!.wallet_address, wallet);
@@ -66,8 +71,8 @@ export async function getWhitelist(req: Request, res: Response): Promise<void> {
 
 export async function postWhitelist(req: Request, res: Response): Promise<void> {
   const { wallets } = req.body;
-  if (!wallets || !Array.isArray(wallets) || wallets.length === 0) {
-    res.status(400).json({ error: 'wallets must be a non-empty array' });
+  if (!Array.isArray(wallets) || wallets.length === 0 || !wallets.every(isWalletAddress)) {
+    res.status(400).json({ error: 'wallets must be a non-empty array of valid wallet addresses' });
     return;
   }
 
