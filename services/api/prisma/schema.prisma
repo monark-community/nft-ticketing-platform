@@ -23,7 +23,6 @@ enum EventStatus {
 enum TicketStatus {
   VALID
   USED
-  AVAILABLE
 }
 
 model User {
