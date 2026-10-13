@@ -8,6 +8,7 @@ import {
   publishEvent,
 } from '../services/event.service';
 import { pinImageToIPFS, pinMetadataToIPFS, buildEventMetadata, buildTicketMetadata } from '../services/ipfs.service';
+import logger from '../lib/logger';
 
 export async function getEvents(req: Request, res: Response): Promise<void> {
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -122,13 +123,20 @@ export async function postFreezeEvent(req: Request, res: Response): Promise<void
       const message = err.message ?? 'Failed to pin to IPFS';
       if (
         message.includes('Unsupported file type') ||
-        message.includes('maximum allowed size') ||
-        message.includes('PINATA_JWT is not configured')
+        message.includes('maximum allowed size')
       ) {
         res.status(400).json({ error: message });
         return;
       }
-      res.status(502).json({ error: `IPFS pinning failed: ${message}` });
+      if (message.includes('PINATA_JWT is not configured')) {
+        // Server misconfiguration, not a client error. The message names the
+        // missing variable without exposing any secret.
+        logger.error('Freeze failed: PINATA_JWT is not configured');
+        res.status(500).json({ error: message });
+        return;
+      }
+      logger.error('IPFS pinning failed during freeze', { error: err, eventId: req.params.id });
+      res.status(502).json({ error: 'Failed to pin metadata to IPFS, please try again later' });
       return;
     }
 
@@ -149,7 +157,8 @@ export async function postFreezeEvent(req: Request, res: Response): Promise<void
 
     res.json({ ipfs_hash: metadataCid, ipfs_uri: `ipfs://${metadataCid}`, event: result, ticket_types: ticketPins });
   } catch (err: any) {
-    res.status(500).json({ error: err.message ?? 'Failed to freeze event' });
+    logger.error('Failed to freeze event', { error: err, eventId: req.params.id });
+    res.status(500).json({ error: 'Failed to freeze event' });
   }
 }
 
