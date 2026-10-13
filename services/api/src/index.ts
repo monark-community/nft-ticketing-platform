@@ -63,8 +63,16 @@ app.use((_req, res) => {
 });
 
 // Global error handler
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error(err.message, { stack: err.stack });
+  if (err?.code === 'LIMIT_FILE_SIZE') {
+    res.status(400).json({ error: 'File exceeds maximum allowed size of 10 MB' });
+    return;
+  }
+  if (err?.code === 'LIMIT_FILE_COUNT' || err?.message?.includes('Unsupported file type')) {
+    res.status(400).json({ error: err.message ?? 'Invalid file upload' });
+    return;
+  }
   res.status(500).json({ error: 'Internal server error' });
 });
 

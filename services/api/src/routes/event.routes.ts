@@ -17,7 +17,17 @@ import { requireEmail } from '../middlewares/requireEmail';
 import { publicRateLimiter } from '../middlewares/rateLimiter';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    if (['image/png', 'image/jpeg', 'image/webp'].includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Unsupported file type. Allowed: PNG, JPG, WebP'));
+    }
+  },
+});
 
 // Public
 router.get('/', publicRateLimiter, getEvents);

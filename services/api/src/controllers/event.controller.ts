@@ -7,7 +7,7 @@ import {
   freezeEvent,
   publishEvent,
 } from '../services/event.service';
-import { pinImageToIPFS, pinMetadataToIPFS } from '../services/ipfs.service';
+import { pinImageToIPFS, pinMetadataToIPFS, buildEventMetadata, buildTicketMetadata } from '../services/ipfs.service';
 
 export async function getEvents(req: Request, res: Response): Promise<void> {
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -81,30 +81,73 @@ export async function postFreezeEvent(req: Request, res: Response): Promise<void
   }
 
   try {
+    // Ownership and status checks happen BEFORE any IPFS upload so failed
+    // requests don't leave orphaned pins.
     const event = await getEventById(req.params.id);
     if (!event) { res.status(404).json({ error: 'Event not found' }); return; }
+    if (event.organizer_wallet !== req.user!.wallet_address) {
+      res.status(403).json({ error: 'Not your event' });
+      return;
+    }
+    if (event.status !== 'DRAFT') {
+      res.status(409).json({ error: 'Event is already frozen' });
+      return;
+    }
+    if (event.ticket_types.length === 0) {
+      res.status(400).json({ error: 'Add at least one ticket type before freezing the event' });
+      return;
+    }
 
-    const imageCid = await pinImageToIPFS(file.buffer, file.originalname, file.mimetype);
+    let imageCid: string;
+    let metadataCid: string;
+    let ticketPins: Array<{ id: string; ipfsHash: string; uri: string }>;
+    try {
+      imageCid = await pinImageToIPFS(file.buffer, file.originalname, file.mimetype);
 
-    const metadata = {
-      name: event.title,
-      description: event.description ?? '',
-      image: `ipfs://${imageCid}`,
-      attributes: {
-        location: event.location,
-        start_date: event.start_date,
-        end_date: event.end_date,
-      },
-    };
+      const metadata = buildEventMetadata(event, imageCid);
+      metadataCid = await pinMetadataToIPFS(metadata);
 
-    const metadataCid = await pinMetadataToIPFS(metadata);
-    const result = await freezeEvent(req.params.id, req.user!.wallet_address, metadataCid);
+      ticketPins = await Promise.all(
+        event.ticket_types.map(async (tt) => {
+          const ticketMetadata = buildTicketMetadata(
+            { id: tt.id, name: tt.name, description: tt.description, price: tt.price.toString(), supply: tt.supply },
+            event,
+            imageCid
+          );
+          const cid = await pinMetadataToIPFS(ticketMetadata);
+          return { id: tt.id, ipfsHash: cid, uri: `ipfs://${cid}` };
+        })
+      );
+    } catch (err: any) {
+      const message = err.message ?? 'Failed to pin to IPFS';
+      if (
+        message.includes('Unsupported file type') ||
+        message.includes('maximum allowed size') ||
+        message.includes('PINATA_JWT is not configured')
+      ) {
+        res.status(400).json({ error: message });
+        return;
+      }
+      res.status(502).json({ error: `IPFS pinning failed: ${message}` });
+      return;
+    }
+
+    const result = await freezeEvent(
+      req.params.id,
+      req.user!.wallet_address,
+      metadataCid,
+      ticketPins.map((p) => ({ id: p.id, ipfsHash: p.ipfsHash }))
+    );
 
     if (result === null) { res.status(404).json({ error: 'Event not found' }); return; }
     if (result === 'forbidden') { res.status(403).json({ error: 'Not your event' }); return; }
     if (result === 'already_frozen') { res.status(409).json({ error: 'Event is already frozen' }); return; }
+    if (result === 'invalid_ticket_type') {
+      res.status(409).json({ error: 'Ticket types changed during freeze, please retry' });
+      return;
+    }
 
-    res.json({ ipfs_hash: metadataCid, event: result });
+    res.json({ ipfs_hash: metadataCid, ipfs_uri: `ipfs://${metadataCid}`, event: result, ticket_types: ticketPins });
   } catch (err: any) {
     res.status(500).json({ error: err.message ?? 'Failed to freeze event' });
   }

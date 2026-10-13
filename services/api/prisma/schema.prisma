@@ -76,6 +76,7 @@ model TicketType {
   supply      Int
   sold        Int      @default(0)
   metadata    Json?
+  ipfs_hash   String?
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
