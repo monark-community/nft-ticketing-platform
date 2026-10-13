@@ -15,7 +15,7 @@ export async function getTicketTypes(req: Request, res: Response): Promise<void>
 }
 
 export async function postTicketType(req: Request, res: Response): Promise<void> {
-  const { name, description, price, supply, metadata } = req.body;
+  const { name, description, price, supply, metadata } = req.body ?? {};
 
   if (!name || price === undefined || supply === undefined) {
     res.status(400).json({ error: 'name, price, and supply are required' });
