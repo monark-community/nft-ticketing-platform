@@ -78,15 +78,41 @@ export async function updateEvent(
   });
 }
 
-export async function freezeEvent(id: string, organizerWallet: string, ipfsHash: string) {
-  const event = await prisma.event.findUnique({ where: { id } });
+export async function freezeEvent(
+  id: string,
+  organizerWallet: string,
+  ipfsHash: string,
+  ticketPins: Array<{ id: string; ipfsHash: string }> = []
+) {
+  const event = await prisma.event.findUnique({
+    where: { id },
+    include: { ticket_types: true },
+  });
   if (!event) return null;
   if (event.organizer_wallet !== organizerWallet) return 'forbidden';
   if (event.status !== EventStatus.DRAFT) return 'already_frozen';
 
-  return prisma.event.update({
+  const ticketIds = new Set(event.ticket_types.map((t) => t.id));
+  for (const pin of ticketPins) {
+    if (!ticketIds.has(pin.id)) return 'invalid_ticket_type';
+  }
+
+  await prisma.$transaction([
+    prisma.event.update({
+      where: { id },
+      data: { ipfs_hash: ipfsHash, status: EventStatus.FROZEN },
+    }),
+    ...ticketPins.map((pin) =>
+      prisma.ticketType.update({
+        where: { id: pin.id },
+        data: { ipfs_hash: pin.ipfsHash },
+      })
+    ),
+  ]);
+
+  return prisma.event.findUnique({
     where: { id },
-    data: { ipfs_hash: ipfsHash, status: EventStatus.FROZEN },
+    include: { ticket_types: true },
   });
 }
 
