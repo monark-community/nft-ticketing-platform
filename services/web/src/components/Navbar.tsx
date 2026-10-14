@@ -7,7 +7,7 @@ import { useWalletAuth } from "@/hooks/useWalletAuth";
 
 export function Navbar() {
   const { address, isConnected } = useAccount();
-  const { logout, user } = useWalletAuth();
+  const { logout, user, signIn, isLoading } = useWalletAuth();
   const hasMounted = useHasMounted();
 
   const shortAddress = address

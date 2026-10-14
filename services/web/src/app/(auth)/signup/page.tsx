@@ -6,14 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useWalletGuard } from "@/hooks/WalletGuard";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { useRouter } from "next/navigation";
 import { useWalletAuth } from "@/hooks/useWalletAuth";
 import { apiClient } from "@/lib/api";
-import { StringToBoolean } from "class-variance-authority/types";
-// If '@/components/ui/label' does not exist, create 'src/components/ui/label.tsx' with a Label component.
-
 interface FormData {
   firstName: string;
   lastName: string;
@@ -41,11 +38,15 @@ export default function CreateAccountPage() {
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
-  const { address, isConnected } = useAccount();
+  const { isConnected } = useAccount();
 
   const router = useRouter();
-  const { isAuthenticated, requestNonceAndSign } = useWalletAuth();
+  const { user, signIn, loadProfile } = useWalletAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (user?.profile_complete) router.push("/");
+  }, [user, router]);
   
   // --- Validation ---
   function validate(): FormErrors {
@@ -73,13 +74,8 @@ function handleSubmit() {
       setIsSubmitting(true);
       setErrors((prev) => ({ ...prev, api: undefined}));
 
-      if (!isAuthenticated) {
-        const user = await requestNonceAndSign();
-        if (!user) {
-          setIsSubmitting(false);
-          return;
-        }
-      }
+      const currentUser = user ?? (await signIn());
+      if (!currentUser) return;
 
       await apiClient("/api/users/me", {
         method: "PUT",
@@ -91,17 +87,16 @@ function handleSubmit() {
         },
       });
 
-      router.push("/")
-    } catch (err: any) {
+      await loadProfile();
+      router.push("/");
+    } catch (err) {
       setErrors((prev) => ({
         ...prev,
-        api: err.message || "Failed to update profile",
+        api: err instanceof Error ? err.message : "Failed to update profile",
       }));
     } finally {
       setIsSubmitting(false);
     }
-    console.log("✅ Form submitted:", { ...form, walletAddress: address });
-    alert(`Account ready!\nWallet: ${address}`);
   });
 }
 
