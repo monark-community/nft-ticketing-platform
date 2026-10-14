@@ -45,7 +45,7 @@ export default function CreateAccountPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (user?.profile_complete) router.push("/");
+    if (user?.profile_complete) router.push("/my-tickets");
   }, [user, router]);
   
   // --- Validation ---
@@ -88,7 +88,7 @@ function handleSubmit() {
       });
 
       await loadProfile();
-      router.push("/");
+      router.push("/my-tickets");
     } catch (err) {
       setErrors((prev) => ({
         ...prev,

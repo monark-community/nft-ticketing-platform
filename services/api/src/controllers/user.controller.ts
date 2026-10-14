@@ -31,8 +31,8 @@ export async function getMe(req: Request, res: Response): Promise<void> {
 }
 
 export async function updateMe(req: Request, res: Response): Promise<void> {
-  const { nickname, first_name, last_name } = req.body;
-  let { email } = req.body;
+  const { nickname } = req.body;
+  let { email , first_name, last_name} = req.body;
 
   // Email is required and paired with the wallet, so it can be changed but never cleared
   if (email !== undefined) {
@@ -41,6 +41,22 @@ export async function updateMe(req: Request, res: Response): Promise<void> {
       return;
     }
     email = email.trim().toLowerCase();
+  }
+
+  if (first_name !== undefined) {
+    if (typeof first_name !== 'string' || first_name.trim() === '') {
+      res.status(400).json({ error: 'first_name must be a non-empty string' });
+      return;
+    }
+    first_name = first_name.trim();
+  }
+
+  if (last_name !== undefined) {
+    if (typeof last_name !== 'string' || last_name.trim() === '') {
+      res.status(400).json({ error: 'last_name must be a non-empty string' });
+      return;
+    }
+    last_name = last_name.trim();
   }
 
   try {

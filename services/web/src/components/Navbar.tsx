@@ -39,12 +39,21 @@ export function Navbar() {
                 </span>
               )}
             </div>
+            {!user && (
+              <button
+                onClick={() => signIn()}
+                disabled={isLoading}
+                className="text-xs text-white font-semibold underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? "Signing..." : "Sign in"}
+              </button>
+            )}
             <button
               onClick={() => logout()}
               className="text-xs text-white/80 hover:text-white underline cursor-pointer"
             >
               Disconnect
-            </button>
+            </button> 
           </div>
         ) : (
           <ConnectWalletButton />

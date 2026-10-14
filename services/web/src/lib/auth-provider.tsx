@@ -134,7 +134,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      await apiClient("/api/auth/logout", { method: "POST" });
+        if (user) {
+            await apiClient("/api/auth/logout", { method: "POST" });
+        }
     } catch (err) {
       console.error("Logout request failed: ", err);
     } finally {
@@ -142,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthError(null);
       disconnect();
     }
-  }, [disconnect]);
+  }, [user, disconnect]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
