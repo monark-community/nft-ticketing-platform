@@ -60,8 +60,19 @@ export async function postEvent(req: Request, res: Response): Promise<void> {
 }
 
 export async function putEvent(req: Request, res: Response): Promise<void> {
+  // #211: only editable metadata may be updated. status, organizer_wallet,
+  // contract_event_id and ipfs_hash must never change via this endpoint.
+  const { title, description, location, category, start_date, end_date, image_url } = req.body ?? {};
   try {
-    const result = await updateEvent(req.params.id, req.user!.wallet_address, req.body);
+    const result = await updateEvent(req.params.id, req.user!.wallet_address, {
+      title,
+      description,
+      location,
+      category,
+      start_date,
+      end_date,
+      image_url,
+    });
 
     if (result === null) { res.status(404).json({ error: 'Event not found' }); return; }
     if (result === 'forbidden') { res.status(403).json({ error: 'Not your event' }); return; }
