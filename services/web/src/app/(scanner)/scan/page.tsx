@@ -128,8 +128,10 @@ export default function ScanPage() {
             <ScanResult
               result={result}
               checkInStatus={checkIn.status}
-              checkInError={checkIn.error}
               txHash={checkIn.txHash}
+              transaction={checkIn.transaction}
+              explorerUrl={checkIn.explorerUrl}
+              onStopWaiting={checkIn.stopWaiting}
               onCheckIn={() => result.qr && checkIn.checkIn(BigInt(result.qr.tokenId))}
               onScanNext={scanNext}
               canCheckIn={scannerAuth.status !== "notAuthorized"}

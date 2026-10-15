@@ -1,70 +1,47 @@
 "use client";
 
-import { CHECK_IN_ERRORS, getCheckInErrorMessage } from "@/lib/check-in-errors";
+import { getCheckInErrorMessage } from "@/lib/check-in-errors";
 import { TICKET_NFT_ADDRESS, ticketNftAbi } from "@/lib/contracts/ticket-nft";
-import { useState } from "react";
-import { useAccount, usePublicClient, useWriteContract } from "wagmi";
+import { useTransaction } from "./useTransaction";
 
 type CheckInStatus = "idle" | "pending" | "success" | "error";
 
-// Sends checkInTicket(tokenId) from the connected scanner wallet (#57).
+// Sends checkInTicket(tokenId) from the connected scanner wallet (#57),
+// using the shared transaction hook (#101).
 export function useCheckInTicket() {
-  const { address } = useAccount();
-  const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
+  const tx = useTransaction({ getErrorMessage: getCheckInErrorMessage });
 
-  const [status, setStatus] = useState<CheckInStatus>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
-
-  async function checkIn(tokenId: bigint) {
-    if (!address || !publicClient) return;
-
-    setStatus("pending");
-    setError(null);
-    setTxHash(null);
-
-    try {
-      // Simulate first: if the contract would revert (not authorized, already used,
-      // nonexistent token), we get the decoded reason before the wallet pops up.
-      const { request } = await publicClient.simulateContract({
-        address: TICKET_NFT_ADDRESS,
-        abi: ticketNftAbi,
-        functionName: "checkInTicket",
-        args: [tokenId],
-        account: address,
-      });
-
-      const hash = await writeContractAsync(request);
-      setTxHash(hash);
-
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      if (receipt.status !== "success") {
-        setError(CHECK_IN_ERRORS.revertedOnChain);
-        setStatus("error");
-        return;
-      }
-
-      setStatus("success");
-    } catch (err) {
-      console.error("Check-in failed:", err);
-      setError(getCheckInErrorMessage(err));
-      setStatus("error");
-    }
+  function checkIn(tokenId: bigint) {
+    return tx.run([
+      {
+        label: "Check in ticket",
+        request: {
+          address: TICKET_NFT_ADDRESS,
+          abi: ticketNftAbi,
+          functionName: "checkInTicket",
+          args: [tokenId],
+        },
+      },
+    ]);
   }
 
-  function reset() {
-    setStatus("idle");
-    setError(null);
-    setTxHash(null);
-  }
+  const status: CheckInStatus = tx.isBusy
+    ? "pending"
+    : tx.state.phase === "success"
+      ? "success"
+      : tx.state.phase === "error"
+        ? "error"
+        : "idle";
 
   return {
     checkIn,
-    reset,
+    reset: tx.reset,
+    stopWaiting: tx.stopWaiting,
     status,
-    error,
-    txHash,
+    error: tx.state.error,
+    txHash: tx.state.hash,
     isPending: status === "pending",
+    transaction: tx.state,
+    explorerUrl: tx.explorerUrl,
   };
 }
