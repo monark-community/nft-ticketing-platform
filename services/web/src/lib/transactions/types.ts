@@ -9,6 +9,7 @@ export type TxPhase =
   | "awaitingWallet" // waiting for the user to confirm in their wallet
   | "confirming" // sent, waiting to be included in a block
   | "stillPending" // past the timeout but not failed: it may still confirm, so don't resend (#104)
+  | "stoppedWaiting" // the user stopped waiting on a still-pending transaction (#252)
   | "success"
   | "error";
 

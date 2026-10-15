@@ -22,11 +22,14 @@ export function useTransaction({ getErrorMessage, timeoutMs }: Options) {
   // Prevents duplicate submissions (#106). A ref, not state: it changes immediately,
   // so a fast double-click can't start a second run before React re-renders.
   const inFlight = useRef(false);
+  // Lets the user stop waiting on a still-pending transaction (#252)
+  const stopController = useRef<AbortController | null>(null);
 
   async function run(steps: TxStep[]): Promise<boolean> {
     if (!address || !publicClient || steps.length === 0) return false;
     if (inFlight.current) return false;
     inFlight.current = true;
+    stopController.current = new AbortController();
 
     const client: TransactionClient = {
       simulate: async (step, account) => {
@@ -45,10 +48,17 @@ export function useTransaction({ getErrorMessage, timeoutMs }: Options) {
         onUpdate: setState,
         getErrorMessage,
         timeoutMs,
+        stopSignal: stopController.current.signal,
       });
     } finally {
       inFlight.current = false;
+      stopController.current = null;
     }
+  }
+
+  // Only available while "still pending": returns to the form so the user isn't stuck (#252)
+  function stopWaiting() {
+    if (state.phase === "stillPending") stopController.current?.abort();
   }
 
   function reset() {
@@ -66,5 +76,5 @@ export function useTransaction({ getErrorMessage, timeoutMs }: Options) {
   // Block explorer for the connected chain (Sepolia has Etherscan; the local Hardhat node has none)
   const explorerUrl = chain?.blockExplorers?.default.url ?? null;
 
-  return { state, run, reset, isBusy, explorerUrl };
+  return { state, run, reset, stopWaiting, isBusy, explorerUrl };
 }

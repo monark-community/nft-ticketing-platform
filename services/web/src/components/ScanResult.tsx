@@ -15,6 +15,7 @@ interface Props {
   txHash: `0x${string}` | null;
   transaction: TxState;
   explorerUrl: string | null;
+  onStopWaiting: () => void;
   onCheckIn: () => void;
   onScanNext: () => void;
   canCheckIn: boolean;
@@ -84,7 +85,7 @@ function DetailRow({ label, value, mono }: { label: string; value: string; mono?
   );
 }
 
-export function ScanResult({ result, checkInStatus, txHash, transaction, explorerUrl, onCheckIn, onScanNext, canCheckIn }: Props) {
+export function ScanResult({ result, checkInStatus, txHash, transaction, explorerUrl, onStopWaiting, onCheckIn, onScanNext, canCheckIn }: Props) {
   const view: View = !result.ok ? "rejected" : checkInStatus === "success" ? "checkedIn" : "valid";
   const styles = STYLES[view];
   const heading = HEADINGS[view];
@@ -124,9 +125,9 @@ export function ScanResult({ result, checkInStatus, txHash, transaction, explore
         </p>
       )}
       {/* Check-in progress (#102) and failure (#105). The green "Checked in" panel above is the success state. */}
-      {view === "valid" && (pending || checkInStatus === "error") && (
+      {view === "valid" && (pending || checkInStatus === "error" || transaction.phase === "stoppedWaiting") && (
         <div className="mt-4">
-          <TransactionStatus state={transaction} explorerUrl={explorerUrl} />
+          <TransactionStatus state={transaction} explorerUrl={explorerUrl} onStopWaiting={onStopWaiting} />
         </div>
       )}
 

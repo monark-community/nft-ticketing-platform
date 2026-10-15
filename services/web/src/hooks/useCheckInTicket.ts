@@ -36,6 +36,7 @@ export function useCheckInTicket() {
   return {
     checkIn,
     reset: tx.reset,
+    stopWaiting: tx.stopWaiting,
     status,
     error: tx.state.error,
     txHash: tx.state.hash,

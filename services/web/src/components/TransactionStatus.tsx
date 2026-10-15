@@ -18,6 +18,7 @@ interface Props {
   explorerUrl?: string | null;
   successMessage?: string; // shown when every step confirmed (#105)
   onRetry?: () => void; // shows a retry button after a failure (#105)
+  onStopWaiting?: () => void; // shows "Stop waiting" while still pending (#252)
 }
 
 function shortenHash(hash: string) {
@@ -39,7 +40,7 @@ function TxLink({ hash, explorerUrl }: { hash: string; explorerUrl?: string | nu
   );
 }
 
-export function TransactionStatus({ state, explorerUrl, successMessage, onRetry }: Props) {
+export function TransactionStatus({ state, explorerUrl, successMessage, onRetry, onStopWaiting }: Props) {
   const multiStep = state.steps.length > 1;
   const stepLabel = `Step ${state.stepIndex + 1} of ${state.steps.length}: ${state.steps[state.stepIndex]}`;
 
@@ -72,6 +73,17 @@ export function TransactionStatus({ state, explorerUrl, successMessage, onRetry 
     );
   }
 
+  // The user stopped waiting; the transaction may still confirm (#252)
+  if (state.phase === "stoppedWaiting") {
+    return (
+      <div role="status" aria-live="polite" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <p className="font-semibold">Stopped waiting for the transaction</p>
+        {state.note && <p className="mt-1">{state.note}</p>}
+        {state.hash && <TxLink hash={state.hash} explorerUrl={explorerUrl} />}
+      </div>
+    );
+  }
+
   // Pending (#102, #104)
   const text = PENDING_TEXT[state.phase];
   if (!text) return null;
@@ -85,6 +97,14 @@ export function TransactionStatus({ state, explorerUrl, successMessage, onRetry 
       </p>
       {state.note && <p className="mt-1 text-xs">{state.note}</p>}
       {state.hash && <TxLink hash={state.hash} explorerUrl={explorerUrl} />}
+      {state.phase === "stillPending" && onStopWaiting && (
+        <button
+          onClick={onStopWaiting}
+          className="mt-3 rounded-md border border-blue-300 bg-white px-3 py-1.5 text-xs font-semibold text-blue-900 hover:bg-blue-100"
+        >
+          Stop waiting
+        </button>
+      )}
     </div>
   );
 }

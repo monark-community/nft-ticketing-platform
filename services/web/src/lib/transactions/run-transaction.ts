@@ -23,6 +23,37 @@ export interface TransactionClient {
 // How long to wait before telling the user the transaction is taking longer than usual
 export const DEFAULT_PENDING_TIMEOUT_MS = 120_000;
 
+export const STOPPED_WAITING_NOTE =
+  "Your transaction may still go through. Check your wallet's activity before trying again.";
+
+// Thrown internally when the user stops waiting on a still-pending transaction (#252)
+class StoppedWaitingError extends Error {
+  constructor() {
+    super("Stopped waiting for the transaction");
+    this.name = "StoppedWaitingError";
+  }
+}
+
+// Rejects as soon as the signal is aborted, so the UI responds immediately
+function rejectOnAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(new StoppedWaitingError());
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new StoppedWaitingError());
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (err) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(err);
+      }
+    );
+  });
+}
+
 interface RunParams {
   steps: TxStep[];
   account: Address;
@@ -30,6 +61,7 @@ interface RunParams {
   onUpdate: (state: TxState) => void;
   getErrorMessage: (err: unknown) => string;
   timeoutMs?: number;
+  stopSignal?: AbortSignal; // aborting it stops waiting on a still-pending transaction (#252)
 }
 
 // Resolves to true if every step succeeded.
@@ -40,10 +72,13 @@ export async function runTransactionSteps({
   onUpdate,
   getErrorMessage,
   timeoutMs = DEFAULT_PENDING_TIMEOUT_MS,
+  stopSignal,
 }: RunParams): Promise<boolean> {
   const labels = steps.map((s) => s.label);
   let state: TxState = { phase: "preparing", steps: labels, stepIndex: 0, hash: null, error: null, note: null };
+  let finished = false; // after stopping, late updates (e.g. a replacement) must not change the state
   const update = (patch: Partial<TxState>) => {
+    if (finished) return;
     state = { ...state, ...patch };
     onUpdate(state);
   };
@@ -72,7 +107,16 @@ export async function runTransactionSteps({
     } catch (err) {
       if (!(err instanceof WaitForTransactionReceiptTimeoutError)) throw err;
       update({ phase: "stillPending" });
-      receipt = await client.waitForReceipt(hash, { onReplaced }); // no timeout: keep waiting
+      // Keep waiting with no overall limit, in rounds of `timeoutMs`, until it confirms or the
+      // user stops waiting (#252). Rounds let the background polling end after a stop.
+      for (;;) {
+        try {
+          receipt = await rejectOnAbort(client.waitForReceipt(hash, { timeout: timeoutMs, onReplaced }), stopSignal);
+          break;
+        } catch (roundErr) {
+          if (!(roundErr instanceof WaitForTransactionReceiptTimeoutError)) throw roundErr;
+        }
+      }
       update({ phase: "confirming" });
     }
 
@@ -100,10 +144,18 @@ export async function runTransactionSteps({
     }
 
     update({ phase: "success", note: null });
+    finished = true;
     return true;
   } catch (err) {
+    if (err instanceof StoppedWaitingError) {
+      // Back to the form: the transaction may still confirm, so warn before a retry (#252)
+      update({ phase: "stoppedWaiting", error: null, note: STOPPED_WAITING_NOTE });
+      finished = true;
+      return false;
+    }
     console.error(`Transaction failed at step "${labels[state.stepIndex]}":`, err);
     update({ phase: "error", error: getErrorMessage(err) });
+    finished = true;
     return false;
   }
 }
