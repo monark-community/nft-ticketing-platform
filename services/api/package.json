@@ -13,7 +13,11 @@
     "db:studio": "prisma studio",
     "prisma:seed": "ts-node prisma/seed.ts",
     "db:push": "prisma db push",
-    "db:seed": "npm run prisma:seed"
+    "db:seed": "npm run prisma:seed",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:db:up": "docker compose -f docker-compose.test.yml up -d --wait",
+    "test:db:down": "docker compose -f docker-compose.test.yml down"
   },
   "keywords": [],
   "author": "",
@@ -39,9 +43,12 @@
     "@types/jsonwebtoken": "^9.0.6",
     "@types/multer": "^1.4.11",
     "@types/node": "^20.14.0",
+    "@types/supertest": "^6.0.3",
     "prisma": "^5.14.0",
+    "supertest": "^7.3.1",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vitest": "~4.0.18"
   }
 }
