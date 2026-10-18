@@ -147,6 +147,7 @@ export default function CreateEventPage() {
                   onClick={() => document.getElementById("imageInput")?.click()}
                 >
                   {imagePreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- preview of a local file, not an optimized asset
                     <img src={imagePreview} alt="Event preview" className="w-full h-full object-cover" style={{ maxHeight: "180px" }} />
                   ) : (
                     <>

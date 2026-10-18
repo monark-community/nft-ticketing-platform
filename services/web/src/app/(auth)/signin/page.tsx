@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useWalletGuard } from "@/hooks/WalletGuard";
+import Link from "next/link";
 import { useState } from "react";
 import { useAccount } from "wagmi";
 
@@ -29,7 +30,7 @@ export default function SignInPage() {
     email: "",
   });
   const [errors, setErrors] = useState<FormErrors>({});
-  const { address, isConnected } = useAccount();
+  const { address } = useAccount();
 
   function validate(): FormErrors {
     const e: FormErrors = {};
@@ -145,9 +146,9 @@ function handleSubmit() {
 
             <p className="text-center text-sm text-gray-500 mt-6">
               Don&apos;t have an account?{" "}
-              <a href="/" className="font-bold text-gray-800 hover:underline">
+              <Link href="/" className="font-bold text-gray-800 hover:underline">
                 Create one here
-              </a>
+              </Link>
             </p>
           </div>
         </div>

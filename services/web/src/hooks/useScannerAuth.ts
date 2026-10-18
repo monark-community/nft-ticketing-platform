@@ -1,15 +1,22 @@
 "use client";
 
 import { TICKET_NFT_ADDRESS, ticketNftAbi } from "@/lib/contracts/ticket-nft";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { zeroHash } from "viem";
 import { useAccount, usePublicClient } from "wagmi";
 
-export type ScannerAuthorization =
-  | "unknown"
-  | "checking"
-  | "authorized"
-  | "notAuthorized";
+export type ScannerAuthorization = "unknown" | "authorized" | "notAuthorized";
+
+// The result of a completed check, tagged with the address and event it ran for, so a
+// stale result is never shown after the inputs change.
+type CheckResult = {
+  key: string;
+  status: ScannerAuthorization;
+};
+
+function checkKey(address: `0x${string}`, eventId: bigint) {
+  return `${address}:${eventId}`;
+}
 
 // Mirrors the access check in TicketNFT.checkInTicket(): the wallet can check tickets in
 // if it's a scanner for this event, an organizer, or an admin. Lets the scanner page
@@ -17,16 +24,16 @@ export type ScannerAuthorization =
 export function useScannerAuthorization(eventId: bigint | null) {
   const { address } = useAccount();
   const publicClient = usePublicClient();
-  const [status, setStatus] = useState<ScannerAuthorization>("unknown");
+  const [result, setResult] = useState<CheckResult | null>(null);
+  // Only the most recently started check is allowed to update the state.
+  const requestRef = useRef(0);
 
-  const check = useCallback(async () => {
-    if (!address || !publicClient || eventId === null) {
-      setStatus("unknown");
-      return;
-    }
+  const check = useCallback(async (): Promise<CheckResult | null> => {
+    if (!address || !publicClient || eventId === null) return null;
+
+    const key = checkKey(address, eventId);
     const contract = TICKET_NFT_ADDRESS;
 
-    setStatus("checking");
     try {
       const organizerRole = (await publicClient.readContract({
         address: contract,
@@ -56,20 +63,38 @@ export function useScannerAuthorization(eventId: bigint | null) {
         }),
       ])) as [boolean, boolean, boolean];
 
-      setStatus(
-        isEventScanner || isOrganizer || isAdmin
-          ? "authorized"
-          : "notAuthorized",
-      );
+      return {
+        key,
+        status:
+          isEventScanner || isOrganizer || isAdmin
+            ? "authorized"
+            : "notAuthorized",
+      };
     } catch (err) {
       console.error("Could not check scanner authorization:", err);
-      setStatus("unknown");
+      return { key, status: "unknown" };
     }
   }, [address, publicClient, eventId]);
 
-  useEffect(() => {
-    check();
+  // The result is recorded in a promise callback, never synchronously from the effect,
+  // so the check never triggers a cascading re-render (react-hooks/set-state-in-effect).
+  const refresh = useCallback(() => {
+    const requestId = ++requestRef.current;
+    void check().then((next) => {
+      if (next && requestId === requestRef.current) {
+        setResult(next);
+      }
+    });
   }, [check]);
 
-  return { status, refresh: check };
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const status: ScannerAuthorization =
+    result && address && eventId !== null && result.key === checkKey(address, eventId)
+      ? result.status
+      : "unknown";
+
+  return { status, refresh };
 }
