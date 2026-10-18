@@ -76,6 +76,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe("verifyTicketQR", () => {
@@ -86,6 +87,29 @@ describe("verifyTicketQR", () => {
     expect(result.reason).toBeUndefined();
     expect(result.owner).toBe(owner.address);
     expect(result.eventId).toBe(EVENT_ID);
+  });
+
+  it("rejects text that is not one of our QR codes", async () => {
+    const result = await verify("https://example.com/not-a-ticket");
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("This QR code is not an NFTOKENPASS ticket.");
+    expect(result.qr).toBeUndefined();
+  });
+
+  it("rejects a QR code with an invalid ticket ID", async () => {
+    const result = await verify(await makeQR({ tokenId: "not-a-number" }));
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("This QR code has an invalid ticket ID.");
+  });
+
+  it("rejects a QR code whose time is in the future", async () => {
+    // More than the 30 seconds of clock difference allowed between the two phones
+    const result = await verify(await makeQR({ timestamp: NOW + 31 }));
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("QR code time is in the future. Ask the attendee to refresh it.");
   });
 
   it("rejects a ticket from a different contract", async () => {
@@ -159,5 +183,27 @@ describe("verifyTicketQR", () => {
 
     expect(result.ok).toBe(false);
     expect(result.reason).toBe("This ticket has already been used.");
+  });
+
+  it("rejects a ticket that does not exist", async () => {
+    const client = fakeClient({ isValidTicket: false, isUsed: false });
+    const result = await verify(await makeQR(), client);
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("This ticket does not exist.");
+  });
+
+  it("reports when the blockchain cannot be reached", async () => {
+    // The failure is logged on purpose; keep the test output clean
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const client = {
+      readContract: async () => {
+        throw new Error("fetch failed");
+      },
+    } as unknown as PublicClient;
+    const result = await verify(await makeQR(), client);
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("Could not reach the blockchain to verify this ticket.");
   });
 });
