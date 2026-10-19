@@ -1,0 +1,91 @@
+# Runs every pull request's checks automatically, one job per package, so a
+# single failure never hides the others. See issue #253 and sub-issues #254-#257.
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+
+# The workflow only reads the repository.
+permissions:
+  contents: read
+
+# A new push to the same PR cancels the previous run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Contract tests (hardhat) - sub-issue #254
+  contracts:
+    name: Contracts tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/contracts/package-lock.json
+      - run: npm ci
+      - run: npx hardhat test
+
+  # Type-check the API (prisma client first) - sub-issue #255
+  api-typecheck:
+    name: API type-check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: services/api/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx tsc --noEmit
+
+  # Type-check, lint and build the web app - sub-issues #255 and #256
+  web-checks:
+    name: Web lint, type-check & build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: services/web/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+      - run: npm run build
+        env:
+          # Placeholder so the build never needs real secrets
+          NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: ci-placeholder
+
+  # Frontend tests (vitest) - sub-issue #257
+  web-tests:
+    name: Web tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: services/web/package-lock.json
+      - run: npm ci
+      - run: npm test

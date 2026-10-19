@@ -75,7 +75,7 @@ function handleMint() {
                   <div className="relative h-28 bg-gray-800 flex items-end">
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
                     <div className="relative z-10 p-3">
-                      <p className="text-white font-bold text-sm uppercase tracking-wide">"Image"</p>
+                      <p className="text-white font-bold text-sm uppercase tracking-wide">&quot;Image&quot;</p>
                     </div>
                   </div>
                   <div className="bg-white px-3 py-2">
