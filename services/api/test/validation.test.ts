@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { Event, User } from '@prisma/client';
 import app from '../src/app';
-import { resetDb, createUser, createEvent, randomWallet } from './helpers/db';
+import { prisma } from '../src/lib/prisma';
+import { resetDb, createUser, createEvent, createTicketType, randomWallet } from './helpers/db';
 import { authCookie } from './helpers/auth';
 
 let organizer: User;
@@ -38,9 +39,42 @@ describe('events', () => {
     expect(res.status).toBe(400);
   });
 
-  it.todo('rejects an invalid start_date or end_date with 400 (currently 500)');
-  it.todo('rejects non-string text fields such as a numeric title with 400 (currently 500)');
-  it.todo('rejects a negative page or limit on GET /events (limit=-5 is currently passed to the query)');
+  it.each([
+    ['start_date', { title: 'Bad Date', start_date: 'not-a-date' }],
+    ['end_date', { title: 'Bad Date', start_date: '2030-01-01T20:00:00Z', end_date: 'nope' }],
+  ])('rejects an invalid %s when creating an event', async (_field, body) => {
+    const res = await request(app).post('/api/events').set('Cookie', cookie).send(body);
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an invalid date when editing an event', async () => {
+    const res = await request(app).put(`/api/events/${event.id}`).set('Cookie', cookie).send({ start_date: 'nope' });
+    expect(res.status).toBe(400);
+  });
+
+  it.each([
+    ['title', { title: 123, start_date: '2030-01-01T20:00:00Z' }],
+    ['description', { title: 'Event', start_date: '2030-01-01T20:00:00Z', description: { a: 1 } }],
+    ['location', { title: 'Event', start_date: '2030-01-01T20:00:00Z', location: 5 }],
+  ])('rejects a non-string %s', async (_field, body) => {
+    const res = await request(app).post('/api/events').set('Cookie', cookie).send(body);
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an empty title when editing an event', async () => {
+    const res = await request(app).put(`/api/events/${event.id}`).set('Cookie', cookie).send({ title: '  ' });
+    expect(res.status).toBe(400);
+  });
+
+  it('keeps page and limit in range on GET /events', async () => {
+    const res = await request(app).get('/api/events').query({ page: -3, limit: -5 });
+    expect(res.status).toBe(200);
+    expect(res.body.page).toBe(1);
+    expect(res.body.limit).toBe(1);
+
+    const big = await request(app).get('/api/events').query({ limit: 1000 });
+    expect(big.body.limit).toBe(50);
+  });
 });
 
 describe('ticket types', () => {
@@ -58,8 +92,39 @@ describe('ticket types', () => {
     expect(res.status).toBe(400);
   });
 
-  it.todo('rejects a non-numeric price or supply with 400 (currently 500)');
-  it.todo('rejects a negative price, a negative supply and a fractional supply (currently accepted)');
+  it.each([
+    ['a non-numeric price', { name: 'VIP', price: 'abc', supply: 5 }],
+    ['a negative price', { name: 'VIP', price: -5, supply: 5 }],
+    ['a non-numeric supply', { name: 'VIP', price: 10, supply: 'lots' }],
+    ['a negative supply', { name: 'VIP', price: 10, supply: -1 }],
+    ['a supply of 0', { name: 'VIP', price: 10, supply: 0 }],
+    ['a fractional supply', { name: 'VIP', price: 10, supply: 1.5 }],
+    ['a non-string name', { name: 42, price: 10, supply: 5 }],
+  ])('rejects %s', async (_label, body) => {
+    const res = await request(app).post(`/api/events/${event.id}/ticket-types`).set('Cookie', cookie).send(body);
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts a free ticket and a price sent as a string', async () => {
+    const free = await request(app)
+      .post(`/api/events/${event.id}/ticket-types`)
+      .set('Cookie', cookie)
+      .send({ name: 'Free', price: 0, supply: 10 });
+    expect(free.status).toBe(201);
+
+    const priced = await request(app)
+      .post(`/api/events/${event.id}/ticket-types`)
+      .set('Cookie', cookie)
+      .send({ name: 'Standard', price: '19.99', supply: 10 });
+    expect(priced.status).toBe(201);
+    expect(priced.body.price).toBe('19.99');
+  });
+
+  it('applies the same checks when editing a ticket type', async () => {
+    const ticketType = await createTicketType(event.id);
+    const res = await request(app).put(`/api/ticket-types/${ticketType.id}`).set('Cookie', cookie).send({ supply: 'lots' });
+    expect(res.status).toBe(400);
+  });
 });
 
 describe('event image upload', () => {
@@ -176,10 +241,30 @@ describe('user profile', () => {
     expect(res.status).toBe(409);
   });
 
-  it.todo('rejects a non-string nickname with 400 (currently 500)');
+  it('rejects a non-string nickname', async () => {
+    const res = await request(app).put('/api/users/me').set('Cookie', cookie).send({ nickname: { a: 1 } });
+    expect(res.status).toBe(400);
+  });
 });
 
 describe('request format', () => {
-  it.todo('returns 400 for a malformed JSON body (currently 500)');
-  it.todo('rejects a malformed wallet on GET /auth/nonce (currently creates a user row for any string)');
+  it('returns 400 for a malformed JSON body', async () => {
+    const res = await request(app)
+      .post('/api/events')
+      .set('Cookie', cookie)
+      .set('Content-Type', 'application/json')
+      .send('{"title": ');
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a malformed wallet on GET /auth/nonce without creating a user', async () => {
+    const res = await request(app).get('/api/auth/nonce').query({ wallet: 'hello' });
+    expect(res.status).toBe(400);
+    expect(await prisma.user.count({ where: { wallet_address: 'hello' } })).toBe(0);
+  });
+
+  it('rejects a non-string wallet or signature on POST /auth/verify', async () => {
+    const res = await request(app).post('/api/auth/verify').send({ wallet: { a: 1 }, signature: 'x' });
+    expect(res.status).toBe(400);
+  });
 });

@@ -43,6 +43,11 @@ export async function updateMe(req: Request, res: Response): Promise<void> {
     email = email.trim().toLowerCase();
   }
 
+  if (nickname !== undefined && nickname !== null && typeof nickname !== 'string') {
+    res.status(400).json({ error: 'nickname must be a string' });
+    return;
+  }
+
   if (first_name !== undefined) {
     if (typeof first_name !== 'string' || first_name.trim() === '') {
       res.status(400).json({ error: 'first_name must be a non-empty string' });

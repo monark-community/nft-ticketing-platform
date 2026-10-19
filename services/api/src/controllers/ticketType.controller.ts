@@ -4,6 +4,7 @@ import {
   createTicketType,
   updateTicketType,
 } from '../services/ticket.service';
+import { validateTicketTypeInput } from '../lib/validation';
 
 export async function getTicketTypes(req: Request, res: Response): Promise<void> {
   try {
@@ -19,6 +20,12 @@ export async function postTicketType(req: Request, res: Response): Promise<void>
 
   if (!name || price === undefined || supply === undefined) {
     res.status(400).json({ error: 'name, price, and supply are required' });
+    return;
+  }
+
+  const invalid = validateTicketTypeInput(req.body, { partial: false });
+  if (invalid) {
+    res.status(400).json({ error: invalid });
     return;
   }
 
@@ -49,6 +56,13 @@ export async function putTicketType(req: Request, res: Response): Promise<void> 
   // #212: only these fields may change via this endpoint; sold and event_id
   // must never change here.
   const { name, description, price, supply } = req.body ?? {};
+
+  const invalid = validateTicketTypeInput(req.body ?? {}, { partial: true });
+  if (invalid) {
+    res.status(400).json({ error: invalid });
+    return;
+  }
+
   try {
     const result = await updateTicketType(req.params.id, req.user!.wallet_address, {
       name,

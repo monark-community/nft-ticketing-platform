@@ -1,11 +1,18 @@
 import { Request, Response } from 'express';
 import { getOrCreateUser, verifyWalletSignature, issueJWT } from '../services/auth.service';
+import { isWalletAddress } from '../lib/validation';
 
 export async function getNonce(req: Request, res: Response): Promise<void> {
   const wallet = req.query.wallet as string;
 
   if (!wallet) {
     res.status(400).json({ error: 'wallet query parameter is required' });
+    return;
+  }
+
+  // Without this, any string would get a user row
+  if (!isWalletAddress(wallet)) {
+    res.status(400).json({ error: 'wallet must be a valid wallet address' });
     return;
   }
 
@@ -22,6 +29,11 @@ export async function verifySignature(req: Request, res: Response): Promise<void
 
   if (!wallet || !signature) {
     res.status(400).json({ error: 'wallet and signature are required' });
+    return;
+  }
+
+  if (!isWalletAddress(wallet) || typeof signature !== 'string') {
+    res.status(400).json({ error: 'wallet must be a valid wallet address and signature must be a string' });
     return;
   }
 
