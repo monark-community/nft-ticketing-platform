@@ -22,7 +22,7 @@ export async function getOrCreateUser(walletAddress: string): Promise<string> {
 export async function verifyWalletSignature(
   walletAddress: string,
   signature: string
-): Promise<{ wallet_address: string; role: string } | null> {
+): Promise<{ wallet_address: string; role: string; profile_complete: boolean } | null> {
   const address = walletAddress.toLowerCase();
 
   const user = await prisma.user.findUnique({
@@ -48,7 +48,7 @@ export async function verifyWalletSignature(
     data: { nonce: null },
   });
 
-  return { wallet_address: user.wallet_address, role: user.role };
+  return { wallet_address: user.wallet_address, role: user.role, profile_complete: user.email !== null };
 }
 
 export function issueJWT(wallet_address: string, role: string): string {

@@ -10,6 +10,8 @@ const logFormat = printf(({ level, message, timestamp, stack }) => {
 
 const logger = createLogger({
   level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+  // Keep test output readable
+  silent: process.env.NODE_ENV === 'test',
   format: combine(
     errors({ stack: true }),
     timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),

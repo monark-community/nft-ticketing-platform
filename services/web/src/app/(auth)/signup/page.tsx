@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useWalletGuard } from "@/hooks/WalletGuard";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
-// If '@/components/ui/label' does not exist, create 'src/components/ui/label.tsx' with a Label component.
-
+import { useRouter } from "next/navigation";
+import { useWalletAuth } from "@/hooks/useWalletAuth";
+import { apiClient } from "@/lib/api";
 interface FormData {
   firstName: string;
   lastName: string;
@@ -24,6 +25,7 @@ interface FormErrors {
   email?: string;
   wallet?: string;
   role?: string;
+  api?: string;
 }
 
 export default function CreateAccountPage() {
@@ -36,7 +38,15 @@ export default function CreateAccountPage() {
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
-  const { address, isConnected } = useAccount();
+  const { isConnected } = useAccount();
+
+  const router = useRouter();
+  const { user, signIn, loadProfile } = useWalletAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (user?.profile_complete) router.push("/my-tickets");
+  }, [user, router]);
   
   // --- Validation ---
   function validate(): FormErrors {
@@ -59,9 +69,34 @@ function handleSubmit() {
   const e = validate();
   setErrors(e);
   if (Object.keys(e).length > 0) return;
-  requireWallet(() => {
-    console.log("✅ Form submitted:", { ...form, walletAddress: address });
-    alert(`Account ready!\nWallet: ${address}`);
+  requireWallet(async () => {
+    try {
+      setIsSubmitting(true);
+      setErrors((prev) => ({ ...prev, api: undefined}));
+
+      const currentUser = user ?? (await signIn());
+      if (!currentUser) return;
+
+      await apiClient("/api/users/me", {
+        method: "PUT",
+        data: {
+          email: form.email.trim(),
+          first_name: form.firstName.trim(),
+          last_name: form.lastName.trim(),
+          nickname: `${form.firstName.trim()} ${form.lastName.trim()}`.trim(),
+        },
+      });
+
+      await loadProfile();
+      router.push("/my-tickets");
+    } catch (err) {
+      setErrors((prev) => ({
+        ...prev,
+        api: err instanceof Error ? err.message : "Failed to update profile",
+      }));
+    } finally {
+      setIsSubmitting(false);
+    }
   });
 }
 
@@ -221,11 +256,15 @@ function handleSubmit() {
 </div>
 
             {/* SUBMIT */}
+            {errors.api && (
+              <p className="text-red-500 text-xs mb-3 text-center">{errors.api}</p>
+            )}
             <Button
               onClick={handleSubmit}
-              className="w-full bg-[#4f35c2] hover:bg-[#3d28a0] text-white font-bold py-3 text-base rounded-lg"
+              disabled={isSubmitting}
+              className="w-full bg-[#4f35c2] hover:bg-[#3d28a0] text-white font-bold py-3 text-base rounded-lg disabled:opacity-50"
             >
-              Create My Account
+              {isSubmitting ? "Creating account..." : "Create My Account"}
             </Button>
 
             <p className="text-center text-sm text-gray-500 mt-4">

@@ -23,7 +23,6 @@ enum EventStatus {
 enum TicketStatus {
   VALID
   USED
-  AVAILABLE
 }
 
 model User {
@@ -32,6 +31,8 @@ model User {
   first_name     String?
   last_name      String?
   role           Role     @default(USER)
+  // Required by the app (collected as step 2 of account creation), but nullable
+  // because the row is created at login, before the email step. See requireEmail.
   email          String?  @unique
   nickname       String?
   created_at     DateTime @default(now())
@@ -75,6 +76,7 @@ model TicketType {
   supply      Int
   sold        Int      @default(0)
   metadata    Json?
+  ipfs_hash   String?
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 

@@ -7,6 +7,7 @@ import {
   addToWhitelist,
   removeFromWhitelist,
 } from '../services/operations.service';
+import { isWalletAddress } from '../lib/validation';
 
 // --- Scanners ---
 
@@ -23,12 +24,16 @@ export async function getScanners(req: Request, res: Response): Promise<void> {
 
 export async function postScanner(req: Request, res: Response): Promise<void> {
   const { wallet } = req.body;
-  if (!wallet) { res.status(400).json({ error: 'wallet is required' }); return; }
+  if (!isWalletAddress(wallet)) { res.status(400).json({ error: 'wallet must be a valid wallet address' }); return; }
 
   try {
     const result = await addScanner(req.params.id, req.user!.wallet_address, wallet);
     if (result === null) { res.status(404).json({ error: 'Event not found' }); return; }
     if (result === 'forbidden') { res.status(403).json({ error: 'Not your event' }); return; }
+    if (result === 'unregistered') {
+      res.status(422).json({ error: 'Wallet does not belong to a platform account', code: 'WALLET_NOT_REGISTERED' });
+      return;
+    }
     res.status(201).json(result);
   } catch (err) {
     res.status(500).json({ error: 'Failed to add scanner' });
@@ -62,8 +67,8 @@ export async function getWhitelist(req: Request, res: Response): Promise<void> {
 
 export async function postWhitelist(req: Request, res: Response): Promise<void> {
   const { wallets } = req.body;
-  if (!wallets || !Array.isArray(wallets) || wallets.length === 0) {
-    res.status(400).json({ error: 'wallets must be a non-empty array' });
+  if (!Array.isArray(wallets) || wallets.length === 0 || !wallets.every(isWalletAddress)) {
+    res.status(400).json({ error: 'wallets must be a non-empty array of valid wallet addresses' });
     return;
   }
 
@@ -71,6 +76,14 @@ export async function postWhitelist(req: Request, res: Response): Promise<void> 
     const result = await addToWhitelist(req.params.id, req.user!.wallet_address, wallets);
     if (result === null) { res.status(404).json({ error: 'Event not found' }); return; }
     if (result === 'forbidden') { res.status(403).json({ error: 'Not your event' }); return; }
+    if ('unregistered' in result) {
+      res.status(422).json({
+        error: 'Some wallets do not belong to a platform account',
+        code: 'WALLET_NOT_REGISTERED',
+        wallets: result.unregistered,
+      });
+      return;
+    }
     res.status(201).json(result);
   } catch (err) {
     res.status(500).json({ error: 'Failed to add to whitelist' });

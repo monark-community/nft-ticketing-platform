@@ -1,5 +1,6 @@
 import { NetworkGuard } from "@/components/NetworkWarning";
 import { WalletProvider } from "@/lib/wallet-provider";
+import { AuthProvider } from "@/lib/auth-provider";
 import "@rainbow-me/rainbowkit/styles.css";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -29,8 +30,10 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
   <WalletProvider>
-    <NetworkGuard />
-    {children}
+    <AuthProvider>
+      <NetworkGuard />
+      {children}
+    </AuthProvider>
   </WalletProvider>
 </body>
     </html>

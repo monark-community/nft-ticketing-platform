@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { EventStatus, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 export async function getTicketsByWallet(walletAddress: string) {
@@ -38,6 +38,7 @@ export async function listTicketTypesForEvent(eventId: string) {
 
 export async function createTicketType(
   eventId: string,
+  organizerWallet: string,
   data: {
     name: string;
     description?: string;
@@ -46,6 +47,12 @@ export async function createTicketType(
     metadata?: Record<string, unknown>;
   }
 ) {
+  // #213: only the event's organizer may add ticket types, and only while DRAFT.
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) return null;
+  if (event.organizer_wallet !== organizerWallet) return 'forbidden';
+  if (event.status !== EventStatus.DRAFT) return 'frozen';
+
   return prisma.ticketType.create({
     data: {
       event_id: eventId,
@@ -70,6 +77,11 @@ export async function updateTicketType(
 
   if (!ticketType) return null;
   if (ticketType.event.organizer_wallet !== organizerWallet) return 'forbidden';
+  // #212: ticket types lock once the event leaves DRAFT.
+  if (ticketType.event.status !== EventStatus.DRAFT) return 'frozen';
 
-  return prisma.ticketType.update({ where: { id }, data });
+  // #212: defense in depth — only these fields may change here, even if a
+  // caller passes sold or event_id.
+  const { name, description, price, supply } = data;
+  return prisma.ticketType.update({ where: { id }, data: { name, description, price, supply } });
 }

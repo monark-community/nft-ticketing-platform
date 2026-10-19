@@ -1,11 +1,18 @@
 import { Request, Response } from 'express';
 import { getOrCreateUser, verifyWalletSignature, issueJWT } from '../services/auth.service';
+import { isWalletAddress } from '../lib/validation';
 
 export async function getNonce(req: Request, res: Response): Promise<void> {
   const wallet = req.query.wallet as string;
 
   if (!wallet) {
     res.status(400).json({ error: 'wallet query parameter is required' });
+    return;
+  }
+
+  // Without this, any string would get a user row
+  if (!isWalletAddress(wallet)) {
+    res.status(400).json({ error: 'wallet must be a valid wallet address' });
     return;
   }
 
@@ -22,6 +29,11 @@ export async function verifySignature(req: Request, res: Response): Promise<void
 
   if (!wallet || !signature) {
     res.status(400).json({ error: 'wallet and signature are required' });
+    return;
+  }
+
+  if (!isWalletAddress(wallet) || typeof signature !== 'string') {
+    res.status(400).json({ error: 'wallet must be a valid wallet address and signature must be a string' });
     return;
   }
 
@@ -42,7 +54,8 @@ export async function verifySignature(req: Request, res: Response): Promise<void
       maxAge: 60 * 60 * 1000, // 1 hour
     });
 
-    res.json({ wallet_address: user.wallet_address, role: user.role });
+    // profile_complete: false tells the frontend to show the email step of account creation
+    res.json(user);
   } catch (err) {
     res.status(500).json({ error: 'Authentication failed' });
   }
