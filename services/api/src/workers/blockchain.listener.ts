@@ -90,12 +90,18 @@ export async function startBlockchainListener(): Promise<void> {
   // TicketCheckedIn — mark ticket as USED and log the check-in
   contract.on('TicketCheckedIn', async (tokenId: bigint, scanner: string) => {
     try {
-      const now = new Date();
-
-      await prisma.ticket.updateMany({
-        where: { token_id: tokenId },
-        data: { status: 'USED', used_at: now },
+      // Only a VALID ticket can be checked in. If the same event arrives twice
+      // (e.g. after a listener restart), the ticket is already USED and nothing
+      // changes, so used_at isn't overwritten and no second log row is added.
+      const { count } = await prisma.ticket.updateMany({
+        where: { token_id: tokenId, status: 'VALID' },
+        data: { status: 'USED', used_at: new Date() },
       });
+
+      if (count === 0) {
+        logger.info(`TicketCheckedIn: token ${tokenId} is unknown or already used, skipping`);
+        return;
+      }
 
       await prisma.checkinLog.create({
         data: {

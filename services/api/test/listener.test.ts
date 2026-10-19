@@ -133,6 +133,24 @@ describe('blockchain listener database updates', () => {
       expect(logs[0].scanner_wallet).toBe(scanner.wallet_address);
     });
 
+    it('does nothing when the same check-in is received twice', async () => {
+      const scanner = await createUser({ role: 'SCANNER' });
+      await handlers.TicketCheckedIn(1n, ethers.getAddress(scanner.wallet_address));
+      const first = await prisma.ticket.findUnique({ where: { token_id: 1n } });
+
+      await handlers.TicketCheckedIn(1n, ethers.getAddress(scanner.wallet_address));
+
+      const second = await prisma.ticket.findUnique({ where: { token_id: 1n } });
+      expect(second!.used_at).toEqual(first!.used_at);
+      expect(await prisma.checkinLog.count({ where: { token_id: 1n } })).toBe(1);
+    });
+
+    it('ignores check-ins for tickets it does not know about', async () => {
+      const scanner = await createUser({ role: 'SCANNER' });
+      await handlers.TicketCheckedIn(999n, ethers.getAddress(scanner.wallet_address));
+      expect(await prisma.checkinLog.count()).toBe(0);
+    });
+
     it('still marks the ticket USED when the scanner has no account, but cannot log it', async () => {
       await handlers.TicketCheckedIn(1n, checksummed());
 
