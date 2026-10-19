@@ -61,6 +61,10 @@ app.use((_req, res) => {
 
 // Global error handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err?.type === 'entity.parse.failed') {
+    res.status(400).json({ error: 'Request body is not valid JSON' });
+    return;
+  }
   logger.error(err.message, { stack: err.stack });
   if (err?.code === 'LIMIT_FILE_SIZE') {
     res.status(400).json({ error: 'File exceeds maximum allowed size of 10 MB' });

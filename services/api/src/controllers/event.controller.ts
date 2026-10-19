@@ -9,10 +9,11 @@ import {
 } from '../services/event.service';
 import { pinImageToIPFS, pinMetadataToIPFS, buildEventMetadata, buildTicketMetadata } from '../services/ipfs.service';
 import logger from '../lib/logger';
+import { validateEventInput } from '../lib/validation';
 
 export async function getEvents(req: Request, res: Response): Promise<void> {
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
-  const limit = Math.min(50, parseInt(req.query.limit as string) || 20);
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
 
   try {
     const result = await listEvents(page, limit);
@@ -36,10 +37,16 @@ export async function getEvent(req: Request, res: Response): Promise<void> {
 }
 
 export async function postEvent(req: Request, res: Response): Promise<void> {
-  const { title, description, location, category, start_date, end_date, image_url } = req.body;
+  const { title, description, location, category, start_date, end_date, image_url } = req.body ?? {};
 
   if (!title || !start_date) {
     res.status(400).json({ error: 'title and start_date are required' });
+    return;
+  }
+
+  const invalid = validateEventInput(req.body, { partial: false });
+  if (invalid) {
+    res.status(400).json({ error: invalid });
     return;
   }
 
@@ -63,6 +70,13 @@ export async function putEvent(req: Request, res: Response): Promise<void> {
   // #211: only editable metadata may be updated. status, organizer_wallet,
   // contract_event_id and ipfs_hash must never change via this endpoint.
   const { title, description, location, category, start_date, end_date, image_url } = req.body ?? {};
+
+  const invalid = validateEventInput(req.body ?? {}, { partial: true });
+  if (invalid) {
+    res.status(400).json({ error: invalid });
+    return;
+  }
+
   try {
     const result = await updateEvent(req.params.id, req.user!.wallet_address, {
       title,

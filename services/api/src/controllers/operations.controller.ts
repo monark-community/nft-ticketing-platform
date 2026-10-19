@@ -1,5 +1,4 @@
 import { Request, Response } from 'express';
-import { ethers } from 'ethers';
 import {
   listScanners,
   addScanner,
@@ -8,10 +7,7 @@ import {
   addToWhitelist,
   removeFromWhitelist,
 } from '../services/operations.service';
-
-function isWalletAddress(value: unknown): value is string {
-  return typeof value === 'string' && ethers.isAddress(value);
-}
+import { isWalletAddress } from '../lib/validation';
 
 // --- Scanners ---
 
