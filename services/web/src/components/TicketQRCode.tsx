@@ -68,29 +68,29 @@ export function TicketQRCode({ tokenId, eventId }: Props) {
         <Button
           onClick={generate}
           disabled={isPending}
-          className="bg-[#3a7bd5] hover:bg-[#2d63b0] text-white font-semibold"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
         >
           {isPending ? "Confirm in your wallet…" : "Show Entry QR Code"}
         </Button>
-        <p className="text-xs text-gray-400 text-center">
+        <p className="text-xs text-muted-foreground text-center">
           You&apos;ll sign a free message to prove you own this ticket.
         </p>
-        {error && <p className="text-xs text-red-500 text-center">{error}</p>}
+        {error && <p className="text-xs text-destructive text-center">{error}</p>}
       </div>
     );
   }
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <div className="bg-white p-3 rounded-lg border border-gray-200">
+      <div className="bg-card p-3 rounded-lg border border-border">
         <QRCodeSVG value={qrValue} size={200} level="M" />
       </div>
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-muted-foreground">
         Expires in {secondsLeft}s
       </p>
       <button
         onClick={generate}
-        className="text-xs font-semibold text-[#3a7bd5] hover:underline"
+        className="text-xs font-semibold text-primary hover:underline"
       >
         Regenerate
       </button>

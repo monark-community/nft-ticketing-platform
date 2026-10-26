@@ -16,15 +16,15 @@ export function NetworkGuard() {
   if (SUPPORTED_CHAIN_IDS.includes(chainId as typeof SUPPORTED_CHAIN_IDS[number])) return null;
 
   return (
-    <div className="w-full bg-yellow-50 border-b border-yellow-200 px-6 py-3 flex items-center justify-between">
+    <div className="w-full bg-primary-tint border-b border-border-accent px-6 py-3 flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <p className="text-sm font-semibold text-yellow-800">
+        <p className="text-sm font-semibold text-primary-soft">
           Wrong network detected. Please switch to Sepolia testnet.
         </p>
       </div>
       <button
         onClick={() => switchChain({ chainId: sepolia.id })}
-        className="text-xs font-bold text-white bg-yellow-500 hover:bg-yellow-600 px-3 py-1.5 rounded-lg transition-colors"
+        className="text-xs font-bold text-primary-foreground bg-primary hover:bg-primary/90 px-3 py-1.5 rounded-lg transition-colors"
       >
         Switch to Sepolia
       </button>

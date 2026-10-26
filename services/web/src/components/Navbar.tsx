@@ -15,26 +15,26 @@ export function Navbar() {
     : null;
 
   return (
-    <nav className="bg-[#3a7bd5] px-6 py-3 flex items-center justify-between">
+    <nav className="bg-card border-b border-border px-6 py-3 flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 bg-white/20 rounded flex items-center justify-center text-white text-sm font-bold">
+        <div className="w-8 h-8 bg-primary-tint rounded flex items-center justify-center text-foreground text-sm font-bold">
           🎟
         </div>
-        <span className="text-white font-bold text-lg tracking-wide">NFTOKENPASS</span>
+        <span className="text-foreground font-bold text-lg tracking-wide">NFTOKENPASS</span>
       </div>
       <div className="flex items-center gap-8">
-        <a href="#" className="text-white text-sm font-medium hover:underline">Event Listing</a>
-        <a href="#" className="text-white text-sm font-medium hover:underline">My Events</a>
-        <a href="#" className="text-white text-sm font-medium hover:underline">Create Event</a>
+        <a href="#" className="text-foreground text-sm font-medium hover:underline">Event Listing</a>
+        <a href="#" className="text-foreground text-sm font-medium hover:underline">My Events</a>
+        <a href="#" className="text-foreground text-sm font-medium hover:underline">Create Event</a>
         {/* The server can't know the wallet state, so render this part only after mount (#220) */}
         {!hasMounted ? (
           <div className="h-9 w-40" aria-hidden="true" />
         ) : isConnected && shortAddress ? (
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-white/20 rounded-full px-3 py-1">
-              <span className="text-white text-sm font-mono">{shortAddress}</span>
+            <div className="flex items-center gap-2 bg-primary-tint rounded-full px-3 py-1">
+              <span className="text-foreground text-sm font-mono">{shortAddress}</span>
               {user?.role && (
-                <span className="text-[10px] font-bold bg-yellow-400 text-black px-1.5 py-0.5 rounded-full uppercase">
+                <span className="text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full uppercase">
                   {user.role}
                 </span>
               )}
@@ -43,14 +43,14 @@ export function Navbar() {
               <button
                 onClick={() => signIn()}
                 disabled={isLoading}
-                className="text-xs text-white font-semibold underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="text-xs text-foreground font-semibold underline cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? "Signing..." : "Sign in"}
               </button>
             )}
             <button
               onClick={() => logout()}
-              className="text-xs text-white/80 hover:text-white underline cursor-pointer"
+              className="text-xs text-muted-foreground hover:text-foreground underline cursor-pointer"
             >
               Disconnect
             </button> 
