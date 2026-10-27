@@ -85,6 +85,11 @@ contract TicketNFT is
         _;
     }
 
+    modifier onlyEventOrganizerOrAdmin(uint256 eventId) {
+        require(_isEventOrganizerOrAdmin(eventId, msg.sender), "Not the event organizer or admin");
+        _;
+    }
+
     // Constructor to disable initializers for the implementation contract
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -258,7 +263,7 @@ contract TicketNFT is
     /// @notice Issues free tickets of a type (e.g. comps, VIP passes). Counts toward the type's supply,
     /// skips the presale whitelist, and does not lock the event's terms.
     function issueTickets(uint256 eventId, uint256 typeId, address[] memory recipients)
-        public nonReentrant onlyRole(ORGANIZER_ROLE) onlyEventOrganizer(eventId)
+        public nonReentrant onlyEventOrganizerOrAdmin(eventId)
     {
         require(typeId < eventConfigs[eventId].ticketTypeCount, "Ticket type does not exist");
         require(recipients.length > 0, "Must issue at least one ticket");
@@ -292,8 +297,7 @@ contract TicketNFT is
         uint256 eventId = tokenEventId[tokenId];
         require(
             eventScanners[eventId][msg.sender] || 
-            hasRole(ORGANIZER_ROLE, msg.sender) ||
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
+            _isEventOrganizerOrAdmin(eventId, msg.sender),
             "Not authorized to check in"
         );
 
@@ -313,21 +317,21 @@ contract TicketNFT is
     // ---------------------------------------------------------------------
 
     function setPresaleActive(uint256 eventId, bool active) 
-        public onlyRole(ORGANIZER_ROLE) 
+        public onlyEventOrganizerOrAdmin(eventId) 
     {
         presaleActive[eventId] = active;
         emit PresaleStatusUpdated(eventId, active);
     }
 
     function addToWhitelist(uint256 eventId, address wallet) 
-        public onlyRole(ORGANIZER_ROLE) 
+        public onlyEventOrganizerOrAdmin(eventId) 
     {
         _whitelist[eventId][wallet] = true;
         emit WhitelistUpdated(eventId, wallet, true);
     }
 
     function batchAddToWhitelist(uint256 eventId, address[] memory wallets)
-        public onlyRole(ORGANIZER_ROLE)
+        public onlyEventOrganizerOrAdmin(eventId) 
     {   
         require(wallets.length > 0, "Must provide at least one address");
         require(wallets.length <= 100, "Batch size cannot exceed 100");
@@ -338,14 +342,14 @@ contract TicketNFT is
     }
 
     function setEventScanner(uint256 eventId, address wallet, bool status)
-        public onlyRole(ORGANIZER_ROLE)
+        public onlyEventOrganizerOrAdmin(eventId) 
     {
         eventScanners[eventId][wallet] = status;
         emit ScannerUpdated(eventId, wallet, status);
     }
 
     function removeFromWhitelist(uint256 eventId, address wallet) 
-        public onlyRole(ORGANIZER_ROLE) 
+        public onlyEventOrganizerOrAdmin(eventId) 
     {
         _whitelist[eventId][wallet] = false;
         emit WhitelistUpdated(eventId, wallet, false);
@@ -414,6 +418,11 @@ contract TicketNFT is
     // ---------------------------------------------------------------------
     // Internal
     // ---------------------------------------------------------------------
+
+    function _isEventOrganizerOrAdmin(uint256 eventId, address account) internal view returns (bool){
+        return hasRole(DEFAULT_ADMIN_ROLE, account)
+            || (eventOrganizer[eventId] == account && hasRole(ORGANIZER_ROLE, account));
+    }
 
     /// @dev The only mint path: every ticket belongs to an event and a ticket type.
     function _mintTicket(address to, uint256 eventId, uint256 typeId, uint256 faceValue, string memory uri)

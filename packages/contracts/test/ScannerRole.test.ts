@@ -10,6 +10,7 @@ describe("TicketNFT - Event Scanner", function () {
         [admin, organizer, scanner, hacker] = await ethers.getSigners();
         ({ ticketNFT } = await deployTicketNFT(admin));
         await ticketNFT.grantRole(await ticketNFT.ORGANIZER_ROLE(), organizer.address);
+        await setupEvent(ticketNFT, organizer, 1);
     });
 
     it("Should allow organizer to set event scanner", async function () {
@@ -26,11 +27,10 @@ describe("TicketNFT - Event Scanner", function () {
     it("Should reject hacker from setting event scanner", async function () {
         await expect(
             ticketNFT.connect(hacker).setEventScanner(1, scanner.address, true)
-        ).to.be.revertedWithCustomError(ticketNFT, "AccessControlUnauthorizedAccount");
+        ).to.be.revertedWith("Not the event organizer or admin");
     });
 
     it("Should allow scanner to check in after being assigned to event", async function () {
-        await setupEvent(ticketNFT, organizer, 1);
         await ticketNFT.connect(organizer).issueTickets(1, 0, [admin.address]);
         await ticketNFT.connect(organizer).setEventScanner(1, scanner.address, true);
 

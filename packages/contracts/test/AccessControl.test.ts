@@ -30,7 +30,7 @@ describe("TicketNFT - Role-Based Access Control", function () {
 
         await expect(
             ticketNFT.connect(hacker).issueTickets(1, 0, [hacker.address])
-        ).to.be.revertedWithCustomError(ticketNFT, "AccessControlUnauthorizedAccount");
+        ).to.be.revertedWith("Not the event organizer or admin");
     });
 
     it("Should restrict check-in to event scanners and reject hackers", async function () {
@@ -73,6 +73,7 @@ describe("TicketNFT - Role-Based Access Control", function () {
 
     it("Should revert when checking in a non-existent ticket", async function () {
         await ticketNFT.grantRole(await ticketNFT.ORGANIZER_ROLE(), organizer.address);
+        await setupEvent(ticketNFT, organizer, 1);
         await ticketNFT.connect(organizer).setEventScanner(1, scanner.address, true);
 
         await expect(ticketNFT.connect(scanner).checkInTicket(999)).to.be.reverted;

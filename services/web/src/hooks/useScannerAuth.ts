@@ -19,7 +19,7 @@ function checkKey(address: `0x${string}`, eventId: bigint) {
 }
 
 // Mirrors the access check in TicketNFT.checkInTicket(): the wallet can check tickets in
-// if it's a scanner for this event, an organizer, or an admin. Lets the scanner page
+// if it's a scanner for this event, this event's organizer, or an admin. Lets the scanner page
 // warn upfront instead of failing at check-in.
 export function useScannerAuthorization(eventId: bigint | null) {
   const { address } = useAccount();
@@ -42,12 +42,18 @@ export function useScannerAuthorization(eventId: bigint | null) {
       })) as `0x${string}`;
 
       // Cast to the Solidity return types (the JSON ABI has no exact types)
-      const [isEventScanner, isOrganizer, isAdmin] = (await Promise.all([
+      const [isEventScanner, eventOrganizer, hasOrganizerRole, isAdmin] = (await Promise.all([
         publicClient.readContract({
           address: contract,
           abi: ticketNftAbi,
           functionName: "eventScanners",
           args: [eventId, address],
+        }),
+        publicClient.readContract({
+          address: contract,
+          abi: ticketNftAbi,
+          functionName: "eventOrganizer",
+          args: [eventId],
         }),
         publicClient.readContract({
           address: contract,
@@ -61,12 +67,15 @@ export function useScannerAuthorization(eventId: bigint | null) {
           functionName: "hasRole",
           args: [zeroHash, address], // DEFAULT_ADMIN_ROLE is bytes32(0)
         }),
-      ])) as [boolean, boolean, boolean];
+      ])) as [boolean, `0x${string}`, boolean, boolean];
+
+      const isThisEventsOrganizer = 
+        hasOrganizerRole && eventOrganizer.toLowerCase() === address.toLowerCase();
 
       return {
         key,
         status:
-          isEventScanner || isOrganizer || isAdmin
+          isEventScanner || isThisEventsOrganizer || isAdmin
             ? "authorized"
             : "notAuthorized",
       };
