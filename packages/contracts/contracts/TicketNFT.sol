@@ -83,6 +83,8 @@ contract TicketNFT is
     event RevenueWithdrawn(uint256 indexed eventId, address indexed organizer, uint256 amount);
     event TicketListed(uint256 indexed tokenId, address indexed seller, uint256 price);
     event ListingCancelled(uint256 indexed tokenId, address indexed seller);
+    event EventSettingsUpdatedByAdmin(uint256 indexed eventId, address indexed admin);
+
 
 
     // Roles
@@ -159,9 +161,8 @@ contract TicketNFT is
         require(organizer == address(0) || organizer == msg.sender, "Not the event organizer");
         EventConfig storage config = eventConfigs[eventId];
         require(config.sold == 0, "Event terms locked: tickets already sold");
-        require(endTime > block.timestamp, "End time must be in the future");
-        require(royaltyBps <= 10000, "Royalty cannot exceed 100%");
-        require(resaleCapBps == 0 || resaleCapBps >= 10000, "Resale cap must be 0 or at least 100% of face value");
+        _validateEventSettings(endTime, royaltyBps, resaleCapBps);
+
 
         if (organizer == address(0)) {
             eventOrganizer[eventId] = msg.sender;
@@ -175,6 +176,32 @@ contract TicketNFT is
 
         emit EventConfigured(eventId, msg.sender, endTime, royaltyBps, resaleCapBps, perWalletLimit);
     }
+
+    /// @notice Lets the admin change an event's settings at any time, including after the first sale.
+    /// Organizers stay locked once tickets are sold (configureEvent); the event keeps its organizer.
+    function adminUpdateEventSettings(
+        uint256 eventId,
+        uint256 endTime,
+        uint256 royaltyBps,
+        uint256 resaleCapBps,
+        uint256 perWalletLimit
+    )
+        public onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        EventConfig storage config = eventConfigs[eventId];
+        require(config.configured, "Event not configured");
+        _validateEventSettings(endTime, royaltyBps, resaleCapBps);
+
+        config.endTime = endTime;
+        config.resaleCapBps = resaleCapBps;
+        config.perWalletLimit = perWalletLimit;
+        royaltyPercentage[eventId] = royaltyBps;
+
+        // Same event as configureEvent(), with the event's organizer, so existing consumers keep working
+        emit EventConfigured(eventId, eventOrganizer[eventId], endTime, royaltyBps, resaleCapBps, perWalletLimit);
+        emit EventSettingsUpdatedByAdmin(eventId, msg.sender);
+    }
+
 
     /// @notice Adds a ticket type (e.g. General Admission, VIP). Returns its type ID (0, 1, 2, ...).
     function addTicketType(uint256 eventId, uint256 price, uint256 maxSupply, string memory metadataURI)
@@ -455,6 +482,14 @@ contract TicketNFT is
         return hasRole(DEFAULT_ADMIN_ROLE, account)
             || (eventOrganizer[eventId] == account && hasRole(ORGANIZER_ROLE, account));
     }
+
+    /// @dev Checks shared by configureEvent() and adminUpdateEventSettings().
+    function _validateEventSettings(uint256 endTime, uint256 royaltyBps, uint256 resaleCapBps) internal view {
+        require(endTime > block.timestamp, "End time must be in the future");
+        require(royaltyBps <= 10000, "Royalty cannot exceed 100%");
+        require(resaleCapBps == 0 || resaleCapBps >= 10000, "Resale cap must be 0 or at least 100% of face value");
+    }
+
 
     /// @dev The only mint path: every ticket belongs to an event and a ticket type.
     function _mintTicket(address to, uint256 eventId, uint256 typeId, uint256 faceValue, string memory uri)
