@@ -62,6 +62,11 @@ contract TicketNFT is
     mapping(uint256 => uint256) public tokenTicketType;
     mapping(uint256 => uint256) public tokenFaceValue;
     mapping(uint256 => mapping(address => uint256)) public eventTicketsHeld; // eventId => wallet => tickets held
+    struct Listing {
+        address seller;
+        uint256 price;
+    }
+    mapping(uint256 => Listing) public listings;
 
     // Events
     event TicketMinted(uint256 indexed tokenId, uint256 indexed eventId, uint256 typeId, address indexed to, string tokenURI);
@@ -76,6 +81,9 @@ contract TicketNFT is
     event SaleStatusUpdated(uint256 indexed eventId, bool active);
     event TicketPurchased(uint256 indexed tokenId, uint256 indexed eventId, uint256 typeId, address indexed buyer, uint256 price);
     event RevenueWithdrawn(uint256 indexed eventId, address indexed organizer, uint256 amount);
+    event TicketListed(uint256 indexed tokenId, address indexed seller, uint256 price);
+    event ListingCancelled(uint256 indexed tokenId, address indexed seller);
+
 
     // Roles
     bytes32 public constant ORGANIZER_ROLE = keccak256("ORGANIZER_ROLE");
@@ -385,35 +393,59 @@ contract TicketNFT is
         return (tokenFaceValue[tokenId] * eventConfigs[tokenEventId[tokenId]].resaleCapBps) / 10000;
     }
 
-    /// @notice Platform resale. The price cap applies only while resaleCapApplies() is true;
-    /// the organizer's royalty applies to every resale.
-    function resell(uint256 tokenId, address buyer, uint256 salePrice) public nonReentrant {
+        /// @notice Lists a ticket for resale. Nothing moves until a buyer calls buyResaleTicket().
+    /// The price cap applies while resaleCapApplies() is true. Listing again changes the price.
+    function listForResale(uint256 tokenId, uint256 price) public {
         require(ownerOf(tokenId) == msg.sender, "You do not own this ticket");
-        require(buyer != address(0), "Invalid buyer address");
+        if (resaleCapApplies(tokenId)) {
+            require(price <= maxResalePriceOf(tokenId), "Sale price exceeds maximum resale price");
+        }
+
+        listings[tokenId] = Listing(msg.sender, price);
+        emit TicketListed(tokenId, msg.sender, price);
+    }
+
+    /// @notice Removes the seller's listing.
+    function cancelListing(uint256 tokenId) public {
+        require(listings[tokenId].seller == msg.sender, "Not the seller of this listing");
+        delete listings[tokenId];
+        emit ListingCancelled(tokenId, msg.sender);
+    }
+
+    /// @notice Buys a listed ticket: the buyer pays (approve USDC first) and receives the ticket.
+    /// The organizer's royalty is taken from the price. `expectedPrice` must match the listing,
+    /// so the seller can't raise the price while the purchase is pending.
+    function buyResaleTicket(uint256 tokenId, uint256 expectedPrice) public nonReentrant {
+        Listing memory listing = listings[tokenId];
+        require(listing.seller != address(0), "Ticket is not listed");
+        require(listing.price == expectedPrice, "Listing price changed");
+        require(msg.sender != listing.seller, "Cannot buy your own ticket");
 
         if (resaleCapApplies(tokenId)) {
-            require(salePrice <= maxResalePriceOf(tokenId), "Sale price exceeds maximum resale price");
+            require(listing.price <= maxResalePriceOf(tokenId), "Sale price exceeds maximum resale price");
         }
-        uint256 limit = eventConfigs[tokenEventId[tokenId]].perWalletLimit;
+        uint256 eventId = tokenEventId[tokenId];
+        uint256 limit = eventConfigs[eventId].perWalletLimit;
         if (limit > 0) {
-            require(eventTicketsHeld[tokenEventId[tokenId]][buyer] + 1 <= limit, "Per-wallet limit reached");
+            require(eventTicketsHeld[eventId][msg.sender] + 1 <= limit, "Per-wallet limit reached");
         }
+
+        (address royaltyReceiver, uint256 royaltyAmount) = royaltyInfo(tokenId, listing.price);
+        uint256 sellerAmount = listing.price - royaltyAmount;
+
+        // Effects before interactions (the transfer also clears the listing, see _update)
+        _transfer(listing.seller, msg.sender, tokenId);
 
         IERC20 usdc = IERC20(usdcToken);
-        (address royaltyReceiver, uint256 royaltyAmount) = royaltyInfo(tokenId, salePrice);
-        uint256 sellerAmount = salePrice - royaltyAmount;
-
-        // Effects before interactions
-        _transfer(msg.sender, buyer, tokenId);
-
-        usdc.safeTransferFrom(buyer, address(this), salePrice);
+        usdc.safeTransferFrom(msg.sender, address(this), listing.price);
         if (royaltyAmount > 0) {
             usdc.safeTransfer(royaltyReceiver, royaltyAmount);
         }
-        usdc.safeTransfer(msg.sender, sellerAmount);
+        usdc.safeTransfer(listing.seller, sellerAmount);
 
-        emit TicketResold(tokenId, msg.sender, buyer, salePrice);
+        emit TicketResold(tokenId, listing.seller, msg.sender, listing.price);
     }
+
 
     // ---------------------------------------------------------------------
     // Internal
@@ -442,13 +474,19 @@ contract TicketNFT is
     }
 
     /// @dev Keeps per-event holdings up to date on every mint and transfer, including plain transfers
-    /// and outside marketplaces. It only counts; the limit is enforced in buyTickets() and resell().
+    /// and outside marketplaces. It only counts; the limit is enforced in buyTickets() and buyResaleTicket().
     function _update(address to, uint256 tokenId, address auth)
         internal
         override
         returns (address from)
     {
         from = super._update(to, tokenId, auth);
+
+        // Any transfer (including a resale) ends the listing, so it can't come back to life
+        if (listings[tokenId].seller != address(0)) {
+            delete listings[tokenId];
+        }
+
         uint256 eventId = tokenEventId[tokenId];
         if (from != address(0)) {
             eventTicketsHeld[eventId][from] -= 1;
