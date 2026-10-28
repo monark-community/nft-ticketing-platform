@@ -6,6 +6,8 @@ describe("TicketNFT - Per-Wallet Limit", function () {
     let ticketNFT: any, usdc: any;
     let admin: any, organizer: any, buyer: any, friend: any, seller: any;
     const LIMIT = 4;
+    const RESALE_PRICE = ethers.parseUnits("10", 6);
+
 
     beforeEach(async function () {
         [admin, organizer, buyer, friend, seller] = await ethers.getSigners();
@@ -65,17 +67,19 @@ describe("TicketNFT - Per-Wallet Limit", function () {
     it("rejects a platform resale to a buyer who is at the limit", async function () {
         await ticketNFT.connect(buyer).buyTickets(1, 0, 4);
         await ticketNFT.connect(seller).buyTickets(1, 0, 1); // token 4
+        await ticketNFT.connect(seller).listForResale(4, RESALE_PRICE);
 
         await expect(
-            ticketNFT.connect(seller).resell(4, buyer.address, 0)
+            ticketNFT.connect(buyer).buyResaleTicket(4, RESALE_PRICE)
         ).to.be.revertedWith("Per-wallet limit reached");
     });
 
     it("allows a platform resale to a buyer below the limit", async function () {
         await ticketNFT.connect(buyer).buyTickets(1, 0, 3);
         await ticketNFT.connect(seller).buyTickets(1, 0, 1); // token 3
+        await ticketNFT.connect(seller).listForResale(3, RESALE_PRICE);
 
-        await ticketNFT.connect(seller).resell(3, buyer.address, 0);
+        await ticketNFT.connect(buyer).buyResaleTicket(3, RESALE_PRICE);
         expect(await ticketNFT.eventTicketsHeld(1, buyer.address)).to.equal(4);
         expect(await ticketNFT.eventTicketsHeld(1, seller.address)).to.equal(0);
     });

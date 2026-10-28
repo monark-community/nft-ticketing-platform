@@ -10,10 +10,10 @@ describe("TicketNFT - Whitelist Mechanism", function () {
         [admin, organizer, hacker, whitelisted, notWhitelisted] = await ethers.getSigners();
         ({ ticketNFT } = await deployTicketNFT(admin));
         await ticketNFT.grantRole(await ticketNFT.ORGANIZER_ROLE(), organizer.address);
+        await setupEvent(ticketNFT, organizer, 1);
     });
 
     async function openFreeSale() {
-        await setupEvent(ticketNFT, organizer, 1);
         await ticketNFT.connect(organizer).setSaleActive(1, true);
     }
 
@@ -36,7 +36,7 @@ describe("TicketNFT - Whitelist Mechanism", function () {
     it("Should reject hacker from modifying whitelist", async function () {
         await expect(
             ticketNFT.connect(hacker).addToWhitelist(1, whitelisted.address)
-        ).to.be.revertedWithCustomError(ticketNFT, "AccessControlUnauthorizedAccount");
+        ).to.be.revertedWith("Not the event organizer or admin");
     });
 
     it("Should allow whitelisted address to buy during presale", async function () {
@@ -89,7 +89,6 @@ describe("TicketNFT - Whitelist Mechanism", function () {
     });
 
     it("Should not apply the presale whitelist to organizer-issued tickets", async function () {
-        await setupEvent(ticketNFT, organizer, 1);
         await ticketNFT.connect(organizer).setPresaleActive(1, true);
 
         await expect(

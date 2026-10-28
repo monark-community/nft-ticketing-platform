@@ -53,13 +53,13 @@ describe("TicketNFT - Organizer-Issued Tickets", function () {
     it("Should reject accounts without the organizer role", async function () {
         await expect(
             ticketNFT.connect(hacker).issueTickets(1, 0, [user1.address])
-        ).to.be.revertedWithCustomError(ticketNFT, "AccessControlUnauthorizedAccount");
+        ).to.be.revertedWith("Not the event organizer or admin");
     });
 
     it("Should reject another organizer issuing tickets for this event", async function () {
         await expect(
             ticketNFT.connect(otherOrganizer).issueTickets(1, 0, [user1.address])
-        ).to.be.revertedWith("Not the event organizer");
+        ).to.be.revertedWith("Not the event organizer or admin");
     });
 
     it("Should revert for a ticket type that does not exist", async function () {
@@ -93,4 +93,10 @@ describe("TicketNFT - Organizer-Issued Tickets", function () {
         await ticketNFT.connect(organizer).updateTicketType(1, 0, 75n, 5, "ipfs://event-1-type-0-v2");
         expect((await ticketNFT.ticketTypes(1, 0)).price).to.equal(75);
     });
+
+    it("Should let the admin issue tickets for any event", async function () {
+        await ticketNFT.connect(admin).issueTickets(1, 0, [user1.address]);
+        expect(await ticketNFT.ownerOf(0)).to.equal(user1.address);
+    });
+
 });
