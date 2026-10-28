@@ -85,8 +85,6 @@ contract TicketNFT is
     event ListingCancelled(uint256 indexed tokenId, address indexed seller);
     event EventSettingsUpdatedByAdmin(uint256 indexed eventId, address indexed admin);
 
-
-
     // Roles
     bytes32 public constant ORGANIZER_ROLE = keccak256("ORGANIZER_ROLE");
 
@@ -163,7 +161,6 @@ contract TicketNFT is
         require(config.sold == 0, "Event terms locked: tickets already sold");
         _validateEventSettings(endTime, royaltyBps, resaleCapBps);
 
-
         if (organizer == address(0)) {
             eventOrganizer[eventId] = msg.sender;
         }
@@ -201,7 +198,6 @@ contract TicketNFT is
         emit EventConfigured(eventId, eventOrganizer[eventId], endTime, royaltyBps, resaleCapBps, perWalletLimit);
         emit EventSettingsUpdatedByAdmin(eventId, msg.sender);
     }
-
 
     /// @notice Adds a ticket type (e.g. General Admission, VIP). Returns its type ID (0, 1, 2, ...).
     function addTicketType(uint256 eventId, uint256 price, uint256 maxSupply, string memory metadataURI)
@@ -427,7 +423,7 @@ contract TicketNFT is
         return (tokenFaceValue[tokenId] * eventConfigs[tokenEventId[tokenId]].resaleCapBps) / 10000;
     }
 
-        /// @notice Lists a ticket for resale. Nothing moves until a buyer calls buyResaleTicket().
+    /// @notice Lists a ticket for resale. Nothing moves until a buyer calls buyResaleTicket().
     /// The price cap applies while resaleCapApplies() is true. Listing again changes the price.
     function listForResale(uint256 tokenId, uint256 price) public {
         require(ownerOf(tokenId) == msg.sender, "You do not own this ticket");
@@ -481,7 +477,6 @@ contract TicketNFT is
         emit TicketResold(tokenId, listing.seller, msg.sender, listing.price);
     }
 
-
     // ---------------------------------------------------------------------
     // Internal
     // ---------------------------------------------------------------------
@@ -497,7 +492,6 @@ contract TicketNFT is
         require(royaltyBps <= 10000, "Royalty cannot exceed 100%");
         require(resaleCapBps == 0 || resaleCapBps >= 10000, "Resale cap must be 0 or at least 100% of face value");
     }
-
 
     /// @dev The only mint path: every ticket belongs to an event and a ticket type.
     function _mintTicket(address to, uint256 eventId, uint256 typeId, uint256 faceValue, string memory uri)
