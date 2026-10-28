@@ -5,7 +5,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 export function ConnectWalletButton() {
   return (
     <ConnectButton
-      label="Link Your Account to a Wallet"
+      label="Connect wallet"
       accountStatus="address"
       chainStatus="none"
       showBalance={false}
