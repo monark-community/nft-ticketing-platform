@@ -9,8 +9,9 @@ A single upgradeable ERC-721 contract (`TicketNFT.sol`) that manages all events 
 - **Minting** — Organizers mint NFT tickets with IPFS metadata, individually or in batches (up to 100)
 - **Check-in** — Per-event scanners mark tickets as permanently used on-chain
 - **Whitelist** — Presale support with per-event address whitelisting
+- **Event permissions** — Whitelist, presale, scanners, ticket issuance and organizer check-in are limited to the event's own organizer or the admin. The admin can also update an event's settings after sales start.
 - **Royalties** — EIP-2981 royalties configurable per event, paid on secondary sales
-- **Resale** — Platform resell function with USDC payments, price cap enforcement, and automatic royalty splitting
+- **Resale** — Buyer-initiated platform resale: the seller lists within the price cap, the buyer accepts and pays in USDC; royalties split automatically
 - **Upgradeable** — UUPS proxy pattern for MVP iteration, to be permanently locked before public sale
 
 ## Tech Stack
@@ -53,7 +54,9 @@ Test files cover:
 - `ScannerRole.test.ts` — Per-event scanner assignment, revocation, cross-event isolation
 - `BatchMint.test.ts` — Batch minting scenarios
 - `Whitelist.test.ts` — Whitelist management, presale enforcement, public sale transitions
-- `Resale.test.ts` — Resell flow, royalty payments, price cap enforcement
+- `Resale.test.ts` — Listing, buying, cancelling, price cap and royalties
+- `EventPermissions.test.ts` — Event-scoped organizer/admin permissions
+- `AdminEventSettings.test.ts` — Admin updates to an event's settings
 
 ## Deploy (Local)
 
