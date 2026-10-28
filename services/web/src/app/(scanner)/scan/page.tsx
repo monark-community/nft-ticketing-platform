@@ -61,19 +61,19 @@ export default function ScanPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f0f4fb] flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      <div className="bg-[#3a7bd5] px-8 pb-5">
-        <h1 className="text-white text-2xl font-bold">Ticket Scanner</h1>
-        <p className="text-white/70 text-sm mt-1">Scan attendee QR codes at the entrance</p>
+      <div className="bg-background px-8 pt-6 pb-2">
+        <h1 className="text-foreground text-2xl font-bold">Ticket Scanner</h1>
+        <p className="text-muted-foreground text-sm mt-1">Scan attendee QR codes at the entrance</p>
       </div>
 
       <div className="flex-1 flex flex-col items-center py-8 px-4">
         <div className="w-full max-w-md flex flex-col gap-5">
           {/* Setup */}
-          <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm flex flex-col gap-3">
-            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+          <div className="bg-card border border-border rounded-lg p-5 shadow-sm flex flex-col gap-3">
+            <label className="text-xs font-semibold text-secondary-foreground uppercase tracking-wider">
               Event ID you are scanning for
             </label>
             <Input
@@ -88,12 +88,12 @@ export default function ScanPage() {
             />
             {!isConnected && (
               <div className="flex flex-col items-center gap-2 pt-2">
-                <p className="text-sm text-gray-600">Connect the scanner wallet to start.</p>
+                <p className="text-sm text-secondary-foreground">Connect the scanner wallet to start.</p>
                 <ConnectWalletButton />
               </div>
             )}
             {isConnected && eventIdValid && scannerAuth.status === "notAuthorized" && (
-              <p className="text-sm rounded-md bg-amber-50 border border-amber-300 px-3 py-2 text-amber-900">
+              <p className="text-sm rounded-md bg-primary-tint border border-border-accent px-3 py-2 text-primary-soft">
                 This wallet is not a scanner for event #{eventIdInput}. You can still verify
                 tickets, but check-in will fail until the organizer adds this wallet as a scanner.
               </p>
@@ -102,7 +102,7 @@ export default function ScanPage() {
 
           {/* Camera */}
           {scannerReady && (
-            <div className={`bg-white border border-gray-200 rounded-lg p-3 shadow-sm ${result ? "hidden" : ""}`}>
+            <div className={`bg-card border border-border rounded-lg p-3 shadow-sm ${result ? "hidden" : ""}`}>
               <div className="rounded-md overflow-hidden aspect-square bg-black">
                 <Scanner
                   onScan={handleScan}
@@ -112,11 +112,11 @@ export default function ScanPage() {
                   sound={false}
                 />
               </div>
-              <p className="text-xs text-gray-400 text-center mt-2">
+              <p className="text-xs text-muted-foreground text-center mt-2">
                 {verifying ? "Verifying ticket..." : "Point the camera at the attendee's QR code"}
               </p>
               {cameraError && (
-                <p className="text-sm text-red-600 text-center mt-2">
+                <p className="text-sm text-destructive text-center mt-2">
                   Camera error: {cameraError}. Allow camera access in your browser and reload.
                 </p>
               )}

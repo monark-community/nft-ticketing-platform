@@ -47,7 +47,7 @@ export function TransactionStatus({ state, explorerUrl, successMessage, onRetry,
   // Success (#105)
   if (state.phase === "success") {
     return (
-      <div role="status" aria-live="polite" className="rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-900">
+      <div role="status" aria-live="polite" className="rounded-lg border border-success/40 bg-success-bg px-4 py-3 text-sm text-success">
         <p className="font-semibold">{successMessage ?? "Transaction confirmed."}</p>
         {state.hash && <TxLink hash={state.hash} explorerUrl={explorerUrl} />}
       </div>
@@ -57,14 +57,14 @@ export function TransactionStatus({ state, explorerUrl, successMessage, onRetry,
   // Failure (#105)
   if (state.phase === "error") {
     return (
-      <div role="alert" className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">
+      <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive-bg px-4 py-3 text-sm text-destructive">
         <p className="font-semibold">{multiStep ? `Failed at ${stepLabel}` : "Transaction failed"}</p>
         {state.error && <p className="mt-1">{state.error}</p>}
         {state.hash && <TxLink hash={state.hash} explorerUrl={explorerUrl} />}
         {onRetry && (
           <button
             onClick={onRetry}
-            className="mt-3 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+            className="mt-3 rounded-md bg-destructive px-3 py-1.5 text-xs font-semibold text-background hover:bg-destructive/90"
           >
             Try again
           </button>
@@ -76,7 +76,7 @@ export function TransactionStatus({ state, explorerUrl, successMessage, onRetry,
   // The user stopped waiting; the transaction may still confirm (#252)
   if (state.phase === "stoppedWaiting") {
     return (
-      <div role="status" aria-live="polite" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <div role="status" aria-live="polite" className="rounded-lg border border-border-accent bg-primary-tint px-4 py-3 text-sm text-primary-soft">
         <p className="font-semibold">Stopped waiting for the transaction</p>
         {state.note && <p className="mt-1">{state.note}</p>}
         {state.hash && <TxLink hash={state.hash} explorerUrl={explorerUrl} />}
@@ -89,10 +89,10 @@ export function TransactionStatus({ state, explorerUrl, successMessage, onRetry,
   if (!text) return null;
 
   return (
-    <div role="status" aria-live="polite" className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+    <div role="status" aria-live="polite" className="rounded-lg border border-border bg-muted px-4 py-3 text-sm text-foreground">
       {multiStep && <p className="font-semibold">{stepLabel}</p>}
       <p className="flex items-center gap-2">
-        <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" aria-hidden="true" />
+        <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden="true" />
         {text}
       </p>
       {state.note && <p className="mt-1 text-xs">{state.note}</p>}
@@ -100,7 +100,7 @@ export function TransactionStatus({ state, explorerUrl, successMessage, onRetry,
       {state.phase === "stillPending" && onStopWaiting && (
         <button
           onClick={onStopWaiting}
-          className="mt-3 rounded-md border border-blue-300 bg-white px-3 py-1.5 text-xs font-semibold text-blue-900 hover:bg-blue-100"
+          className="mt-3 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted/80"
         >
           Stop waiting
         </button>

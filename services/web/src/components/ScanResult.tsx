@@ -25,22 +25,22 @@ type View = "valid" | "checkedIn" | "rejected";
 
 const STYLES: Record<View, { panel: string; icon: string; title: string; subtitle: string }> = {
   valid: {
-    panel: "bg-blue-50 border-blue-300",
-    icon: "bg-blue-600",
-    title: "text-blue-900",
-    subtitle: "text-blue-800",
+    panel: "bg-muted border-border",
+    icon: "bg-primary",
+    title: "text-foreground",
+    subtitle: "text-foreground",
   },
   checkedIn: {
-    panel: "bg-green-50 border-green-400",
-    icon: "bg-green-600",
-    title: "text-green-900",
-    subtitle: "text-green-800",
+    panel: "bg-success-bg border-success/40",
+    icon: "bg-success",
+    title: "text-success",
+    subtitle: "text-success",
   },
   rejected: {
-    panel: "bg-red-50 border-red-400",
-    icon: "bg-red-600",
-    title: "text-red-900",
-    subtitle: "text-red-800",
+    panel: "bg-destructive-bg border-destructive/40",
+    icon: "bg-destructive",
+    title: "text-destructive",
+    subtitle: "text-destructive",
   },
 };
 
@@ -62,7 +62,7 @@ function secondsAgo(timestamp: number) {
 function StatusIcon({ view }: { view: View }) {
   const common = { fill: "none", stroke: "currentColor", strokeWidth: 3, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   return (
-    <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white shrink-0 ${STYLES[view].icon}`}>
+    <div className={`w-14 h-14 rounded-full flex items-center justify-center text-background shrink-0 ${STYLES[view].icon}`}>
       <svg viewBox="0 0 24 24" className="w-8 h-8" aria-hidden="true">
         {view === "rejected" ? (
           <path d="M6 6l12 12M18 6L6 18" {...common} />
@@ -78,9 +78,9 @@ function StatusIcon({ view }: { view: View }) {
 
 function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="flex justify-between gap-4 py-2 border-b border-black/5 last:border-b-0">
-      <dt className="text-sm text-gray-500">{label}</dt>
-      <dd className={`text-sm font-semibold text-gray-900 text-right ${mono ? "font-mono" : ""}`}>{value}</dd>
+    <div className="flex justify-between gap-4 py-2 border-b border-border last:border-b-0">
+      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className={`text-sm font-semibold text-foreground text-right ${mono ? "font-mono" : ""}`}>{value}</dd>
     </div>
   );
 }
@@ -104,14 +104,14 @@ export function ScanResult({ result, checkInStatus, txHash, transaction, explore
 
       {/* Why it was rejected */}
       {view === "rejected" && result.reason && (
-        <p className="mt-4 rounded-lg bg-white border border-red-200 px-4 py-3 text-base font-medium text-red-900">
+        <p className="mt-4 rounded-lg bg-card border border-destructive/40 px-4 py-3 text-base font-medium text-destructive">
           {result.reason}
         </p>
       )}
 
       {/* Ticket details */}
       {result.qr && (
-        <dl className="mt-4 rounded-lg bg-white/70 px-4">
+        <dl className="mt-4 rounded-lg bg-background/60 px-4">
           <DetailRow label="Ticket" value={`#${result.qr.tokenId}`} />
           <DetailRow label="Event" value={result.eventId !== undefined ? `#${result.eventId}` : "Unknown"} />
           {result.owner && <DetailRow label="Owner" value={shortenHex(result.owner)} mono />}
@@ -120,7 +120,7 @@ export function ScanResult({ result, checkInStatus, txHash, transaction, explore
         </dl>
       )}
       {view === "valid" && !canCheckIn && (
-        <p className="mt-4 rounded-lg bg-amber-50 border border-amber-300 px-4 py-3 text-sm font-medium text-amber-900">
+        <p className="mt-4 rounded-lg bg-primary-tint border border-border-accent px-4 py-3 text-sm font-medium text-primary-soft">
           This wallet is not a scanner for this event, so it cannot check the ticket in.
         </p>
       )}
@@ -137,7 +137,7 @@ export function ScanResult({ result, checkInStatus, txHash, transaction, explore
           <button
             onClick={onCheckIn}
             disabled={pending || !canCheckIn}
-            className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-lg font-bold py-3 rounded-lg"
+            className="w-full bg-success hover:bg-success/90 disabled:bg-disabled disabled:text-disabled-foreground disabled:cursor-not-allowed text-background text-lg font-bold py-3 rounded-lg"
           >
             {pending ? "Checking in..." : checkInStatus === "error" ? "Try check-in again" : "Check in ticket"}
           </button>
@@ -145,10 +145,10 @@ export function ScanResult({ result, checkInStatus, txHash, transaction, explore
         <button
           onClick={onScanNext}
           disabled={pending}
-          className={`w-full disabled:opacity-60 disabled:cursor-not-allowed font-semibold py-3 rounded-lg ${
+          className={`w-full disabled:bg-disabled disabled:text-disabled-foreground disabled:border-transparent disabled:cursor-not-allowed font-semibold py-3 rounded-lg ${
             view === "valid"
-              ? "bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-              : "bg-[#3a7bd5] hover:bg-[#2d63b0] text-white"
+              ? "bg-card border border-border text-secondary-foreground hover:bg-muted"
+              : "bg-primary hover:bg-primary/90 text-primary-foreground"
           }`}
         >
           Scan next ticket

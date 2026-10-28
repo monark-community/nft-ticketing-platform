@@ -59,7 +59,7 @@ function handleSubmit() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
 
       {/* NAV */}
       <Navbar />
@@ -69,18 +69,18 @@ function handleSubmit() {
         <div className="w-full max-w-lg">
 
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Sign into your account</h1>
+            <h1 className="text-2xl font-bold text-foreground">Sign into your account</h1>
           </div>
 
-          <div className="border border-gray-200 rounded-lg p-8 bg-white shadow-sm">
+          <div className="border border-border rounded-lg p-8 bg-card shadow-sm">
 
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-6">
               Contact Information
             </p>
 
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">
                   First Name
                 </Label>
                 <Input
@@ -89,14 +89,14 @@ function handleSubmit() {
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     handleChange("firstName", e.target.value)
                   }
-                  className={errors.firstName ? "border-red-400" : ""}
+                  className={errors.firstName ? "border-destructive/40" : ""}
                 />
                 {errors.firstName && (
-                  <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>
+                  <p className="text-destructive text-xs mt-1">{errors.firstName}</p>
                 )}
               </div>
               <div>
-                <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">
                   Last Name
                 </Label>
                 <Input
@@ -105,16 +105,16 @@ function handleSubmit() {
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     handleChange("lastName", e.target.value)
                   }
-                  className={errors.lastName ? "border-red-400" : ""}
+                  className={errors.lastName ? "border-destructive/40" : ""}
                 />
                 {errors.lastName && (
-                  <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>
+                  <p className="text-destructive text-xs mt-1">{errors.lastName}</p>
                 )}
               </div>
             </div>
 
             <div className="mb-4">
-              <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1 block">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">
                 Email Address
               </Label>
               <Input
@@ -124,16 +124,16 @@ function handleSubmit() {
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                   handleChange("email", e.target.value)
                 }
-                className={errors.email ? "border-red-400" : ""}
+                className={errors.email ? "border-destructive/40" : ""}
               />
               {errors.email && (
-                <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+                <p className="text-destructive text-xs mt-1">{errors.email}</p>
               )}
             </div>
 
             <Button
               onClick={handleSubmit}
-              className="w-full bg-[#4f35c2] hover:bg-[#3d28a0] text-white font-bold py-3 text-base rounded-lg mb-4"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 text-base mb-4"
             >
               Sign In
             </Button>
@@ -141,12 +141,12 @@ function handleSubmit() {
             <ConnectWalletButton />
 
             {errors.wallet && (
-              <p className="text-red-500 text-xs mt-2">{errors.wallet}</p>
+              <p className="text-destructive text-xs mt-2">{errors.wallet}</p>
             )}
 
-            <p className="text-center text-sm text-gray-500 mt-6">
+            <p className="text-center text-sm text-muted-foreground mt-6">
               Don&apos;t have an account?{" "}
-              <Link href="/" className="font-bold text-gray-800 hover:underline">
+              <Link href="/" className="font-bold text-foreground hover:underline">
                 Create one here
               </Link>
             </p>
