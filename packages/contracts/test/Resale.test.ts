@@ -37,6 +37,7 @@ describe("TicketNFT - Buyer-initiated Resale & Royalties (#209)", function () {
             const listing = await ticketNFT.listings(0);
             expect(listing.seller).to.equal(seller.address);
             expect(listing.price).to.equal(FACE_VALUE);
+            expect(listing.royaltyBps).to.equal(ROYALTY_BPS);
             expect(await ticketNFT.ownerOf(0)).to.equal(seller.address);
         });
 

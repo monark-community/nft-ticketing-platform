@@ -65,6 +65,7 @@ contract TicketNFT is
     struct Listing {
         address seller;
         uint256 price;
+        uint256 royaltyBps;
     }
     mapping(uint256 => Listing) public listings;
 
@@ -432,7 +433,7 @@ contract TicketNFT is
             require(price <= maxResalePriceOf(tokenId), "Sale price exceeds maximum resale price");
         }
 
-        listings[tokenId] = Listing(msg.sender, price);
+        listings[tokenId] = Listing(msg.sender, price, royaltyPercentage[tokenEventId[tokenId]]);
         emit TicketListed(tokenId, msg.sender, price);
     }
 
@@ -448,14 +449,15 @@ contract TicketNFT is
     /// so the seller can't raise the price while the purchase is pending.
     function buyResaleTicket(uint256 tokenId, uint256 expectedPrice) public nonReentrant {
         Listing memory listing = listings[tokenId];
+        uint256 eventId = tokenEventId[tokenId];
         require(listing.seller != address(0), "Ticket is not listed");
         require(listing.price == expectedPrice, "Listing price changed");
         require(msg.sender != listing.seller, "Cannot buy your own ticket");
+        require(listing.royaltyBps == royaltyPercentage[eventId], "Royalty changed since listing");
 
         if (resaleCapApplies(tokenId)) {
             require(listing.price <= maxResalePriceOf(tokenId), "Sale price exceeds maximum resale price");
         }
-        uint256 eventId = tokenEventId[tokenId];
         uint256 limit = eventConfigs[eventId].perWalletLimit;
         if (limit > 0) {
             require(eventTicketsHeld[eventId][msg.sender] + 1 <= limit, "Per-wallet limit reached");

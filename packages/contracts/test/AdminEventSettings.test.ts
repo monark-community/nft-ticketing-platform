@@ -104,4 +104,23 @@ describe("TicketNFT - Admin event settings (#293)", function () {
         await expect(ticketNFT.connect(buyer).buyResaleTicket(0, ethers.parseUnits("110", 6)))
             .to.be.revertedWith("Sale price exceeds maximum resale price");
     });
+
+    it("makes the seller relist if the admin changes the royalty after listing", async function () {
+        await firstSale();
+        const price = ethers.parseUnits("110", 6);
+        await ticketNFT.connect(seller).listForResale(0, price); // listed at 10% royalty
+
+        await ticketNFT.connect(admin).adminUpdateEventSettings(1, END_TIME, 2000, 11000, 0); // royalty -> 20%
+        await expect(ticketNFT.connect(buyer).buyResaleTicket(0, price))
+            .to.be.revertedWith("Royalty changed since listing");
+
+        // Relisting means the seller accepts the new royalty
+        await ticketNFT.connect(seller).listForResale(0, price);
+        const sellerBefore = await usdc.balanceOf(seller.address);
+        await ticketNFT.connect(buyer).buyResaleTicket(0, price);
+
+        expect(await ticketNFT.ownerOf(0)).to.equal(buyer.address);
+        expect(await usdc.balanceOf(seller.address)).to.equal(sellerBefore + price - (price * 2000n) / 10000n);
+    });
+
 });
