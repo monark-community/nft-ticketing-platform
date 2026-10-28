@@ -340,6 +340,13 @@ contract TicketNFT is
 
         require(!isUsed[tokenId], "Ticket already used");
         isUsed[tokenId] = true;
+
+        address seller = listings[tokenId].seller;
+        if (seller != address(0)) {
+            delete listings[tokenId];
+            emit ListingCancelled(tokenId, seller);
+        }
+
         emit TicketCheckedIn(tokenId, msg.sender);
     }
 
@@ -424,6 +431,7 @@ contract TicketNFT is
     /// The price cap applies while resaleCapApplies() is true. Listing again changes the price.
     function listForResale(uint256 tokenId, uint256 price) public {
         require(ownerOf(tokenId) == msg.sender, "You do not own this ticket");
+        require(price > 0, "Price must be greater than zero");
         if (resaleCapApplies(tokenId)) {
             require(price <= maxResalePriceOf(tokenId), "Sale price exceeds maximum resale price");
         }

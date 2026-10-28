@@ -64,6 +64,12 @@ describe("TicketNFT - Buyer-initiated Resale & Royalties (#209)", function () {
                 .to.emit(ticketNFT, "ListingCancelled").withArgs(0, seller.address);
             expect((await ticketNFT.listings(0)).seller).to.equal(ethers.ZeroAddress);
         });
+
+        it("rejects a price of zero", async function () {
+            await expect(ticketNFT.connect(seller).listForResale(0, 0))
+                .to.be.revertedWith("Price must be greater than zero");
+        });
+
     });
 
     describe("Buying", function () {
@@ -92,6 +98,16 @@ describe("TicketNFT - Buyer-initiated Resale & Royalties (#209)", function () {
             await ticketNFT.connect(buyer).buyResaleTicket(0, FACE_VALUE);
             expect((await ticketNFT.listings(0)).seller).to.equal(ethers.ZeroAddress);
         });
+
+        it("clears the listing when the ticket is checked in", async function () {
+            await expect(ticketNFT.connect(organizer).checkInTicket(0))
+                .to.emit(ticketNFT, "ListingCancelled").withArgs(0, seller.address);
+
+            expect((await ticketNFT.listings(0)).seller).to.equal(ethers.ZeroAddress);
+            await expect(ticketNFT.connect(buyer).buyResaleTicket(0, FACE_VALUE))
+                .to.be.revertedWith("Ticket is not listed");
+        });
+
 
         it("rejects a ticket that is not listed", async function () {
             await ticketNFT.connect(seller).cancelListing(0);
