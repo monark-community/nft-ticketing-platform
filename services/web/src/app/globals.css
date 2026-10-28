@@ -129,3 +129,64 @@
     @apply font-sans;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Text styles from the Figma Design System page (#290).
+   Named type-* (not text-*) so tailwind-merge doesn't treat them as colors.
+   --------------------------------------------------------------------------- */
+@utility type-display-xl { font-family: var(--font-serif); font-weight: 700; font-size: 3.5rem; line-height: 4rem; letter-spacing: -0.025em; }
+@utility type-heading-lg { font-family: var(--font-serif); font-weight: 600; font-size: 2rem; line-height: 2.5rem; letter-spacing: -0.01em; }
+@utility type-heading-md { font-family: var(--font-serif); font-weight: 600; font-size: 1.5rem; line-height: 2rem; }
+@utility type-heading-sm { font-family: var(--font-serif); font-weight: 600; font-size: 1.25rem; line-height: 1.75rem; }
+@utility type-title-lg { font-family: var(--font-sans); font-weight: 600; font-size: 1.125rem; line-height: 1.625rem; letter-spacing: 0.01em; }
+@utility type-title-md { font-family: var(--font-sans); font-weight: 600; font-size: 1rem; line-height: 1.5rem; letter-spacing: 0.01em; }
+@utility type-body-lg { font-family: var(--font-sans); font-weight: 400; font-size: 1rem; line-height: 1.625rem; }
+@utility type-body-md { font-family: var(--font-sans); font-weight: 400; font-size: 0.875rem; line-height: 1.375rem; }
+@utility type-body-md-strong { font-family: var(--font-sans); font-weight: 600; font-size: 0.875rem; line-height: 1.375rem; }
+@utility type-body-sm { font-family: var(--font-sans); font-weight: 500; font-size: 0.75rem; line-height: 1.125rem; }
+@utility type-label-md { font-family: var(--font-sans); font-weight: 700; font-size: 0.6875rem; line-height: 1rem; letter-spacing: 0.15em; text-transform: uppercase; }
+@utility type-label-sm { font-family: var(--font-sans); font-weight: 700; font-size: 0.625rem; line-height: 0.875rem; letter-spacing: 0.1em; text-transform: uppercase; }
+@utility type-label-button { font-family: var(--font-sans); font-weight: 700; font-size: 0.875rem; line-height: 1.25rem; letter-spacing: 0.05em; text-transform: uppercase; }
+@utility type-price-xl { font-family: var(--font-mono); font-weight: 700; font-size: 2.25rem; line-height: 2.5rem; }
+@utility type-price { font-family: var(--font-mono); font-weight: 700; font-size: 1.375rem; line-height: 1.75rem; }
+@utility type-mono-value { font-family: var(--font-mono); font-weight: 400; font-size: 0.875rem; line-height: 1.25rem; }
+@utility type-mono-address { font-family: var(--font-mono); font-weight: 400; font-size: 0.75rem; line-height: 1rem; }
+@utility type-mono-tag { font-family: var(--font-mono); font-weight: 700; font-size: 0.6875rem; line-height: 1rem; letter-spacing: 0.15em; text-transform: uppercase; }
+
+/* ---------------------------------------------------------------------------
+   Effects from the #282 implementation notes
+   --------------------------------------------------------------------------- */
+/* Primary button glow: soft at rest, stronger on hover */
+@utility glow-primary {
+  box-shadow: 0 0 16px rgb(249 115 22 / 25%);
+  &:hover:not(:disabled) { box-shadow: 0 0 24px rgb(249 115 22 / 45%); }
+}
+
+/* Subtle orange glow behind the top of a page (the "Overlay+Blur" layers in Figma) */
+@utility page-glow {
+  background-image: radial-gradient(ellipse 60% 420px at 50% -120px, rgb(249 115 22 / 9%), transparent 70%);
+  background-repeat: no-repeat;
+}
+
+/* Faint dot grid for empty states */
+@utility dot-grid {
+  background-image: radial-gradient(rgb(227 226 229 / 3%) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Pulsing status dot on "Presale" / "Low stock" badges */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@utility animate-pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
+
+/* Respect reduced motion everywhere */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
