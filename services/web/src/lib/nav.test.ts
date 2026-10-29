@@ -51,6 +51,14 @@ describe("navLinksFor", () => {
 
 describe("isActiveLink", () => {
   it("matches the page and pages below it, not similar prefixes", () => {
+    expect(isActiveLink("/my-tickets", ROUTES.myTickets)).toBe(true);
+    expect(isActiveLink("/my-tickets/12", ROUTES.myTickets)).toBe(true);
+    expect(isActiveLink("/my-tickets-old", ROUTES.myTickets)).toBe(false);
+    expect(isActiveLink("/profile", ROUTES.myTickets)).toBe(false);
+  });
+
+  it("keeps Search Events active on the home page and event pages", () => {
+    expect(isActiveLink("/", ROUTES.events)).toBe(true);
     expect(isActiveLink("/events", ROUTES.events)).toBe(true);
     expect(isActiveLink("/events/12", ROUTES.events)).toBe(true);
     expect(isActiveLink("/events-archive", ROUTES.events)).toBe(false);

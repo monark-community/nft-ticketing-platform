@@ -1,7 +1,7 @@
 // Navbar rules from the Figma Navbar variants (#290). Kept free of React so they can be tested.
 
 export const ROUTES = {
-  events: "/events",
+  events: "/", // the events list is the home page (#283); event pages are /events/[id]
   marketplace: "/marketplace",
   myTickets: "/my-tickets",
   organizer: "/organizer",
@@ -51,6 +51,8 @@ export function navLinksFor(role: NavRole, pathname = ""): NavLink[] {
 
 // A link is active on its own page and on pages below it (/events/123 keeps "Search Events" active)
 export function isActiveLink(pathname: string, href: string): boolean {
+  // Search Events stays active on the home page and on every event page
+  if (href === ROUTES.events) return pathname === "/" || isActiveLink(pathname, "/events");
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
