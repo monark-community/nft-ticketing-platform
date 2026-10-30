@@ -61,7 +61,7 @@ export default function EventsPage() {
               <div className="flex flex-col items-center gap-3">
                 {loadMoreError && (
                   <Alert tone="error" title="Couldn't load more events" className="w-full max-w-md">
-                    {loadMoreError}
+                    Something went wrong while loading more events. Try again.
                   </Alert>
                 )}
                 {hasMore && (

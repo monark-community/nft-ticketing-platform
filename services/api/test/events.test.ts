@@ -81,6 +81,16 @@ describe('event status rules', () => {
     expect(res.body.events[0].id).toBe(published.id);
   });
 
+  it('leaves past events out of the list and the total', async () => {
+    await createEvent(organizer.wallet_address, { status: 'PUBLISHED', contract_event_id: 8n, start_date: new Date('2020-01-01T20:00:00Z') });
+    const upcoming = await createEvent(organizer.wallet_address, { status: 'PUBLISHED', contract_event_id: 9n });
+
+    const res = await request(app).get('/api/events');
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(1);
+    expect(res.body.events.map((e: { id: string }) => e.id)).toEqual([upcoming.id]);
+  });
+
   it('lets a DRAFT be edited, but never its status, owner or IPFS hash', async () => {
     const event = await createEvent(organizer.wallet_address);
     const res = await request(app).put(`/api/events/${event.id}`).set('Cookie', cookie).send({

@@ -3,15 +3,17 @@ import { prisma } from '../lib/prisma';
 
 export async function listEvents(page: number, limit: number) {
   const skip = (page - 1) * limit;
+  // Only upcoming events: past ones would show as "upcoming" on the home page (#283)
+  const where = { status: EventStatus.PUBLISHED, start_date: { gte: new Date() } };
   const [events, total] = await Promise.all([
     prisma.event.findMany({
-      where: { status: EventStatus.PUBLISHED },
+      where,
       skip,
       take: limit,
       orderBy: { start_date: 'asc' },
       include: { ticket_types: true },
     }),
-    prisma.event.count({ where: { status: EventStatus.PUBLISHED } }),
+    prisma.event.count({ where }),
   ]);
   return { events, total, page, limit };
 }

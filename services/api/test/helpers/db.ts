@@ -36,13 +36,13 @@ export async function createUser(overrides: { wallet_address?: string; role?: Ro
 
 export async function createEvent(
   organizerWallet: string,
-  overrides: { status?: EventStatus; contract_event_id?: bigint; title?: string } = {}
+  overrides: { status?: EventStatus; contract_event_id?: bigint; title?: string; start_date?: Date } = {}
 ) {
   return prisma.event.create({
     data: {
       organizer_wallet: organizerWallet,
       title: overrides.title ?? 'Test Event',
-      start_date: new Date('2030-01-01T20:00:00Z'),
+      start_date: overrides.start_date ?? new Date('2030-01-01T20:00:00Z'),
       status: overrides.status ?? EventStatus.DRAFT,
       contract_event_id: overrides.contract_event_id,
     },
