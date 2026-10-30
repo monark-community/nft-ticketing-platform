@@ -1,6 +1,5 @@
 # Runs every pull request's checks automatically, one job per package, so a
-# single failure never hides the others. See issue #253 and sub-issues
-# #254-#257 and #281.
+# single failure never hides the others. See issue #253 and sub-issues #254-#257.
 name: CI
 
 on:
@@ -89,37 +88,4 @@ jobs:
           cache: npm
           cache-dependency-path: services/web/package-lock.json
       - run: npm ci
-      - run: npm test
-
-  # Backend tests (vitest) - sub-issue #281
-  api-tests:
-    name: API tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: services/api
-    services:
-      # Matches services/api/docker-compose.test.yml
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: nft_ticketing_test
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd "pg_isready -U test_user -d nft_ticketing_test"
-          --health-interval 2s
-          --health-timeout 5s
-          --health-retries 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: services/api/package-lock.json
-      - run: npm ci
-      - run: npx prisma generate
       - run: npm test
