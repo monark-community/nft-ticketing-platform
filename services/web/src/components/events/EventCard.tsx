@@ -6,17 +6,20 @@ import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { availability, eventHref, formatEventDate, formatPrice, startingPrice, type EventSummary } from "@/lib/events";
+import { eventImageUrl } from "@/lib/event-details";
+import { eventHref, eventStockStatus, formatEventDate, formatPrice, startingPrice, type EventSummary } from "@/lib/events";
 import { cn } from "@/lib/utils";
 
 // Event card from the Figma "Events / Default" frame (#283).
 // The whole card is one link to the event page, so the "View tickets" button is only a visual cue.
 export function EventCard({ event }: { event: EventSummary }) {
   const [imageFailed, setImageFailed] = useState(false);
-  const status = availability(event.ticket_types);
+  const status = eventStockStatus(event.ticket_types);
   const price = startingPrice(event.ticket_types);
-  const soldOut = status === "sold-out";
-  const showImage = event.image_url && !imageFailed;
+  const soldOut = status === "soldOut";
+  // ipfs:// images go through the gateway (#284)
+  const imageUrl = eventImageUrl(event.image_url);
+  const showImage = imageUrl && !imageFailed;
 
   return (
     <Link
@@ -28,7 +31,7 @@ export function EventCard({ event }: { event: EventSummary }) {
           // Event images can come from any host (IPFS gateways, organizer uploads), so a plain img is used
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={event.image_url!}
+            src={imageUrl}
             alt=""
             loading="lazy"
             onError={() => setImageFailed(true)}
@@ -43,7 +46,7 @@ export function EventCard({ event }: { event: EventSummary }) {
           </div>
         )}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-card to-transparent" />
-        {status === "low-stock" && (
+        {status === "low" && (
           <Badge tone="warning" overlay dot className="absolute top-3 right-3">
             Low stock
           </Badge>

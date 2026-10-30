@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   appendEvents,
-  availability,
+  eventStockStatus,
   eventHref,
   formatEventDate,
   formatPrice,
@@ -56,22 +56,22 @@ describe("formatEventDate", () => {
   });
 });
 
-describe("availability", () => {
+describe("eventStockStatus", () => {
   it("is sold out when every ticket type is sold out", () => {
-    expect(availability([tt(10, 50, 50), tt(20, 10, 10)])).toBe("sold-out");
+    expect(eventStockStatus([tt(10, 50, 50), tt(20, 10, 10)])).toBe("soldOut");
   });
 
-  it("is low stock at 10% or less left across all types", () => {
-    expect(availability([tt(10, 50, 50), tt(20, 50, 40)])).toBe("low-stock");
-    expect(availability([tt(10, 100, 89)])).toBe("available");
+  it("uses the shared low stock rule across all types", () => {
+    expect(eventStockStatus([tt(10, 100, 70)])).toBe("low");
+    expect(eventStockStatus([tt(10, 100, 50)])).toBe("available");
   });
 
   it("is available when one type is sold out but others have plenty", () => {
-    expect(availability([tt(10, 50, 50), tt(20, 100, 0)])).toBe("available");
+    expect(eventStockStatus([tt(10, 50, 50), tt(20, 100, 0)])).toBe("available");
   });
 
-  it("is no-tickets when nothing is on sale yet", () => {
-    expect(availability([])).toBe("no-tickets");
+  it("is null when nothing is on sale yet", () => {
+    expect(eventStockStatus([])).toBeNull();
   });
 });
 

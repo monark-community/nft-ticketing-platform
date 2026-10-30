@@ -1,10 +1,24 @@
 import { EventStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
-export async function listEvents(page: number, limit: number) {
+// An event is over once its end date has passed. Without an end date it counts as over
+// 12 hours after it starts, the same rule My Tickets uses (#310), so both pages agree.
+export const NO_END_DATE_GRACE_MS = 12 * 60 * 60 * 1000;
+
+export function notEndedFilter(now: Date = new Date()) {
+  return {
+    OR: [
+      { end_date: { gte: now } },
+      { end_date: null, start_date: { gte: new Date(now.getTime() - NO_END_DATE_GRACE_MS) } },
+    ],
+  };
+}
+
+// Published events, upcoming and in progress by default (#283).
+// includePast lists every published event, for My Tickets to show past tickets' details (#310).
+export async function listEvents(page: number, limit: number, includePast = false) {
   const skip = (page - 1) * limit;
-  // Only upcoming events: past ones would show as "upcoming" on the home page (#283)
-  const where = { status: EventStatus.PUBLISHED, start_date: { gte: new Date() } };
+  const where = { status: EventStatus.PUBLISHED, ...(includePast ? {} : notEndedFilter()) };
   const [events, total] = await Promise.all([
     prisma.event.findMany({
       where,

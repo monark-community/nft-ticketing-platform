@@ -1,5 +1,7 @@
 // Event list helpers for the home page (#283). Kept free of React so they can be tested.
 
+import { getStockStatus, type StockStatus } from "@/lib/ticket-stock";
+
 // Shapes returned by GET /api/events (Prisma Decimal prices arrive as strings)
 export interface TicketTypeSummary {
   id: string;
@@ -49,18 +51,13 @@ export function formatEventDate(iso: string, timeZone?: string) {
   return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone });
 }
 
-export type Availability = "available" | "low-stock" | "sold-out" | "no-tickets";
-
-// Low stock = 10% or less of all tickets left
-export const LOW_STOCK_RATIO = 0.1;
-
-export function availability(ticketTypes: TicketTypeSummary[]): Availability {
+// Stock across all of an event's ticket types, using the shared rule from lib/ticket-stock.ts (#284).
+// null when nothing is on sale yet, so the card shows no stock badge.
+export function eventStockStatus(ticketTypes: TicketTypeSummary[]): StockStatus | null {
   const supply = ticketTypes.reduce((sum, t) => sum + t.supply, 0);
-  if (supply === 0) return "no-tickets";
-  const left = ticketTypes.reduce((sum, t) => sum + Math.max(0, t.supply - t.sold), 0);
-  if (left === 0) return "sold-out";
-  if (left / supply <= LOW_STOCK_RATIO) return "low-stock";
-  return "available";
+  if (supply === 0) return null;
+  const remaining = ticketTypes.reduce((sum, t) => sum + Math.max(0, t.supply - t.sold), 0);
+  return getStockStatus(remaining, supply);
 }
 
 // Merge a newly loaded page, skipping events already shown (the list can shift between requests)
