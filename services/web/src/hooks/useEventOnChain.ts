@@ -132,6 +132,8 @@ export function useEventOnChain(contractEventId: bigint | null, wallet: Address 
       ? { whitelisted, held: Number(held), usdcBalance, allowance, ethBalance: ethBalance.data.value }
       : null;
 
+  const walletFailed = Boolean(walletReads.error || usdcReads.error || ethBalance.error);
+
   // Called after a purchase (or a failed one: the approval may still have gone through)
   async function refetch() {
     await Promise.all([eventReads.refetch(), typeReads.refetch(), walletReads.refetch(), usdcReads.refetch(), ethBalance.refetch()]);
@@ -146,7 +148,9 @@ export function useEventOnChain(contractEventId: bigint | null, wallet: Address 
     gasPrice: gasPrice.data,
     // The event and its types are loading (the wallet reads load separately)
     loading: hasEvent && (eventReads.isPending || (typeCount > 0 && typeReads.isPending)),
-    walletLoading: Boolean(wallet) && hasEvent && !walletState,
+    // A failed wallet read isn't "still loading": the page shows walletError with Try again instead
+    walletLoading: Boolean(wallet) && hasEvent && !walletState && !walletFailed,
+    walletError: walletFailed ? "Could not read your wallet's balance and tickets. Check your connection and try again." : null,
     error: eventReads.error || typeReads.error ? "Could not read this event from the blockchain. Check your connection and try again." : null,
     refetch,
   };

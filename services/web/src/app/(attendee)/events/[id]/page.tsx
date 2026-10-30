@@ -91,7 +91,7 @@ export default function EventPage() {
   const ready =
     Boolean(event) &&
     (contractEventId === null || (!chain.loading && chain.event !== null)) &&
-    (!isConnected || contractEventId === null || !chain.walletLoading);
+    (!isConnected || contractEventId === null || (!chain.walletLoading && !chain.walletError));
 
   const block =
     ready && selected
@@ -237,6 +237,8 @@ export default function EventPage() {
                       block={block}
                       blockMessage={blockMessage}
                       ready={ready}
+                      walletError={chain.walletError}
+                      onRetryWallet={() => chain.refetch()}
                       isBusy={purchase.isBusy}
                       quantity={qty}
                       totalLabel={totalLabel}

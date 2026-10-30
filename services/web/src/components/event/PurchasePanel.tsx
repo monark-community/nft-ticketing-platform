@@ -20,6 +20,8 @@ interface PurchasePanelProps {
   block: PurchaseBlock | null;
   blockMessage: BlockMessage | null;
   ready: boolean; // the contract and wallet reads have loaded
+  walletError?: string | null; // a wallet read failed, so the checks can't run
+  onRetryWallet?: () => void;
   isBusy: boolean;
   quantity: number;
   totalLabel: string; // "30.00 USDC"
@@ -68,6 +70,8 @@ function Actions({
   onSignIn,
   signingIn,
   finishAccountHref,
+  walletError,
+  onRetryWallet,
 }: PurchasePanelProps) {
   const approving = isApproving(state);
   // Failed on the buy step after the approval went through: "Try again" only runs the buy
@@ -152,6 +156,21 @@ function Actions({
   return (
     <div className="flex flex-col gap-3">
       {state.phase === "error" && state.error && <Alert tone="error" title={state.error} />}
+
+      {/* Without the wallet's balances the checks can't run, so say why Buy is disabled */}
+      {walletError && !isBusy && (
+        <Alert
+          tone="error"
+          title={walletError}
+          action={
+            onRetryWallet && (
+              <Button size="sm" onClick={onRetryWallet}>
+                <RotateCw aria-hidden="true" /> Try again
+              </Button>
+            )
+          }
+        />
+      )}
 
       {state.phase === "stillPending" && (
         <Alert
