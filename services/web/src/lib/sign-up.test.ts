@@ -95,9 +95,15 @@ describe("safeNextPath", () => {
     ["https://evil.example", ROUTES.events],
     ["//evil.example", ROUTES.events],
     ["/\\evil.example", ROUTES.events],
+    // Browsers drop tabs and newlines, which would turn these into //evil.com
+    ["/\t/evil.com", ROUTES.events],
+    ["/\n/evil.com", ROUTES.events],
+    ["/\r/evil.com", ROUTES.events],
+    ["/events/event-1#tickets", "/events/event-1#tickets"],
     ["/signup", ROUTES.events],
+    ["/signup?next=/my-tickets", ROUTES.events],
     ["/signin", ROUTES.events],
-  ])("sends %s to %s", (next, expected) => {
+  ])("sends %j to %j", (next, expected) => {
     expect(safeNextPath(next)).toBe(expected);
   });
 });

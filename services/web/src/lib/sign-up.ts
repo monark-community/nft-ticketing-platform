@@ -77,8 +77,21 @@ export function describeAuthError(authError: string | null): { title: string; me
 
 // Where to go once signed in: the ?next= page if it's one of ours, otherwise the events list.
 // Only same-site paths are allowed, so a link can't send someone to another website (open redirect).
+// The check parses `next` the way the browser will: browsers drop tabs and newlines and read "\" as
+// "/", so "/\t/evil.com" becomes "//evil.com". Comparing the origin catches all of those.
+const SAME_SITE = "http://localhost";
+
 export function safeNextPath(next: string | null | undefined): string {
-  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return ROUTES.events;
-  if (next === ROUTES.signUp || next.startsWith(`${ROUTES.signUp}?`) || next.startsWith("/signin")) return ROUTES.events;
-  return next;
+  if (!next || !next.startsWith("/")) return ROUTES.events;
+
+  let url: URL;
+  try {
+    url = new URL(next, SAME_SITE);
+  } catch {
+    return ROUTES.events;
+  }
+  if (url.origin !== SAME_SITE) return ROUTES.events;
+  if (url.pathname === ROUTES.signUp || url.pathname === "/signin") return ROUTES.events;
+
+  return url.pathname + url.search + url.hash;
 }
