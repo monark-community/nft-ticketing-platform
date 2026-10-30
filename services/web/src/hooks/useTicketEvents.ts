@@ -20,6 +20,8 @@ const MAX_PAGES = 20;
 // Title, date, venue, image and ticket type names for the events the wallet has tickets for (#286).
 // Tickets only know the contract's event ID, so this loads the published events and matches on
 // contract_event_id. The tickets and their QR codes still work if this fails.
+// include_past: the events list only shows upcoming events (#283), but tickets need their event's
+// details during the event (at the door) and after it (past tickets).
 export function useTicketEvents(enabled: boolean) {
   const query = useQuery({
     queryKey: ["events", "all-published"],
@@ -28,7 +30,7 @@ export function useTicketEvents(enabled: boolean) {
     queryFn: async () => {
       const events: ApiEvent[] = [];
       for (let page = 1; page <= MAX_PAGES; page++) {
-        const result = await apiClient<EventsPage>(`/api/events?page=${page}&limit=${PAGE_SIZE}`);
+        const result = await apiClient<EventsPage>(`/api/events?page=${page}&limit=${PAGE_SIZE}&include_past=true`);
         events.push(...result.events);
         if (result.events.length < PAGE_SIZE || events.length >= result.total) break;
       }
