@@ -7,7 +7,7 @@ import { prisma } from '../src/lib/prisma';
 import { resetDb } from './helpers/db';
 
 const loginMessage = (nonce: string) =>
-  `Sign this message to authenticate with NFTicketPass.\n\nNonce: ${nonce}`;
+  `Sign this message to authenticate with NFTokenPass.\n\nNonce: ${nonce}`;
 
 async function getNonce(wallet: string): Promise<string> {
   const res = await request(app).get('/api/auth/nonce').query({ wallet });

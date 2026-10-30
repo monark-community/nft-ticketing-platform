@@ -7,7 +7,7 @@ import { prisma } from './lib/prisma';
 const PORT = process.env.PORT || process.env.API_PORT || 3001;
 
 app.listen(PORT, () => {
-  logger.info(`NFTicketPass API running on port ${PORT}`);
+  logger.info(`NFTokenPass API running on port ${PORT}`);
   logger.info(`Health check: http://localhost:${PORT}/health`);
   logger.info(`Database health: http://localhost:${PORT}/db-health`);
   startBlockchainListener();
