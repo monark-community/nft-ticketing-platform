@@ -9,6 +9,12 @@
 :root {
   color-scheme: dark;
 
+  /* Fonts. The type-* styles below read these; @theme inline doesn't output them as variables.
+     --font-jakarta, --font-playfair and --font-jetbrains-mono come from next/font in layout.tsx */
+  --font-sans: var(--font-jakarta);
+  --font-serif: var(--font-playfair);
+  --font-mono: var(--font-jetbrains-mono);
+
   /* Backgrounds */
   --background: #0d0e10;
   --card: #1b1c1e;

@@ -237,7 +237,7 @@ npm run dev                   # needs services/web/.env.local (see above)
 | `npm run db:generate` | Generate the Prisma client |
 | `npm run db:migrate` | Create and apply a migration (development) |
 | `npm run db:migrate:deploy` | Apply existing migrations |
-| `npm run db:seed` | Seed the database |
+| `npm run db:seed` | Seed local test users and events (pairs with the on-chain seed, see the [contracts README](./packages/contracts/README.md#local-test-data)) |
 | `npm run db:studio` | Open Prisma Studio |
 
 **Web** (`services/web`)

@@ -31,7 +31,7 @@ export async function verifyWalletSignature(
 
   if (!user || !user.nonce) return null;
 
-  const message = `Sign this message to authenticate with NFTicketPass.\n\nNonce: ${user.nonce}`;
+  const message = `Sign this message to authenticate with NFTokenPass.\n\nNonce: ${user.nonce}`;
 
   let recoveredAddress: string;
   try {
