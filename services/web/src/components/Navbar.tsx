@@ -10,6 +10,7 @@ import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
 import { useHasMounted } from "@/hooks/useHasMounted";
+import { useProfileCompletionRedirect } from "@/hooks/useProfileCompletionRedirect";
 import { useWalletAuth, type UserProfile } from "@/hooks/useWalletAuth";
 import { shortAddress } from "@/lib/format";
 import { avatarInitial, getNavRole, isActiveLink, navLinksFor, ROUTES, type NavRole } from "@/lib/nav";
@@ -23,6 +24,8 @@ export function Navbar() {
   const { user, signIn, logout, isLoading } = useWalletAuth();
   const hasMounted = useHasMounted();
   const pathname = usePathname() ?? "";
+  // A first sign-in from any page goes to the create account step (#288)
+  useProfileCompletionRedirect();
 
   return (
     <NavbarView

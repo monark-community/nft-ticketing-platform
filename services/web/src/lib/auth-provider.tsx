@@ -3,6 +3,7 @@
 import { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccount, useDisconnect, useSignMessage } from "wagmi";
 import { apiClient } from "@/lib/api";
+import { isSessionForWallet } from "@/lib/auth-session";
 
 export interface UserProfile {
   wallet_address: string;
@@ -77,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       try {
         const { nonce } = await apiClient<{ nonce: string }>(`/api/auth/nonce?wallet=${wallet}`);
-        const message = `Sign this message to authenticate with NFTicketPass.\n\nNonce: ${nonce}`;
+        const message = `Sign this message to authenticate with NFTokenPass.\n\nNonce: ${nonce}`;
         const signature = await signMessageAsync({ message });
 
         await apiClient("/api/auth/verify", {
@@ -120,11 +121,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     setAuthError(null);
 
-    loadProfile().then((profile) => {
-      if (profile && profile.wallet_address === wallet) return;
-      signIn();
-    });
-  }, [isConnected, address, loadProfile, signIn]);
+    // Check the cookie's wallet before keeping the profile: after a switch in MetaMask it can
+    // still be the previous wallet's session, which must not sign the new wallet in
+    apiClient<UserProfile>("/api/users/me")
+      .catch(() => null)
+      .then((profile) => {
+        if (autoAttemptedForRef.current !== wallet) return; // switched again meanwhile
+        if (isSessionForWallet(profile, wallet)) setUser(profile);
+        else signIn();
+      });
+  }, [isConnected, address, signIn]);
 
   useEffect(() => {
     const handleSessionExpired = () => setUser(null);
@@ -146,20 +152,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, disconnect]);
 
+  // Right after a switch, `user` can still hold the previous wallet's profile for a render
+  // (pages' effects run before this provider's reset), so only share it while it matches
+  const currentUser = isSessionForWallet(user, address) ? user : null;
+
   const value = useMemo<AuthContextValue>(
     () => ({
       address,
       isConnected,
-      user,
-      role: user?.role ?? null,
-      isAuthenticated: Boolean(user),
+      user: currentUser,
+      role: currentUser?.role ?? null,
+      isAuthenticated: Boolean(currentUser),
       isLoading,
       authError,
       signIn,
       loadProfile,
       logout,
     }),
-    [address, isConnected, user, isLoading, authError, signIn, loadProfile, logout],
+    [address, isConnected, currentUser, isLoading, authError, signIn, loadProfile, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
