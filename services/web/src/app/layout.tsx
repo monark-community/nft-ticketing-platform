@@ -35,8 +35,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${jakarta.variable} ${playfair.variable} ${jetbrainsMono.variable}`}>
+    // The font variables go on <html>: that's where the base font and the type-* styles read them
+    <html lang="en" className={`dark ${jakarta.variable} ${playfair.variable} ${jetbrainsMono.variable}`}>
+      <body>
   <WalletProvider>
     <AuthProvider>
       <NetworkGuard />
