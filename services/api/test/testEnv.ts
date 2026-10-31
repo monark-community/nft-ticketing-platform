@@ -14,6 +14,7 @@ export const TEST_ENV = {
   // Keep the blockchain listener off unless a test sets these itself
   RPC_URL: '',
   CONTRACT_ADDRESS: '',
+  ADMIN_WALLET: '',
 };
 
 // Refuse to run against anything that isn't clearly a test database, since the

@@ -86,6 +86,15 @@ describe('requireRole', () => {
     expect(res.status).toBe(403);
     expect(res.body.code).toBeUndefined();
   });
+
+  it('reads the role from the database, not the token', async () => {
+    const user = await createUser({ role: 'USER' });
+    const res = await request(app)
+      .post('/api/events')
+      .set('Cookie', authCookie(user.wallet_address, 'ORGANIZER'))
+      .send(newEvent);
+    expect(res.status).toBe(403);
+  });
 });
 
 describe('requireEmail', () => {

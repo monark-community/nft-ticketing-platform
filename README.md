@@ -181,6 +181,12 @@ All services use environment variables for configuration:
 - **API service:** See [services/api/.env.example](./services/api/.env.example)
 - **Web service:** See [services/web/.env.example](./services/web/.env.example)
 
+#### Admin account
+
+Set `ADMIN_WALLET` in `services/api/.env` (or in the root `.env` for Docker) to the wallet that should be the platform admin. On startup the API creates that user or promotes the existing account to `ADMIN`. There is no API that accepts a role from the client.
+
+The same wallet must also hold `DEFAULT_ADMIN_ROLE` on the TicketNFT contract (the deployer holds it by default) so it can call `grantRole(ORGANIZER_ROLE)` from its own wallet. The backend never holds a private key.
+
 #### Troubleshooting
 
 | Issue | Solution |
