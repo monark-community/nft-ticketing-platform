@@ -3,6 +3,7 @@ import {
   listTicketTypesForEvent,
   createTicketType,
   updateTicketType,
+  deleteTicketType,
 } from '../services/ticket.service';
 import { validateTicketTypeInput } from '../lib/validation';
 
@@ -78,5 +79,19 @@ export async function putTicketType(req: Request, res: Response): Promise<void> 
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Failed to update ticket type' });
+  }
+}
+
+export async function removeTicketType(req: Request, res: Response): Promise<void> {
+  try {
+    const result = await deleteTicketType(req.params.id, req.user!.wallet_address);
+
+    if (result === null) { res.status(404).json({ error: 'Ticket type not found' }); return; }
+    if (result === 'forbidden') { res.status(403).json({ error: 'Not your event' }); return; }
+    if (result === 'frozen') { res.status(409).json({ error: 'Event is frozen and cannot be edited' }); return; }
+
+    res.status(204).end();
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete ticket type' });
   }
 }

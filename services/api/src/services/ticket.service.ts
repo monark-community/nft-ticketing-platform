@@ -65,6 +65,22 @@ export async function createTicketType(
   });
 }
 
+// The create event flow (#187) lets organizers remove a ticket type while the event is a draft.
+// Once frozen, the types are pinned to IPFS and go on-chain, so they can't be removed.
+export async function deleteTicketType(id: string, organizerWallet: string) {
+  const ticketType = await prisma.ticketType.findUnique({
+    where: { id },
+    include: { event: true },
+  });
+
+  if (!ticketType) return null;
+  if (ticketType.event.organizer_wallet !== organizerWallet) return 'forbidden';
+  if (ticketType.event.status !== EventStatus.DRAFT) return 'frozen';
+
+  await prisma.ticketType.delete({ where: { id } });
+  return 'deleted';
+}
+
 export async function updateTicketType(
   id: string,
   organizerWallet: string,
