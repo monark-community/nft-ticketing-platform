@@ -14,9 +14,11 @@ import { validateEventInput } from '../lib/validation';
 export async function getEvents(req: Request, res: Response): Promise<void> {
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
   const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
+  // Upcoming and in-progress events only, unless ?include_past=true (#310)
+  const includePast = req.query.include_past === 'true';
 
   try {
-    const result = await listEvents(page, limit);
+    const result = await listEvents(page, limit, includePast);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch events' });
