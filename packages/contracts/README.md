@@ -65,24 +65,38 @@ npx hardhat node
 npx hardhat run scripts/deploy.ts --network localhost
 ```
 
-Don't commit the files the deploy writes to `services/web/src/contracts/` after a local deploy: `git restore services/web/src/contracts/`.
+On a fresh node, a local deploy leaves git clean: `services/web/src/contracts/addresses.json` already holds the local addresses. If `TicketNFT.json` changes, the contract's ABI changed: commit it with your contract change.
 
 ## Local Test Data
 
-Two seeds give you events you can buy, tickets to show and a scanner to test with. Run them in this order: the listener only saves what happens while the API is running, so the API must be up before the on-chain seed.
+One command starts a fresh local environment: a new Hardhat node, the deploy, the database and API in Docker, and test data on both sides.
 
-From the project root, with Docker (the default setup):
+```bash
+cd packages/contracts && npm run dev:fresh
+```
 
-1. Start the local node in its own terminal and leave it running: `cd packages/contracts && npx hardhat node`
-2. In a second terminal, deploy: `cd packages/contracts && npx hardhat run scripts/deploy.ts --network localhost`, then go back to the project root (`cd ../..`). `services/api/.env` needs `RPC_URL=http://host.docker.internal:8545` and `CONTRACT_ADDRESS` set to the TicketNFT address the deploy printed.
-3. Start the API: `docker compose up -d api`
-4. Seed the database: `docker compose exec -T api npm run db:seed`
-5. Check the listener is connected: `docker compose logs api` should show "Blockchain listener connected to contract 0x…"
-6. Seed the chain: `cd packages/contracts && npx hardhat run scripts/seed.ts --network localhost`
+Leave it running: the node keeps going in that terminal, and Ctrl+C stops it. Then, in a second terminal:
 
-Without Docker, run the same steps with the API started from `services/api` (`npm run dev`, with `RPC_URL=http://127.0.0.1:8545`) and the database seed run there too (`npm run db:seed`).
+```bash
+cd services/web && npm run dev
+```
 
-What you get:
+Every run starts from scratch: a new chain, and the database is reset and seeded again.
+
+### One-time setup
+
+1. `npm install` in `packages/contracts`, `services/api` and `services/web`.
+2. Create the `.env` files (see the root README). In `services/api/.env`, point the API at the local node. The command checks these two values and stops if they're wrong, but never edits the file:
+   ```
+   RPC_URL=http://host.docker.internal:8545
+   CONTRACT_ADDRESS=0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0
+   ```
+   The address is the same on every fresh node.
+3. MetaMask: add a network with RPC URL `http://127.0.0.1:8545` and chain ID `31337`, then import the test accounts' private keys, printed at the end of `npm run dev:fresh`. These keys are public: never use them on Sepolia or mainnet.
+
+After pulling a change to `services/api/Dockerfile` or the API's dependencies, rebuild the API image once: `docker compose build api`.
+
+### What you get
 
 | Account | Role | Starts with |
 |---------|------|-------------|
@@ -95,9 +109,15 @@ What you get:
 - **Event 1, Gala Opera Concert:** public sale. General Admission 15 USDC, VIP 28 USDC, Early Bird 10 USDC (sold out). 10% royalty, 2x resale cap, 4 tickets per wallet.
 - **Event 2, Jazz at the Atrium:** same tiers, presale only, so #3 sees "not on the guest list".
 
-To use an account in MetaMask, add a network with RPC URL `http://127.0.0.1:8545` and chain ID `31337`, then import the account's private key from the `npx hardhat node` output. These keys are public: never use them on Sepolia or mainnet.
+Each run is a new chain, so MetaMask's saved activity no longer matches. For each imported test account: Settings > Advanced > Clear activity tab data, or transactions fail with "nonce too high".
 
-Restarting the node wipes the chain, but not the database. To start over: restart the node, deploy, reset the database (`docker compose exec -T api npx prisma migrate reset --force`, or `npx prisma migrate reset` in `services/api` without Docker), then run both seeds again. The on-chain seed refuses to run twice on the same chain. If you used the old seed before this one, reset the database first.
+### Without Docker
+
+1. Start the node and leave it running: `cd packages/contracts && npx hardhat node`
+2. In a second terminal, deploy: `cd packages/contracts && npx hardhat run scripts/deploy.ts --network localhost`
+3. In `services/api/.env`, set `RPC_URL=http://127.0.0.1:8545` and the `CONTRACT_ADDRESS` above. Then in `services/api`: `npx prisma migrate reset --force`, `npm run db:seed`, and `npm run dev`.
+4. Once the API logs "Blockchain listener connected to contract", seed the chain: `cd packages/contracts && npx hardhat run scripts/seed.ts --network localhost`
+
 
 ## Deploy (Sepolia)
 
