@@ -171,7 +171,8 @@ export async function postFreezeEvent(req: Request, res: Response): Promise<void
       req.params.id,
       req.user!.wallet_address,
       metadataCid,
-      ticketPins.map((p) => ({ id: p.id, ipfsHash: p.ipfsHash }))
+      ticketPins.map((p) => ({ id: p.id, ipfsHash: p.ipfsHash })),
+      `ipfs://${imageCid}`
     );
 
     if (result === null) { res.status(404).json({ error: 'Event not found' }); return; }
