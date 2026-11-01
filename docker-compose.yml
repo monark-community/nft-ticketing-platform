@@ -37,6 +37,8 @@ services:
         condition: service_healthy
     ports:
       - "${API_PORT:-3001}:3001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./services/api:/app
       - /app/node_modules

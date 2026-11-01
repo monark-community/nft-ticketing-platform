@@ -15,6 +15,9 @@ const ADDRESSES_FILE = path.join(ROOT_DIR, "services", "web", "src", "contracts"
 
 const NODE_HOST = "127.0.0.1";
 const NODE_PORT = 8545;
+// On Linux, the API container reaches the host through the Docker network, not its loopback, so
+// the node listens on all interfaces there. Docker Desktop (Windows, macOS) forwards to loopback.
+const NODE_LISTEN_HOST = process.platform === "linux" ? "0.0.0.0" : NODE_HOST;
 const CHAIN_ID = 31337;
 // The API runs in Docker, where the node on the host is reached through host.docker.internal
 const API_RPC_URL = `http://host.docker.internal:${NODE_PORT}`;
@@ -37,7 +40,7 @@ const ROLES = [
   "Scanner for event 1",
 ];
 
-const TOTAL_STEPS = 8;
+const TOTAL_STEPS = 9;
 let currentStep = 0;
 
 let node = null; // the Hardhat node
@@ -120,7 +123,11 @@ async function startNode() {
     fail(`Port ${NODE_PORT} is already in use: another node is running. Close it first (Ctrl+C in its terminal), then run this again.`);
   }
 
-  node = spawn(process.execPath, [HARDHAT_CLI, "node"], { cwd: CONTRACTS_DIR, stdio: ["ignore", "pipe", "pipe"] });
+  node = spawn(process.execPath, [HARDHAT_CLI, "node", "--hostname", NODE_LISTEN_HOST], {
+    cwd: CONTRACTS_DIR,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
   const onOutput = (chunk) => {
     if (streamNodeOutput) process.stdout.write(chunk);
     else if (nodeLog.length < 100_000) nodeLog += chunk;
@@ -178,37 +185,52 @@ function checkApiEnv(ticketNft) {
   }
 }
 
-// 5-6. Database and API in Docker, then wait for the listener
-async function apiLogs() {
-  return (await compose(["logs", "--no-color", "api"], { capture: true })).output;
-}
-
-function countListenerLines(logs) {
-  return logs.split(LISTENER_LINE).length - 1;
-}
-
+// 5-6. Database and a new API container in Docker, then wait for the listener
 async function startApi() {
-  step("Starting the database and the API in Docker");
-  if ((await compose(["up", "-d", "db", "api"])).code !== 0) fail("docker compose up failed (see above).");
-  // The logs keep earlier runs, so count the listener's start lines first: only a new one
-  // means this start is ready
-  const before = countListenerLines(await apiLogs());
-  // Restart so the listener starts fresh against the new chain
-  if ((await compose(["restart", "api"])).code !== 0) fail("docker compose restart api failed (see above).");
-  return before;
+  step("Starting the database and a new API container in Docker");
+  if ((await compose(["up", "-d", "--wait", "db"])).code !== 0) fail("docker compose up db failed (see above).");
+
+  // A new API container every run: --build picks up Dockerfile and dependency changes, and
+  // --renew-anon-volumes replaces node_modules, which Compose otherwise keeps from the previous
+  // container. Being new, its listener also starts fresh against the new chain.
+  const { code } = await compose(["up", "-d", "--build", "--force-recreate", "--renew-anon-volumes", "--no-deps", "api"]);
+  if (code !== 0) fail("docker compose up api failed (see above).");
 }
 
-async function waitForListener(linesBefore) {
+async function waitForListener() {
   step("Waiting for the API's blockchain listener");
   const deadline = Date.now() + LISTENER_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    if (countListenerLines(await apiLogs()) > linesBefore) return;
+    // The container is new, so its logs only cover this start
+    const { output } = await compose(["logs", "--no-color", "api"], { capture: true });
+    if (output.includes(LISTENER_LINE)) return;
     await sleep(2000);
   }
   fail(`The API didn't log "${LISTENER_LINE.trim()}" within ${LISTENER_TIMEOUT_MS / 1000}s. Check: docker compose logs api`);
 }
 
-// 7. Database (after the API is up, so the reset doesn't run alongside its startup migrations)
+// 7. The listener logs "connected" before it talks to the node, so ask the node for its chain ID
+// from inside the API container, at the address the listener uses
+async function checkApiReachesNode() {
+  step(`Checking that the API container can reach the node at ${API_RPC_URL}`);
+  const probe =
+    `fetch('${API_RPC_URL}', { method: 'POST', headers: { 'Content-Type': 'application/json' },` +
+    ` body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] }), signal: AbortSignal.timeout(5000) })` +
+    `.then((res) => res.json()).then((body) => process.exit(Number(body.result) === ${CHAIN_ID} ? 0 : 1))` +
+    `.catch(() => process.exit(1))`;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    if ((await compose(["exec", "-T", "api", "node", "-e", probe], { capture: true })).code === 0) return;
+    await sleep(2000);
+  }
+  fail(
+    `The API container can't reach the Hardhat node at ${API_RPC_URL}, so the listener wouldn't save anything.\n` +
+      "Check that Docker can reach this machine (on Linux, docker-compose.yml maps host.docker.internal with extra_hosts).",
+  );
+}
+
+
+// 8. Database (after the API is up, so the reset doesn't run alongside its startup migrations)
 async function resetDatabase() {
   step("Resetting and seeding the database");
   if ((await compose(["exec", "-T", "api", "npx", "prisma", "migrate", "reset", "--force"])).code !== 0) {
@@ -219,7 +241,7 @@ async function resetDatabase() {
   }
 }
 
-// 8. Chain (last: the listener saves what the seed does into the database)
+// 9. Chain (last: the listener saves what the seed does into the database)
 async function seedChain() {
   step("Seeding the chain");
   if ((await hardhat(["run", "scripts/seed.ts", "--network", "localhost"])).code !== 0) {
@@ -255,8 +277,9 @@ async function main() {
   await startNode();
   const ticketNft = await deploy();
   checkApiEnv(ticketNft);
-  const listenerLines = await startApi();
-  await waitForListener(listenerLines);
+  await startApi();
+  await waitForListener();
+  await checkApiReachesNode();
   await resetDatabase();
   await seedChain();
   printSummary();
