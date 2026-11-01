@@ -181,6 +181,7 @@ export default function AdminPage() {
     if (!window.confirm(`Reject ${organizerDisplayName(request)}'s organizer request?`)) return;
 
     setNotice(null);
+    transaction.reset();
     setActiveAction({ type: "reject", id: request.id });
     try {
       await apiClient(rejectOrganizerRequestPath(request.id), { method: "POST", data: {} });
@@ -321,9 +322,8 @@ export default function AdminPage() {
     <PageShell>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="type-label-md text-primary">Admin console</p>
-          <h1 className="type-heading-lg text-foreground">Organizer access</h1>
-          <p className="type-body-md text-secondary-foreground">Review requests and manage who can create events.</p>
+          <h1 className="type-heading-lg text-foreground">Admin</h1>
+          <p className="type-body-md text-secondary-foreground">Review organizer requests and manage organizer access.</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => void loadData()} loading={loading} disabled={busy}>
           <RefreshCw aria-hidden="true" /> Refresh
