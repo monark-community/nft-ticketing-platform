@@ -174,7 +174,9 @@ export async function startBlockchainListener(): Promise<void> {
     }
   });
 
-  // RoleGranted — an admin approved an organizer from their own wallet
+  // RoleGranted — an admin approved an organizer from their own wallet.
+  // This only sees events while the listener is running; a grant made while the
+  // API is down is recorded by the admin endpoint or needs a backfill (#119).
   contract.on(
     'RoleGranted',
     async (role: string, account: string, sender: string, payload: ethers.ContractEventPayload) => {

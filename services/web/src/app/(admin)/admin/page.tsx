@@ -101,7 +101,8 @@ export default function AdminPage() {
     query: { enabled: Boolean(address) },
   });
 
-  const canActOnChain = hasOnChainAdminRole === true && !checkingAdminRole && !adminRoleError;
+  const onChainAdminRole = typeof hasOnChainAdminRole === "boolean" ? hasOnChainAdminRole : undefined;
+  const canActOnChain = onChainAdminRole === true && !checkingAdminRole && !adminRoleError;
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -331,7 +332,7 @@ export default function AdminPage() {
 
       <AdminRoleNotice
         checking={checkingAdminRole && Boolean(address)}
-        hasRole={hasOnChainAdminRole === true}
+        hasRole={onChainAdminRole}
         error={adminRoleError ? "Could not read your on-chain admin role. Check the network and try again." : null}
       />
 
@@ -598,7 +599,15 @@ export default function AdminPage() {
   );
 }
 
-function AdminRoleNotice({ checking, hasRole, error }: { checking: boolean; hasRole: boolean; error: string | null }) {
+function AdminRoleNotice({
+  checking,
+  hasRole,
+  error,
+}: {
+  checking: boolean;
+  hasRole: boolean | undefined;
+  error: string | null;
+}) {
   if (error) {
     return (
       <Alert tone="error" title="Could not check your on-chain admin role" icon={ShieldAlert}>
@@ -615,7 +624,7 @@ function AdminRoleNotice({ checking, hasRole, error }: { checking: boolean; hasR
       </Alert>
     );
   }
-  if (!hasRole) {
+  if (hasRole === false) {
     return (
       <Alert tone="error" title="This wallet cannot manage organizers" icon={ShieldAlert}>
         {ADMIN_ROLE_ERROR}
