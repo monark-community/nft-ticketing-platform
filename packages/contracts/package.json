@@ -1,6 +1,9 @@
 {
   "name": "common",
   "version": "1.0.0",
+  "scripts": {
+    "dev:fresh": "node scripts/dev-fresh.js"
+  },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@openzeppelin/hardhat-upgrades": "^3.9.1",
