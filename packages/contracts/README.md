@@ -94,7 +94,7 @@ Every run starts from scratch: a new chain, and the database is reset and seeded
    The address is the same on every fresh node.
 3. MetaMask: add a network with RPC URL `http://127.0.0.1:8545` and chain ID `31337`, then import the test accounts' private keys, printed at the end of `npm run dev:fresh`. These keys are public: never use them on Sepolia or mainnet.
 
-After pulling a change to `services/api/Dockerfile` or the API's dependencies, rebuild the API image once: `docker compose build api`.
+Each run rebuilds the API image when needed and starts a new API container with fresh `node_modules`, so changes to `services/api/Dockerfile` or the API's dependencies are picked up with nothing to rebuild by hand. On Linux, the node listens on all network interfaces so the API container can reach it (Docker Desktop on Windows and macOS doesn't need this).
 
 ### What you get
 
