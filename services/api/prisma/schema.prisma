@@ -69,6 +69,7 @@ model OrganizerRequest {
 
   @@index([wallet, status])
   @@index([status, created_at])
+  // A partial unique index in the migration also allows only one PENDING row per wallet.
 }
 
 model Event {

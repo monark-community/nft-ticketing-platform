@@ -1,10 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import { User } from '@prisma/client';
+
+const chainMock = vi.hoisted(() => ({ hasOrganizerRoleOnChain: vi.fn() }));
+vi.mock('../src/lib/chain', () => chainMock);
+
 import app from '../src/app';
 import { prisma } from '../src/lib/prisma';
-import { resetDb, createUser, randomWallet } from './helpers/db';
+import { hasOrganizerRoleOnChain } from '../src/lib/chain';
+import { resetDb, createUser, createEvent, randomWallet } from './helpers/db';
 import { authCookie } from './helpers/auth';
+
+const hasRoleMock = vi.mocked(hasOrganizerRoleOnChain);
 
 const txHash = `0x${'ab'.repeat(32)}`;
 
@@ -57,6 +64,13 @@ describe('organizer requests', () => {
     expect(res.body.error).toBe('You already have a pending organizer request');
   });
 
+  it('allows only one pending request when two arrive together', async () => {
+    const [first, second] = await Promise.all([postOrganizerRequest(userCookie), postOrganizerRequest(userCookie)]);
+
+    expect([first.status, second.status].sort()).toEqual([201, 409]);
+    expect(await prisma.organizerRequest.count({ where: { wallet: user.wallet_address, status: 'PENDING' } })).toBe(1);
+  });
+
   it.each(['ORGANIZER', 'SCANNER', 'ADMIN'] as const)('does not let a %s apply', async (role) => {
     const other = await createUser({ role });
     const res = await postOrganizerRequest(authCookie(other.wallet_address, role));
@@ -100,6 +114,8 @@ describe('admin organizer management', () => {
 
   beforeEach(async () => {
     await resetDb();
+    hasRoleMock.mockReset();
+    hasRoleMock.mockResolvedValue(true);
     admin = await createUser({ role: 'ADMIN' });
     adminCookie = authCookie(admin.wallet_address, 'ADMIN');
     user = await createUser({ role: 'USER' });
@@ -108,6 +124,7 @@ describe('admin organizer management', () => {
 
   it('blocks regular users from every admin endpoint', async () => {
     expect((await request(app).get('/api/admin/organizer-requests').set('Cookie', userCookie)).status).toBe(403);
+    expect((await request(app).get('/api/admin/organizers').set('Cookie', userCookie)).status).toBe(403);
     expect((await request(app).post(`/api/admin/organizers/${user.wallet_address}`).set('Cookie', userCookie)).status).toBe(403);
     expect((await request(app).delete(`/api/admin/organizers/${user.wallet_address}`).set('Cookie', userCookie)).status).toBe(403);
   });
@@ -138,6 +155,42 @@ describe('admin organizer management', () => {
 
     const invalid = await request(app).get('/api/admin/organizer-requests?status=UNKNOWN').set('Cookie', adminCookie);
     expect(invalid.status).toBe(400);
+  });
+
+  it('lists organizers with their event count and latest approval date', async () => {
+    const organizer = await createUser({ role: 'ORGANIZER' });
+    await createEvent(organizer.wallet_address, { title: 'First event' });
+    await createEvent(organizer.wallet_address, { title: 'Second event' });
+
+    await prisma.organizerRequest.createMany({
+      data: [
+        {
+          wallet: organizer.wallet_address,
+          status: 'APPROVED',
+          reviewed_by: admin.wallet_address,
+          reviewed_at: new Date('2026-09-01T12:00:00Z'),
+        },
+        {
+          wallet: organizer.wallet_address,
+          status: 'APPROVED',
+          reviewed_by: admin.wallet_address,
+          reviewed_at: new Date('2026-10-01T12:00:00Z'),
+          organization_name: 'Monark Events',
+        },
+      ],
+    });
+
+    const res = await request(app).get('/api/admin/organizers').set('Cookie', adminCookie);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({
+      wallet: organizer.wallet_address,
+      email: organizer.email,
+      event_count: 2,
+      organization_name: 'Monark Events',
+    });
+    expect(res.body[0].approved_at).toBe('2026-10-01T12:00:00.000Z');
   });
 
   it('rejects a pending request and records the admin and reason', async () => {
@@ -223,7 +276,44 @@ describe('admin organizer management', () => {
     expect((await request(app).post(`/api/admin/organizers/${randomWallet()}`).set('Cookie', adminCookie)).status).toBe(404);
   });
 
+  it('refuses to promote a wallet that does not have the role on-chain', async () => {
+    hasRoleMock.mockResolvedValue(false);
+
+    const res = await request(app)
+      .post(`/api/admin/organizers/${user.wallet_address}`)
+      .set('Cookie', adminCookie);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('does not have ORGANIZER_ROLE on-chain');
+    expect((await prisma.user.findUnique({ where: { wallet_address: user.wallet_address } }))!.role).toBe('USER');
+  });
+
+  it('returns 503 when the on-chain role cannot be checked', async () => {
+    hasRoleMock.mockRejectedValue(new Error('RPC unreachable'));
+
+    const res = await request(app)
+      .post(`/api/admin/organizers/${user.wallet_address}`)
+      .set('Cookie', adminCookie);
+
+    expect(res.status).toBe(503);
+    expect((await prisma.user.findUnique({ where: { wallet_address: user.wallet_address } }))!.role).toBe('USER');
+  });
+
+  it('refuses to revoke while the role is still granted on-chain', async () => {
+    hasRoleMock.mockResolvedValue(true);
+    const organizer = await createUser({ role: 'ORGANIZER' });
+
+    const res = await request(app)
+      .delete(`/api/admin/organizers/${organizer.wallet_address}`)
+      .set('Cookie', adminCookie);
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('still has ORGANIZER_ROLE on-chain');
+    expect((await prisma.user.findUnique({ where: { wallet_address: organizer.wallet_address } }))!.role).toBe('ORGANIZER');
+  });
+
   it('revokes organizer access and the old session is blocked immediately', async () => {
+    hasRoleMock.mockResolvedValue(false);
     const organizer = await createUser({ role: 'ORGANIZER' });
     const organizerCookie = authCookie(organizer.wallet_address, 'ORGANIZER');
 
@@ -242,6 +332,7 @@ describe('admin organizer management', () => {
   });
 
   it('does not revoke an admin, an attendee or an unknown wallet', async () => {
+    hasRoleMock.mockResolvedValue(false);
     expect((await request(app).delete(`/api/admin/organizers/${admin.wallet_address}`).set('Cookie', adminCookie)).status).toBe(409);
     expect((await request(app).delete(`/api/admin/organizers/${user.wallet_address}`).set('Cookie', adminCookie)).status).toBe(409);
     expect((await request(app).delete(`/api/admin/organizers/${randomWallet()}`).set('Cookie', adminCookie)).status).toBe(404);

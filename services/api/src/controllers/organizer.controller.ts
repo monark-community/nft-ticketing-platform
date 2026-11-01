@@ -1,10 +1,12 @@
 import { Request, Response } from 'express';
 import { OrganizerRequestStatus } from '@prisma/client';
+import { hasOrganizerRoleOnChain } from '../lib/chain';
 import { isWalletAddress } from '../lib/validation';
 import {
   createOrganizerRequest,
   getLatestOrganizerRequest,
   listOrganizerRequests,
+  listOrganizers,
   promoteOrganizer,
   rejectOrganizerRequest,
   revokeOrganizer,
@@ -20,6 +22,16 @@ function optionalTxHash(value: unknown): string | undefined | null {
   if (value === undefined || value === null || value === '') return undefined;
   if (typeof value !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(value)) return null;
   return value;
+}
+
+// null means the role could not be read (RPC_URL/CONTRACT_ADDRESS missing or
+// unreachable), which must not be treated as "has the role".
+async function readOrganizerRole(wallet: string): Promise<boolean | null> {
+  try {
+    return await hasOrganizerRoleOnChain(wallet);
+  } catch {
+    return null;
+  }
 }
 
 // --- User side ---
@@ -80,6 +92,14 @@ export async function getOrganizerRequests(req: Request, res: Response): Promise
   }
 }
 
+export async function getOrganizers(req: Request, res: Response): Promise<void> {
+  try {
+    res.json(await listOrganizers());
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch organizers' });
+  }
+}
+
 export async function postRejectOrganizerRequest(req: Request, res: Response): Promise<void> {
   const reason = optionalText(req.body?.reason, 1000);
   if (reason === null) {
@@ -110,6 +130,16 @@ export async function postPromoteOrganizer(req: Request, res: Response): Promise
     return;
   }
 
+  const onChain = await readOrganizerRole(wallet.toLowerCase());
+  if (onChain === null) {
+    res.status(503).json({ error: 'Could not verify the on-chain role. Check RPC_URL and CONTRACT_ADDRESS.' });
+    return;
+  }
+  if (!onChain) {
+    res.status(409).json({ error: 'The wallet does not have ORGANIZER_ROLE on-chain. Grant the role from the admin wallet first.' });
+    return;
+  }
+
   try {
     const result = await promoteOrganizer(wallet.toLowerCase(), req.user!.wallet_address, tx_hash);
     if (result === 'not_found') { res.status(404).json({ error: 'User not found' }); return; }
@@ -124,6 +154,16 @@ export async function deleteOrganizer(req: Request, res: Response): Promise<void
   const { wallet } = req.params;
   if (!isWalletAddress(wallet)) {
     res.status(400).json({ error: 'wallet must be a valid wallet address' });
+    return;
+  }
+
+  const onChain = await readOrganizerRole(wallet.toLowerCase());
+  if (onChain === null) {
+    res.status(503).json({ error: 'Could not verify the on-chain role. Check RPC_URL and CONTRACT_ADDRESS.' });
+    return;
+  }
+  if (onChain) {
+    res.status(409).json({ error: 'The wallet still has ORGANIZER_ROLE on-chain. Revoke the role from the admin wallet first.' });
     return;
   }
 

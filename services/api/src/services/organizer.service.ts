@@ -1,4 +1,4 @@
-import { OrganizerRequestStatus, Role } from '@prisma/client';
+import { OrganizerRequestStatus, Prisma, Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 // Public user fields only: the nonce must never leave the database.
@@ -32,13 +32,22 @@ export async function createOrganizerRequest(
   });
   if (pending) return 'already_pending';
 
-  return prisma.organizerRequest.create({
-    data: {
-      wallet,
-      organization_name: details.organization_name,
-      message: details.message,
-    },
-  });
+  try {
+    return await prisma.organizerRequest.create({
+      data: {
+        wallet,
+        organization_name: details.organization_name,
+        message: details.message,
+      },
+    });
+  } catch (err) {
+    // A partial unique index allows only one PENDING request per wallet. If two
+    // requests race past the findFirst above, the second insert hits P2002.
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      return 'already_pending';
+    }
+    throw err;
+  }
 }
 
 export async function getLatestOrganizerRequest(wallet: string) {
@@ -58,6 +67,37 @@ export async function listOrganizerRequests(status?: OrganizerRequestStatus) {
       user: { select: { email: true, nickname: true, first_name: true, last_name: true } },
     },
   });
+}
+
+// The Organizers tab: every ORGANIZER with their event count and the date their
+// latest approved request was reviewed.
+export async function listOrganizers() {
+  const organizers = await prisma.user.findMany({
+    where: { role: Role.ORGANIZER },
+    orderBy: { created_at: 'asc' },
+    select: {
+      wallet_address: true,
+      email: true,
+      first_name: true,
+      last_name: true,
+      nickname: true,
+      _count: { select: { organized_events: true } },
+      organizer_requests: {
+        where: { status: OrganizerRequestStatus.APPROVED },
+        orderBy: { reviewed_at: 'desc' },
+        take: 1,
+        select: { reviewed_at: true, organization_name: true },
+      },
+    },
+  });
+
+  return organizers.map(({ wallet_address, _count, organizer_requests, ...user }) => ({
+    wallet: wallet_address,
+    ...user,
+    event_count: _count.organized_events,
+    organization_name: organizer_requests[0]?.organization_name ?? null,
+    approved_at: organizer_requests[0]?.reviewed_at ?? null,
+  }));
 }
 
 // Rejection is database only. Approval happens on-chain and is recorded by the
@@ -80,9 +120,12 @@ export async function rejectOrganizerRequest(id: string, adminWallet: string, re
 
 async function setOrganizerRole(wallet: string, reviewedBy: string, txHash?: string) {
   return prisma.$transaction(async (tx) => {
-    const user = await tx.user.update({
+    // The listener can see a RoleGranted event before the wallet has ever signed
+    // in, so create the account instead of dropping the on-chain approval.
+    const user = await tx.user.upsert({
       where: { wallet_address: wallet },
-      data: { role: Role.ORGANIZER },
+      update: { role: Role.ORGANIZER },
+      create: { wallet_address: wallet, role: Role.ORGANIZER },
       select: USER_SELECT,
     });
 
@@ -150,8 +193,7 @@ export async function approveOrganizerFromChain(wallet: string, grantedBy: strin
     select: { role: true },
   });
 
-  if (!user) return 'unknown_user';
-  if (user.role === Role.ADMIN) return 'skipped_admin';
+  if (user?.role === Role.ADMIN) return 'skipped_admin';
 
   await setOrganizerRole(wallet, grantedBy, txHash);
   return 'approved';

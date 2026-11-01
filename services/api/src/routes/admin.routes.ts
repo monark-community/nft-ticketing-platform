@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   deleteOrganizer,
   getOrganizerRequests,
+  getOrganizers,
   postPromoteOrganizer,
   postRejectOrganizerRequest,
 } from '../controllers/organizer.controller';
@@ -19,8 +20,12 @@ router.use(authenticate, requireRole('ADMIN'), requireEmail);
 router.get('/organizer-requests', getOrganizerRequests);
 router.post('/organizer-requests/:id/reject', postRejectOrganizerRequest);
 
+// Organizers tab
+router.get('/organizers', getOrganizers);
+
 // Promote/revoke organizer access. The admin page calls grantRole/revokeRole
 // first and then these endpoints, so the backend never needs a private key.
+// Both endpoints verify hasRole() on-chain before changing the database.
 router.post('/organizers/:wallet', postPromoteOrganizer);
 router.delete('/organizers/:wallet', deleteOrganizer);
 

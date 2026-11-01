@@ -251,9 +251,13 @@ describe('blockchain listener database updates', () => {
       expect(updatedUser!.role).toBe('USER');
     });
 
-    it('ignores wallets without an account', async () => {
-      await handlers.RoleGranted(organizerRole, checksummed(), checksummed(), { log: { transactionHash: txHash } });
-      expect(await prisma.user.count()).toBe(1);
+    it('creates the account when the grant happens before the first sign-in', async () => {
+      const wallet = checksummed();
+
+      await handlers.RoleGranted(organizerRole, wallet, checksummed(), { log: { transactionHash: txHash } });
+
+      const created = await prisma.user.findUnique({ where: { wallet_address: wallet.toLowerCase() } });
+      expect(created!.role).toBe('ORGANIZER');
     });
   });
 

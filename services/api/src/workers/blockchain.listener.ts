@@ -1,9 +1,8 @@
 import { ethers } from 'ethers';
+import { ORGANIZER_ROLE } from '../lib/chain';
 import { prisma } from '../lib/prisma';
 import logger from '../lib/logger';
 import { approveOrganizerFromChain, revokeOrganizerFromChain } from '../services/organizer.service';
-
-const ORGANIZER_ROLE = ethers.id('ORGANIZER_ROLE');
 
 // NOTE: This ABI is derived from the events described in the API Design Doc (Section 6).
 // It must be replaced with the actual compiled contract ABI once the smart contract is finalized.

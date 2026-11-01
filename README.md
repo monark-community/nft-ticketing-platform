@@ -187,6 +187,10 @@ Set `ADMIN_WALLET` in `services/api/.env` (or in the root `.env` for Docker) to 
 
 The same wallet must also hold `DEFAULT_ADMIN_ROLE` on the TicketNFT contract (the deployer holds it by default) so it can call `grantRole(ORGANIZER_ROLE)` from its own wallet. The backend never holds a private key.
 
+Changing `ADMIN_WALLET` promotes the new wallet but does not demote the previous one; demote the old account manually in the database if needed.
+
+The admin promote/revoke endpoints check `hasRole()` through `RPC_URL` before updating the database, so `RPC_URL` and `CONTRACT_ADDRESS` must be set. The listener only sees role events while the API is running: a grant or revoke made while it was down is picked up by the admin endpoint call or needs a backfill (#119).
+
 #### Troubleshooting
 
 | Issue | Solution |
