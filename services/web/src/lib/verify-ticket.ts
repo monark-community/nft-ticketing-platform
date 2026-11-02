@@ -16,6 +16,7 @@ export interface TicketVerification {
   qr?: SignedTicketQR; // decoded QR data, when it could be parsed
   eventId?: bigint; // the ticket's event according to the contract (never the QR)
   owner?: `0x${string}`; // the ticket's current owner according to the contract
+  used?: boolean; // the ticket was already checked in, so the scanner can show when (#287)
 }
 
 interface VerifyParams {
@@ -102,13 +103,9 @@ export async function verifyTicketQR({
     ])) as [boolean, boolean, bigint];
 
     if (!isValid) {
-      return {
-        ok: false,
-        reason: isUsed
-          ? "This ticket has already been used."
-          : "This ticket does not exist.",
-        qr,
-      };
+      return isUsed
+        ? { ok: false, reason: "This ticket has already been checked in.", qr, used: true, eventId: onChainEventId }
+        : { ok: false, reason: "This ticket does not exist.", qr };
     }
     if (onChainEventId !== expectedEventId) {
       return {

@@ -4,7 +4,7 @@ import { getTransactionErrorMessage } from "@/lib/transactions/errors";
 
 export const CHECK_IN_ERRORS = {
   notAuthorized: "This wallet is not an authorized scanner for this event.",
-  alreadyUsed: "This ticket has already been used.",
+  alreadyUsed: "This ticket has already been checked in.",
   nonexistent: "This ticket does not exist.",
   userRejected: "The check-in was cancelled in the wallet.",
   insufficientFunds: "The scanner wallet does not have enough ETH to pay for gas.",
