@@ -4,7 +4,7 @@ import { connectorsForWallets, darkTheme, RainbowKitProvider } from "@rainbow-me
 import "@rainbow-me/rainbowkit/styles.css";
 import { metaMaskWallet, walletConnectWallet } from "@rainbow-me/rainbowkit/wallets";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createConfig, http, WagmiProvider } from "wagmi";
+import { createConfig, http, WagmiProvider, fallback } from "wagmi";
 import { hardhat, sepolia } from "wagmi/chains";
 
 const connectors = connectorsForWallets(
@@ -18,12 +18,16 @@ const connectors = connectorsForWallets(
   }
 );
 
+const SEPOLIA_RPC_URLS = [
+  "https://sepolia.rpc.pinax.network",
+  "https://ethereum-sepolia-rpc.publicnode.com",
+];
 
 const config = createConfig({
   connectors,
   chains: [sepolia, hardhat],
   transports: {
-    [sepolia.id]: http(),
+    [sepolia.id]: fallback(SEPOLIA_RPC_URLS.map((url) => http(url))),
     [hardhat.id]: http("http://127.0.0.1:8545"),
   },
 });
