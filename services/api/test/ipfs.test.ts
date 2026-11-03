@@ -17,11 +17,15 @@ const pinata = vi.hoisted(() => ({
   config: vi.fn(),
   uploadFile: vi.fn(),
   uploadJson: vi.fn(),
+  uploadPrivate: vi.fn(),
 }));
 
 vi.mock('pinata', () => ({
   PinataSDK: class {
-    upload = { file: pinata.uploadFile, json: pinata.uploadJson };
+    upload = {
+      public: {file: pinata.uploadFile, json: pinata.uploadJson },
+      private: { file: pinata.uploadPrivate, json: pinata.uploadPrivate },
+    };
     constructor(config: unknown) {
       pinata.config(config);
     }
@@ -141,6 +145,7 @@ describe('POST /api/events/:id/freeze', () => {
     expect(res.status).toBe(200);
     expect(pinata.uploadFile).toHaveBeenCalledTimes(1);
     expect(pinata.uploadJson).toHaveBeenCalledTimes(3);
+    expect(pinata.uploadPrivate).not.toHaveBeenCalled();
     expect(res.body.ipfs_hash).toBe('bafy-Launch Party');
     expect(res.body.ipfs_uri).toBe('ipfs://bafy-Launch Party');
 
@@ -175,3 +180,15 @@ describe('POST /api/events/:id/freeze', () => {
     expect(event!.status).toBe('DRAFT');
   });
 });
+
+describe('public network (#311)', () => {
+  it('pins the image and the metadata publicly, never as private files', async () => {
+    await pinImageToIPFS(png, 'poster.png', 'image/png');
+    await pinMetadataToIPFS({ name: 'thing' });
+
+    expect(pinata.uploadFile).toHaveBeenCalledTimes(1);
+    expect(pinata.uploadJson).toHaveBeenCalledTimes(1);
+    expect(pinata.uploadPrivate).not.toHaveBeenCalled();
+  });
+});
+
