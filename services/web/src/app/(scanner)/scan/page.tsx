@@ -147,7 +147,7 @@ export default function ScanPage() {
                   <div className="relative mx-auto aspect-square w-full max-w-[310px] overflow-hidden rounded-lg border border-border bg-card">
                     <Scanner
                       onScan={handleScan}
-                      onError={(err) => setCameraError(cameraErrorMessage(err?.message))}
+                      onError={(err) => setCameraError(cameraErrorMessage(err))}
                       // Ideal, not minimum, sizes: a webcam that can't reach them still starts
                       constraints={{ facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }}
                       paused={verifying || !!result}
@@ -171,7 +171,7 @@ export default function ScanPage() {
                   </p>
                   {cameraError && (
                     <Alert tone="error" title="Camera unavailable">
-                      {cameraError} Allow camera access in your browser, then reload this page.
+                      {cameraError}
                     </Alert>
                   )}
                 </div>

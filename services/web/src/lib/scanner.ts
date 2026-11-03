@@ -84,10 +84,24 @@ export function wrongEventReason(ticketEventTitle: string | null, scanningEventT
     : `This ticket is for a different event, not ${scanningEventTitle}.`;
 }
 
-// Some camera failures come with an empty message (a webcam that can't meet the requested size),
-// so always have something to show
-export function cameraErrorMessage(message: string | null | undefined): string {
-  const text = message?.trim();
-  if (!text) return "The camera couldn't start.";
-  return /[.!?]$/.test(text) ? text : `${text}.`;
+// What to tell staff when the camera fails, with a hint that fits the cause (#287 review).
+// The browser's DOMException name tells the cases apart; the QR scanner library passes it as
+// `cause` and also sorts it into a `kind`. Some failures have an empty message, so there is always a fallback.
+type CameraError = { name?: string; kind?: string; message?: string; cause?: unknown } | null | undefined;
+
+const RELOAD_HINT = "Allow camera access in your browser, then reload this page.";
+
+export function cameraErrorMessage(error: CameraError): string {
+  const name = (error?.cause as { name?: string } | undefined)?.name ?? error?.name;
+  const kind = error?.kind;
+
+  if (name === "NotAllowedError" || kind === "permission-denied") return `Camera access is blocked. ${RELOAD_HINT}`;
+  if (name === "NotFoundError" || name === "OverconstrainedError" || kind === "no-camera" || kind === "overconstrained") {
+    return "No camera found. Connect a camera or open this page on a phone.";
+  }
+  if (name === "NotReadableError" || kind === "in-use") return "The camera is in use by another app. Close it, then reload this page.";
+
+  const text = error?.message?.trim();
+  const sentence = !text ? "The camera couldn't start." : /[.!?]$/.test(text) ? text : `${text}.`;
+  return `${sentence} ${RELOAD_HINT}`;
 }

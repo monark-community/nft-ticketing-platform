@@ -123,13 +123,31 @@ describe("wrongEventReason", () => {
 });
 
 describe("cameraErrorMessage", () => {
-  it("falls back when the camera error has no message", () => {
-    expect(cameraErrorMessage("")).toBe("The camera couldn't start.");
-    expect(cameraErrorMessage(undefined)).toBe("The camera couldn't start.");
+  const dom = (name: string) => ({ kind: "unknown", message: "", cause: { name } });
+  const reload = "Allow camera access in your browser, then reload this page.";
+
+  it("asks to allow access when permission is denied", () => {
+    expect(cameraErrorMessage(dom("NotAllowedError"))).toBe(`Camera access is blocked. ${reload}`);
   });
 
-  it("keeps the browser's message as a sentence", () => {
-    expect(cameraErrorMessage("Permission denied")).toBe("Permission denied.");
-    expect(cameraErrorMessage("No camera found.")).toBe("No camera found.");
+  it("says no camera was found for a missing or unsuitable camera", () => {
+    const noCamera = "No camera found. Connect a camera or open this page on a phone.";
+    expect(cameraErrorMessage(dom("NotFoundError"))).toBe(noCamera);
+    expect(cameraErrorMessage(dom("OverconstrainedError"))).toBe(noCamera);
+  });
+
+  it("says the camera is busy when another app has it", () => {
+    expect(cameraErrorMessage(dom("NotReadableError"))).toBe("The camera is in use by another app. Close it, then reload this page.");
+  });
+
+  it("reads the name from the error itself or the library's kind too", () => {
+    expect(cameraErrorMessage({ name: "NotFoundError", message: "" })).toBe("No camera found. Connect a camera or open this page on a phone.");
+    expect(cameraErrorMessage({ kind: "in-use", message: "" })).toBe("The camera is in use by another app. Close it, then reload this page.");
+  });
+
+  it("keeps today's message for anything else, with a fallback when it is empty", () => {
+    expect(cameraErrorMessage({ kind: "unknown", message: "Something odd happened" })).toBe(`Something odd happened. ${reload}`);
+    expect(cameraErrorMessage({ kind: "unknown", message: "" })).toBe(`The camera couldn't start. ${reload}`);
+    expect(cameraErrorMessage(undefined)).toBe(`The camera couldn't start. ${reload}`);
   });
 });
