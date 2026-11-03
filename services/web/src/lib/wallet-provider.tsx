@@ -18,8 +18,15 @@ const connectors = connectorsForWallets(
   }
 );
 
+// Sepolia reads from the browser (#277). First Pinax's keyless endpoint, through our own origin:
+// next.config.ts forwards /rpc/sepolia to it, because its CORS header ("*,*") is rejected by
+// browsers. A public Sepolia RPC takes over when Pinax fails or rate-limits (429).
+// This config is also built during server rendering, where there's no window and nothing reads
+// the chain, so the origin there is only a placeholder.
+const appOrigin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
+
 const SEPOLIA_RPC_URLS = [
-  "https://sepolia.rpc.pinax.network",
+  `${appOrigin}/rpc/sepolia`,
   "https://ethereum-sepolia-rpc.publicnode.com",
 ];
 
