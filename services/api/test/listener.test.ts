@@ -41,6 +41,21 @@ describe('blockchain listener setup', () => {
     await startBlockchainListener();
     expect(providers).toHaveLength(0);
   });
+
+  it('does not stop the API when the node cannot be reached', async () => {
+    // The fake provider can't answer anything, like a node that isn't running
+    vi.useFakeTimers();
+    try {
+      vi.stubEnv('RPC_URL', 'http://127.0.0.1:59999');
+      vi.stubEnv('CONTRACT_ADDRESS', '0x0000000000000000000000000000000000000001');
+
+      await expect(startBlockchainListener()).resolves.toBeUndefined();
+      expect(providers).toHaveLength(1);
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('blockchain listener database updates', () => {
@@ -415,6 +430,16 @@ describe('blockchain listener database updates', () => {
       expect(await prisma.checkinLog.count()).toBe(0);
     });
 
+    it('dates the check-in by its block, not by when the listener saw it', async () => {
+      const scanner = await createUser({ role: 'SCANNER' });
+      await handlers.TicketCheckedIn(1n, ethers.getAddress(scanner.wallet_address), fakePayload({ timestamp: 1_900_000_500 }));
+
+      const ticket = await prisma.ticket.findUnique({ where: { token_id: 1n } });
+      expect(ticket!.used_at).toEqual(new Date(1_900_000_500 * 1000));
+      const [log] = await prisma.checkinLog.findMany({ where: { token_id: 1n } });
+      expect(log.checked_in_at).toEqual(new Date(1_900_000_500 * 1000));
+    });
+
     it('still marks the ticket USED when the scanner has no account, but cannot log it', async () => {
       await handlers.TicketCheckedIn(1n, checksummed());
 
@@ -430,6 +455,8 @@ describe('blockchain listener database updates', () => {
     let blockNumber: number;
     let chainLogs: ethers.Log[];
     let failNext: boolean;
+    let unreachable: boolean;
+    let chainId: bigint;
     let requests: Array<{ fromBlock: number; toBlock: number }>;
 
     // A log as a node returns it, encoded with the contract's real event signatures
@@ -441,9 +468,16 @@ describe('blockchain listener database updates', () => {
       } as unknown as ethers.Log;
     }
 
-    // Just the two calls the poller makes
+    // Just the calls the poller makes
     const provider = {
-      getBlockNumber: async () => blockNumber,
+      getNetwork: async () => {
+        if (unreachable) throw new Error('connect ECONNREFUSED');
+        return { chainId };
+      },
+      getBlockNumber: async () => {
+        if (unreachable) throw new Error('connect ECONNREFUSED');
+        return blockNumber;
+      },
       getLogs: async ({ fromBlock, toBlock }: { fromBlock: number; toBlock: number }) => {
         requests.push({ fromBlock, toBlock });
         if (failNext) {
@@ -458,6 +492,8 @@ describe('blockchain listener database updates', () => {
       blockNumber = 100;
       chainLogs = [];
       failNext = false;
+      unreachable = false;
+      chainId = 11155111n; // Sepolia
       requests = [];
     });
 
@@ -534,7 +570,8 @@ describe('blockchain listener database updates', () => {
       ]);
     });
 
-    it('starts from the next block, and reads a restarted chain from block 0', async () => {
+    it('starts from the next block, and reads a restarted local chain from block 0', async () => {
+      chainId = 31337n; // Hardhat
       const poller = createLogPoller(provider, CONTRACT);
       await poller.start();
       await poller.poll();
@@ -546,6 +583,35 @@ describe('blockchain listener database updates', () => {
 
       expect(requests).toEqual([{ fromBlock: 0, toBlock: 3 }]);
       expect((await prisma.event.findUnique({ where: { id: event.id } }))!.sale_active).toBe(true);
+    });
+
+    it('waits for a Sepolia node that is behind instead of reading the chain again from block 0', async () => {
+      const poller = createLogPoller(provider, CONTRACT);
+      await poller.start(); // already read up to block 100
+      blockNumber = 98; // a node two blocks behind its peers
+      await poller.poll();
+      expect(requests).toEqual([]);
+
+      blockNumber = 101; // a node that's caught up: carries on from block 101
+      await poller.poll();
+      expect(requests).toEqual([{ fromBlock: 101, toBlock: 101 }]);
+    });
+
+    it('starts on a later poll when the node could not be reached at first', async () => {
+      unreachable = true;
+      const poller = createLogPoller(provider, CONTRACT);
+      await expect(poller.start()).rejects.toThrow('ECONNREFUSED');
+      await expect(poller.poll()).rejects.toThrow('ECONNREFUSED');
+      expect(poller.started()).toBe(false);
+
+      unreachable = false; // the node is up: the next poll starts from its current block
+      await poller.poll();
+      expect(poller.started()).toBe(true);
+      expect(requests).toEqual([]);
+
+      blockNumber = 101;
+      await poller.poll();
+      expect(requests).toEqual([{ fromBlock: 101, toBlock: 101 }]);
     });
 
     it('runs one poll at a time', async () => {

@@ -70,13 +70,16 @@ const HANDLERS: Record<string, Handler> = {
   },
 
   // TicketCheckedIn — mark ticket as USED and log the check-in
-  TicketCheckedIn: async (tokenId: bigint, scanner: string) => {
+  TicketCheckedIn: async (tokenId: bigint, scanner: string, payload?: LogPayload) => {
+    // Dated by the check-in's block, like the other rows, not by when the listener saw it
+    const { blockTime: checkedInAt } = await logMeta(payload);
+
     // Only a VALID ticket can be checked in. If the same event arrives twice
     // (e.g. after a listener restart), the ticket is already USED and nothing
     // changes, so used_at isn't overwritten and no second log row is added.
     const { count } = await prisma.ticket.updateMany({
       where: { token_id: tokenId, status: 'VALID' },
-      data: { status: 'USED', used_at: new Date() },
+      data: { status: 'USED', used_at: checkedInAt },
     });
 
     if (count === 0) {
@@ -88,6 +91,7 @@ const HANDLERS: Record<string, Handler> = {
       data: {
         token_id: tokenId,
         scanner_wallet: scanner.toLowerCase(),
+        checked_in_at: checkedInAt,
       },
     });
 
@@ -190,6 +194,8 @@ export const SYNCED_EVENTS = Object.keys(HANDLERS);
 export const POLL_INTERVAL_MS = 4_000;
 // Blocks per eth_getLogs request: hosted RPCs cap the range of one request (Pinax: 1,000, #219)
 export const MAX_BLOCK_RANGE = 1_000;
+// Local development chains (Hardhat, Anvil, Ganache): the only chains that can start over
+const LOCAL_CHAIN_IDS = new Set([31337n, 1337n]);
 
 // Runs one contract event through its handler. Events the database doesn't keep are ignored, and a
 // failing handler is logged without stopping the events after it.
@@ -214,20 +220,34 @@ export async function handleEvent(eventName: string, args: readonly unknown[], l
 export function createLogPoller(provider: ethers.Provider, address: string) {
   const iface = new ethers.Interface(TICKET_NFT_ABI);
   let nextBlock: number | null = null;
+  let localChain = false;
   let running: Promise<void> | null = null;
 
   // Start with the next block: events from before the API started are a backfill (#119)
   async function start(): Promise<void> {
-    nextBlock = (await provider.getBlockNumber()) + 1;
+    const [network, head] = await Promise.all([provider.getNetwork(), provider.getBlockNumber()]);
+    localChain = LOCAL_CHAIN_IDS.has(network.chainId);
+    nextBlock = head + 1;
   }
 
   async function poll(): Promise<void> {
+    // The node couldn't be reached when the API started: start now, and read new blocks next time
+    if (nextBlock === null) {
+      await start();
+      return;
+    }
     const head = await provider.getBlockNumber();
-    if (nextBlock === null) nextBlock = head + 1;
 
-    // The node is behind what was already read: it's a new chain (a restarted local node)
+    // The node reports an earlier block than the ones already read
     if (head < nextBlock - 1) {
-      logger.warn(`Blockchain listener: the chain restarted (block ${head}), reading it again from block 0`);
+      if (!localChain) {
+        // On Sepolia this is a node behind its peers (hosted RPCs balance requests across several
+        // nodes). The chain didn't go anywhere: wait for that node to catch up.
+        logger.debug(`Blockchain listener: the node is at block ${head}, behind block ${nextBlock - 1} already read; waiting`);
+        return;
+      }
+      // Only a local node can start over (npm run dev:fresh): read the new chain from block 0
+      logger.warn(`Blockchain listener: the local chain restarted (block ${head}), reading it again from block 0`);
       nextBlock = 0;
     }
 
@@ -252,6 +272,7 @@ export function createLogPoller(provider: ethers.Provider, address: string) {
 
   return {
     start,
+    started: () => nextBlock !== null,
     // One poll at a time: a slow one makes the next wait instead of reading the same blocks twice
     poll: () => (running ??= poll().finally(() => (running = null))),
   };
@@ -268,15 +289,25 @@ export async function startBlockchainListener(): Promise<void> {
 
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const poller = createLogPoller(provider, contractAddress);
-  await poller.start();
+  const connected = () => logger.info(`Blockchain listener connected to contract ${contractAddress}`);
 
-  logger.info(`Blockchain listener connected to contract ${contractAddress}`);
+  // An unreachable node must not stop the API: the pages that read the database keep working, and
+  // the listener keeps trying every few seconds until the node answers.
+  try {
+    await poller.start();
+    connected();
+  } catch (err) {
+    logger.error(`Blockchain listener: cannot reach the node at RPC_URL, trying again every ${POLL_INTERVAL_MS / 1000} s`, { error: err });
+  }
 
   const tick = async () => {
+    const wasStarted = poller.started();
     try {
       await poller.poll();
+      if (!wasStarted) connected();
     } catch (err) {
-      logger.error('Blockchain listener: could not read new events, trying again', { error: err });
+      const message = wasStarted ? 'could not read new events' : 'still cannot reach the node at RPC_URL';
+      logger.error(`Blockchain listener: ${message}, trying again`, { error: err });
     } finally {
       setTimeout(tick, POLL_INTERVAL_MS);
     }
