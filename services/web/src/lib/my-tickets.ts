@@ -1,7 +1,7 @@
 // My Tickets (#286): grouping the wallet's tickets for display, labels and QR timing.
 // Kept free of React so it can be unit tested.
 
-import { sortTicketTypes, type ApiEvent } from "@/lib/event-details";
+import { ticketTypeForTypeId, type ApiEvent } from "@/lib/event-details";
 import { QR_MAX_AGE_SECONDS, type TicketQRData } from "@/lib/ticket-qr";
 
 // One ticket the connected wallet owns, read from the contract (useOwnedTickets)
@@ -56,11 +56,10 @@ export function indexEventsByChainId(events: ApiEvent[]): Map<string, ApiEvent> 
   return byId;
 }
 
-// Type names come from the API in creation order, which matches the contract's type IDs.
-// TODO(#216): match on contract_type_id once the API stores it (same as buildTiers).
+// The type's name from the API, matched on the contract's type ID (same as buildTiers)
 export function ticketTypeName(event: ApiEvent | null, typeId: number | null): string | null {
   if (typeId === null) return null;
-  return (event && sortTicketTypes(event.ticket_types)[typeId]?.name) || `Ticket type ${typeId + 1}`;
+  return (event && ticketTypeForTypeId(event.ticket_types, typeId)?.name) || `Ticket type ${typeId + 1}`;
 }
 
 export function ticketStatus(ticket: OwnedTicket, event: ApiEvent | null, nowMs: number): TicketStatus {
