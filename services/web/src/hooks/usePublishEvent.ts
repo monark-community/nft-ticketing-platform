@@ -8,7 +8,7 @@ import { useAccount, usePublicClient } from "wagmi";
 import { useTransaction } from "@/hooks/useTransaction";
 import { TICKET_NFT_ADDRESS, TICKET_NFT_CHAIN_ID, ticketNftAbi } from "@/lib/contracts/ticket-nft";
 import type { ChainSettings, SaleRulesForm } from "@/lib/create-event";
-import { toChainSettings } from "@/lib/create-event";
+import { startsInPresale, toChainSettings } from "@/lib/create-event";
 import { fetchDraft, freezeDraft, publishDraft, type DraftEvent } from "@/lib/create-event-api";
 import {
   contractEventIdFor,
@@ -120,7 +120,7 @@ export function usePublishEvent({ event, image, onEventChange }: Options) {
   function planFor(rules: SaleRulesForm): PublishPlan | null {
     const wanted = settingsFor(rules, chain.data?.event ?? null);
     if (!event || !chain.data || !wanted || !address) return null;
-    return planPublish({ status: event.status, wallet: address, chain: chain.data.event, wanted, typeUris: typeUris(event), presale: rules.presale });
+    return planPublish({ status: event.status, wallet: address, chain: chain.data.event, wanted, typeUris: typeUris(event), presale: startsInPresale(rules) });
   }
 
   async function run(rules: SaleRulesForm): Promise<boolean> {
@@ -165,7 +165,7 @@ export function usePublishEvent({ event, image, onEventChange }: Options) {
         chain: fresh.event,
         wanted,
         typeUris: typeUris(current),
-        presale: rules.presale,
+        presale: startsInPresale(rules),
       });
       if (freshPlan.blocked) return false; // the page explains the block from planFor()
       if (current.ticket_types.some((t) => !t.ipfs_hash)) {

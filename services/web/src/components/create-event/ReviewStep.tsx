@@ -12,6 +12,7 @@ import {
   parseRoyaltyBps,
   parseSupply,
   resaleCapLabel,
+  startsInPresale,
   type DetailsForm,
   type FormStep,
   type SaleRulesForm,
@@ -79,7 +80,7 @@ export function ReviewStep({ details, types, rules, image, uploadedImageUrl, usd
           <Row label="Resale price cap" value={resaleCapLabel(rules.resaleCapBps)} />
           <Row label="Organizer royalty" value={royalty === null ? null : `${Number((royalty / 100).toFixed(2))}%`} />
           <Row label="Sales end" value={salesEnd === null ? null : formatEventDate(new Date(salesEnd).toISOString())} />
-          <Row label="Start in presale" value={rules.presale ? "Yes" : "No"} />
+          <Row label="Start in presale" value={startsInPresale(rules) ? "Yes" : "No"} />
         </SummaryCard>
       </div>
 

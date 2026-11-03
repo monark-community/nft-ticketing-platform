@@ -14,7 +14,9 @@ import {
   parseStep,
   parseStoredSaleRules,
   planTicketTypeSync,
+  PRESALE_AVAILABLE,
   resaleExample,
+  startsInPresale,
   ticketTotals,
   ticketTypeFromApi,
   toChainSettings,
@@ -346,5 +348,14 @@ describe("parseStep", () => {
     expect(parseStep("sale-rules")).toBe("sale-rules");
     expect(parseStep(null)).toBe("details");
     expect(parseStep("publish")).toBe("details");
+  });
+});
+
+describe("startsInPresale", () => {
+  // No guest list page yet (#191): an event in presale would have no buyers
+  it("keeps presale off until the guest list page exists, even if a saved form says otherwise", () => {
+    expect(PRESALE_AVAILABLE).toBe(false);
+    expect(startsInPresale({ ...defaultSaleRules(details), presale: true })).toBe(false);
+    expect(startsInPresale({ ...defaultSaleRules(details), presale: false })).toBe(false);
   });
 });

@@ -304,6 +304,16 @@ export interface SaleRulesForm {
   presale: boolean;
 }
 
+// Presale needs a guest list, and there's no guest list page yet (#191). Until there is, events
+// open to everyone: with presale on and nobody on the list, nobody could buy a ticket, and the
+// organizer couldn't turn presale off from the app either. Turn this on with the guest list page.
+export const PRESALE_AVAILABLE = false;
+
+// Whether the event starts in presale, as it will be published
+export function startsInPresale(rules: SaleRulesForm): boolean {
+  return PRESALE_AVAILABLE && rules.presale;
+}
+
 // Figma defaults. Sales end when the event starts: the contract also stops capping resale prices
 // then ("Applies before the event").
 export function defaultSaleRules(details: DetailsForm): SaleRulesForm {

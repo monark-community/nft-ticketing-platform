@@ -11,8 +11,10 @@ import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
   parseSupply,
+  PRESALE_AVAILABLE,
   RESALE_CAP_OPTIONS,
   resaleExample,
+  startsInPresale,
   type FieldErrors,
   type SaleRulesForm,
   type TicketTypeForm,
@@ -84,9 +86,9 @@ export function SaleRulesStep({ value, errors, types, usdcDecimals, minSalesEnd,
 
         <div className="flex items-start gap-3">
           <Switch
-            checked={value.presale}
+            checked={startsInPresale(value)}
             onCheckedChange={(checked) => set("presale", checked)}
-            disabled={locked}
+            disabled={locked || !PRESALE_AVAILABLE}
             aria-labelledby={presaleLabelId}
             aria-describedby={presaleHintId}
             className="mt-0.5"
@@ -96,7 +98,9 @@ export function SaleRulesStep({ value, errors, types, usdcDecimals, minSalesEnd,
               Start in presale
             </span>
             <span id={presaleHintId} className="type-body-sm text-muted-foreground">
-              Only guest list wallets can buy at first. Add the guest list after creating the event.
+              {PRESALE_AVAILABLE
+                ? "Only guest list wallets can buy at first. Add the guest list after creating the event."
+                : "Not available yet: it needs the guest list page. Tickets go on sale to everyone."}
             </span>
           </div>
         </div>
@@ -118,7 +122,7 @@ export function SaleRulesStep({ value, errors, types, usdcDecimals, minSalesEnd,
           <div className="flex flex-wrap gap-2">
             <Badge tone="neutral">{limit ? `Max ${limit} per wallet` : "No wallet limit"}</Badge>
             <Badge tone="code">{value.resaleCapBps > 0 ? `Resale cap ${formatMultiplier(value.resaleCapBps).replace("×", "x")}` : "No resale cap"}</Badge>
-            {value.presale && <Badge tone="highlight">Presale first</Badge>}
+            {startsInPresale(value) && <Badge tone="highlight">Presale first</Badge>}
           </div>
           <p className="type-body-sm text-secondary-foreground">
             {resaleExample(types, value, usdcDecimals, (v) => formatTokenAmount(v, usdcDecimals))}
