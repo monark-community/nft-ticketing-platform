@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, CalendarX2, Camera, ChevronDown, Lock, ScanLine } from "lucide-react";
+import { CalendarDays, CalendarX2, Camera, ChevronDown, Lock, QrCode, ScanLine } from "lucide-react";
 
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -53,7 +53,7 @@ export function EventPicker({
           value={value ?? ""}
           disabled={loading || empty}
           onChange={(e) => onChange(e.target.value)}
-          className="h-13 w-full appearance-none truncate rounded-md border border-border bg-card pr-10 pl-11 type-body-lg text-foreground outline-none transition-colors focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20 disabled:cursor-not-allowed disabled:text-muted-foreground"
+          className="h-12 w-full appearance-none truncate rounded-md border border-border bg-card pr-10 pl-11 type-body-md text-foreground outline-none transition-colors focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20 disabled:cursor-not-allowed disabled:text-muted-foreground"
         >
           {loading && <option value="">Loading events...</option>}
           {empty && <option value="">No events</option>}
@@ -79,6 +79,7 @@ export function CameraFrame() {
       <span className={cn(corner, "top-6 right-6 rounded-tr-xs border-t-3 border-r-3")} />
       <span className={cn(corner, "bottom-6 left-6 rounded-bl-xs border-b-3 border-l-3")} />
       <span className={cn(corner, "right-6 bottom-6 rounded-br-xs border-r-3 border-b-3")} />
+      <QrCode className="absolute top-1/2 left-1/2 size-10 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/60" strokeWidth={1.5} />
       <span className="absolute inset-x-8 h-0.5 animate-scan-line bg-primary shadow-[0_0_12px_2px_rgb(249_115_22/60%)]" />
     </div>
   );
@@ -123,7 +124,7 @@ export function ScannerPanel({
       <span className="mb-2 flex size-14 items-center justify-center rounded-full border border-border bg-muted text-secondary-foreground [&_svg]:size-5">
         {icon}
       </span>
-      <h2 className="type-heading-md text-foreground">{title}</h2>
+      <h2 className="type-heading-sm text-foreground">{title}</h2>
       <div className="max-w-xs type-body-md text-secondary-foreground">{children}</div>
       {action && <div className="mt-3">{action}</div>}
     </div>

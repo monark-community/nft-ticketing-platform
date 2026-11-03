@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ApiEvent } from "@/lib/event-details";
 import {
   canResumeCamera,
+  cameraErrorMessage,
   canScanEvent,
   formatCheckedInAt,
   onChainEvents,
@@ -10,6 +11,7 @@ import {
   scannerEventLabel,
   scanView,
   signedAgo,
+  wrongEventReason,
 } from "./scanner";
 
 const wallet = "0xAbC0000000000000000000000000000000000001";
@@ -107,5 +109,27 @@ describe("pickEventId", () => {
   it("falls back to the first event, or none", () => {
     expect(pickEventId(["1", "2"], "9")).toBe("1");
     expect(pickEventId([], "2")).toBeNull();
+  });
+});
+
+describe("wrongEventReason", () => {
+  it("names both events instead of contract IDs", () => {
+    expect(wrongEventReason("Jazz at the Atrium", "Gala Opera Concert")).toBe("This ticket is for Jazz at the Atrium, not Gala Opera Concert.");
+  });
+
+  it("still reads well when the ticket's event isn't known", () => {
+    expect(wrongEventReason(null, "Gala Opera Concert")).toBe("This ticket is for a different event, not Gala Opera Concert.");
+  });
+});
+
+describe("cameraErrorMessage", () => {
+  it("falls back when the camera error has no message", () => {
+    expect(cameraErrorMessage("")).toBe("The camera couldn't start.");
+    expect(cameraErrorMessage(undefined)).toBe("The camera couldn't start.");
+  });
+
+  it("keeps the browser's message as a sentence", () => {
+    expect(cameraErrorMessage("Permission denied")).toBe("Permission denied.");
+    expect(cameraErrorMessage("No camera found.")).toBe("No camera found.");
   });
 });

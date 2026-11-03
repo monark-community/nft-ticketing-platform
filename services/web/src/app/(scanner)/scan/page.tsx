@@ -4,7 +4,7 @@ import type { IDetectedBarcode } from "@yudiel/react-qr-scanner";
 import { RotateCw, Wallet } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { useAccount, useChainId, usePublicClient } from "wagmi";
+import { useAccount, useChains, usePublicClient, useSwitchChain } from "wagmi";
 
 import { ScanResult } from "@/components/ScanResult";
 import { CameraFrame, CameraPausedBar, EventPicker, ScannerHeader, ScannerPanel } from "@/components/scanner/ScannerParts";
@@ -16,8 +16,8 @@ import { useCheckInTicket } from "@/hooks/useCheckInTicket";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { useScannableEvents } from "@/hooks/useScannableEvents";
 import { useScannedTicketDetails } from "@/hooks/useScannedTicketDetails";
-import { TICKET_NFT_ADDRESS } from "@/lib/contracts/ticket-nft";
-import { canResumeCamera, pickEventId, scanView } from "@/lib/scanner";
+import { TICKET_NFT_ADDRESS, TICKET_NFT_CHAIN_ID } from "@/lib/contracts/ticket-nft";
+import { cameraErrorMessage, canResumeCamera, pickEventId, scanView, wrongEventReason } from "@/lib/scanner";
 import { verifyTicketQR, type TicketVerification } from "@/lib/verify-ticket";
 
 // The camera only exists in the browser, so skip server rendering for the scanner
@@ -43,12 +43,15 @@ function rememberEvent(id: string) {
 
 // Ticket scanner for venue staff (#58), with the Figma "Scanner Page" design (#287)
 export default function ScanPage() {
-  const { address, isConnected: walletConnected } = useAccount();
+  const { address, isConnected: walletConnected, chainId: walletChainId } = useAccount();
   const hasMounted = useHasMounted();
   // Treat the wallet as disconnected until mount, so the first client render matches the server (#220)
   const isConnected = hasMounted && walletConnected;
-  const chainId = useChainId();
-  const publicClient = usePublicClient();
+  // Tickets are verified on the contract's chain, whatever network the wallet is on (#287 review)
+  const publicClient = usePublicClient({ chainId: TICKET_NFT_CHAIN_ID });
+  const contractChain = useChains().find((c) => c.id === TICKET_NFT_CHAIN_ID);
+  const { switchChain, isPending: switchingNetwork } = useSwitchChain();
+  const wrongNetwork = isConnected && walletChainId !== TICKET_NFT_CHAIN_ID;
 
   const scannable = useScannableEvents(isConnected ? address : undefined);
   const [chosenEventId, setChosenEventId] = useState<string | null>(null);
@@ -73,10 +76,15 @@ export default function ScanPage() {
     const verification = await verifyTicketQR({
       raw,
       publicClient,
-      expectedChainId: chainId,
+      expectedChainId: TICKET_NFT_CHAIN_ID,
       expectedContract: TICKET_NFT_ADDRESS,
       expectedEventId: BigInt(eventId),
     });
+    // Name the events instead of showing contract IDs
+    if (verification.wrongEvent && event) {
+      const ticketEvent = scannable.allEvents.find((e) => e.contract_event_id === verification.eventId?.toString());
+      verification.reason = wrongEventReason(ticketEvent?.title ?? null, event.title);
+    }
     setScannedAt(Date.now());
     setResult(verification);
     setVerifying(false);
@@ -98,7 +106,7 @@ export default function ScanPage() {
       <ScannerHeader address={isConnected ? address : undefined} />
 
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-5 px-4 pt-6 pb-10">
-        <h1 className="type-heading-lg text-foreground">Ticket scanner</h1>
+        <h1 className="type-heading-md text-foreground">Ticket scanner</h1>
 
         {!isConnected ? (
           <ScannerPanel
@@ -136,10 +144,12 @@ export default function ScanPage() {
                   <CameraPausedBar canResume={canResumeCamera(view, checkIn.transaction.phase)} onResume={scanNext} />
                 ) : null}
                 <div className={result ? "hidden" : "flex flex-col gap-3"}>
-                  <div className="relative mx-auto aspect-square w-full overflow-hidden rounded-lg border border-border bg-card">
+                  <div className="relative mx-auto aspect-square w-full max-w-[310px] overflow-hidden rounded-lg border border-border bg-card">
                     <Scanner
                       onScan={handleScan}
-                      onError={(err) => setCameraError(err.message)}
+                      onError={(err) => setCameraError(cameraErrorMessage(err?.message))}
+                      // Ideal, not minimum, sizes: a webcam that can't reach them still starts
+                      constraints={{ facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }}
                       paused={verifying || !!result}
                       formats={["qr_code"]}
                       sound={false}
@@ -161,7 +171,7 @@ export default function ScanPage() {
                   </p>
                   {cameraError && (
                     <Alert tone="error" title="Camera unavailable">
-                      {cameraError}. Allow camera access in your browser, then reload this page.
+                      {cameraError} Allow camera access in your browser, then reload this page.
                     </Alert>
                   )}
                 </div>
@@ -174,6 +184,10 @@ export default function ScanPage() {
                     explorerUrl={checkIn.explorerUrl}
                     details={details}
                     scannedAt={scannedAt}
+                    wrongNetwork={wrongNetwork}
+                    networkName={contractChain?.name ?? "the right network"}
+                    switchingNetwork={switchingNetwork}
+                    onSwitchNetwork={() => switchChain({ chainId: TICKET_NFT_CHAIN_ID })}
                     onCheckIn={() => result.qr && checkIn.checkIn(BigInt(result.qr.tokenId))}
                     onScanNext={scanNext}
                     onStopWaiting={checkIn.stopWaiting}

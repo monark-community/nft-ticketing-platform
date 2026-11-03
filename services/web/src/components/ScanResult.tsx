@@ -23,6 +23,10 @@ interface Props {
   explorerUrl: string | null;
   details: ScannedTicketDetails;
   scannedAt: number; // ms when the QR was read; "QR signed 12 seconds ago" is relative to it
+  wrongNetwork: boolean; // the wallet must be on the contract's chain to send the check-in
+  networkName: string;
+  switchingNetwork: boolean;
+  onSwitchNetwork: () => void;
   onCheckIn: () => void;
   onScanNext: () => void;
   onStopWaiting: () => void;
@@ -30,10 +34,34 @@ interface Props {
 
 const FEE_NOTE = "Checking in records it on-chain and needs a small ETH network fee from this wallet.";
 
-export function ScanResult({ result, view, transaction, explorerUrl, details, scannedAt, onCheckIn, onScanNext, onStopWaiting }: Props) {
+export function ScanResult({
+  result,
+  view,
+  transaction,
+  explorerUrl,
+  details,
+  scannedAt,
+  wrongNetwork,
+  networkName,
+  switchingNetwork,
+  onSwitchNetwork,
+  onCheckIn,
+  onScanNext,
+  onStopWaiting,
+}: Props) {
   const tokenId = result.qr?.tokenId;
   const owner = result.owner ?? details.owner;
   const nowSeconds = Math.floor(scannedAt / 1000);
+
+  // Shown instead of "Check in" / "Try again" while the wallet is on another network
+  const switchNetwork = (
+    <>
+      <Button size="lg" className="w-full" onClick={onSwitchNetwork} loading={switchingNetwork}>
+        {switchingNetwork ? "Confirm in your wallet..." : "Switch network"}
+      </Button>
+      <p className="text-center type-body-sm text-muted-foreground">This wallet is on another network. Switch to {networkName} to check in.</p>
+    </>
+  );
 
   const rows = (
     <DetailRows>
@@ -141,10 +169,14 @@ export function ScanResult({ result, view, transaction, explorerUrl, details, sc
         </div>
         <Inset>{rows}</Inset>
         <Alert tone="error" title={transaction.error ?? "Check-in failed. Please try again."} />
-        <Button size="lg" className="w-full" onClick={onCheckIn}>
-          <RefreshCw aria-hidden="true" />
-          Try again
-        </Button>
+        {wrongNetwork ? (
+          switchNetwork
+        ) : (
+          <Button size="lg" className="w-full" onClick={onCheckIn}>
+            <RefreshCw aria-hidden="true" />
+            Try again
+          </Button>
+        )}
       </Card>
     );
   }
@@ -159,14 +191,20 @@ export function ScanResult({ result, view, transaction, explorerUrl, details, sc
         <Heading tone="neutral" title="Valid ticket" subtitle="Check in to admit" />
       </div>
       {rows}
-      <button
-        type="button"
-        onClick={onCheckIn}
-        className="h-13 w-full rounded-sm bg-success type-title-lg text-background transition-colors hover:bg-success/90 focus-visible:ring-3 focus-visible:ring-success/40 focus-visible:outline-none"
-      >
-        Check in
-      </button>
-      <p className="text-center type-body-sm text-muted-foreground">{FEE_NOTE}</p>
+      {wrongNetwork ? (
+        switchNetwork
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={onCheckIn}
+            className="h-13 w-full rounded-sm bg-success type-title-lg text-background transition-colors hover:bg-success/90 focus-visible:ring-3 focus-visible:ring-success/40 focus-visible:outline-none"
+          >
+            Check in
+          </button>
+          <p className="text-center type-body-sm text-muted-foreground">{FEE_NOTE}</p>
+        </>
+      )}
     </Card>
   );
 }
@@ -225,7 +263,7 @@ const SUBTITLE: Record<"neutral" | "success" | "danger", string> = {
 function Heading({ tone, title, subtitle, centered }: { tone: keyof typeof TITLE; title: string; subtitle: string; centered?: boolean }) {
   return (
     <div className={cn("flex flex-col gap-0.5", centered && "items-center text-center")}>
-      <p className={cn("type-heading-md", TITLE[tone])}>{title}</p>
+      <p className={cn("type-heading-sm", TITLE[tone])}>{title}</p>
       <p className={cn("type-body-md", SUBTITLE[tone])}>{subtitle}</p>
     </div>
   );

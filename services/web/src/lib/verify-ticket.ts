@@ -17,6 +17,7 @@ export interface TicketVerification {
   eventId?: bigint; // the ticket's event according to the contract (never the QR)
   owner?: `0x${string}`; // the ticket's current owner according to the contract
   used?: boolean; // the ticket was already checked in, so the scanner can show when (#287)
+  wrongEvent?: boolean; // valid ticket for another event; the scanner replaces the reason with event names (#287)
 }
 
 interface VerifyParams {
@@ -113,6 +114,7 @@ export async function verifyTicketQR({
         reason: `This ticket is for event #${onChainEventId}, not event #${expectedEventId}.`,
         qr,
         eventId: onChainEventId,
+        wrongEvent: true,
       };
     }
 

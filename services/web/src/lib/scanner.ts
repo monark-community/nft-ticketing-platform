@@ -76,3 +76,18 @@ export function pickEventId(available: string[], remembered: string | null): str
   if (remembered && available.includes(remembered)) return remembered;
   return available[0] ?? null;
 }
+
+// Real contract event IDs are long numbers, so name the events instead (#287 review)
+export function wrongEventReason(ticketEventTitle: string | null, scanningEventTitle: string): string {
+  return ticketEventTitle
+    ? `This ticket is for ${ticketEventTitle}, not ${scanningEventTitle}.`
+    : `This ticket is for a different event, not ${scanningEventTitle}.`;
+}
+
+// Some camera failures come with an empty message (a webcam that can't meet the requested size),
+// so always have something to show
+export function cameraErrorMessage(message: string | null | undefined): string {
+  const text = message?.trim();
+  if (!text) return "The camera couldn't start.";
+  return /[.!?]$/.test(text) ? text : `${text}.`;
+}

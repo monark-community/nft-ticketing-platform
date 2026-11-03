@@ -57,12 +57,13 @@ export function useScannableEvents(wallet: `0x${string}` | undefined) {
           return canScanEvent(address, { isEventScanner, eventOrganizer, hasOrganizerRole, isAdmin }) ? event : null;
         }),
       );
-      return checked.filter((e): e is NonNullable<typeof e> => e !== null);
+      return { scannable: checked.filter((e): e is NonNullable<typeof e> => e !== null), all: events };
     },
   });
 
   return {
-    events: query.data ?? [],
+    events: query.data?.scannable ?? [],
+    allEvents: query.data?.all ?? [], // to name the event on a wrong-event ticket
     loading: Boolean(wallet) && query.isPending,
     failed: query.isError,
     reload: () => void query.refetch(),

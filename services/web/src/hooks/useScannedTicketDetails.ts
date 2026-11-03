@@ -56,7 +56,8 @@ export function useScannedTicketDetails(result: TicketVerification | null, event
 
 type Client = NonNullable<ReturnType<typeof usePublicClient>>;
 
-// When the ticket was checked in, from its TicketCheckedIn event (the same source My Tickets uses)
+// When the ticket was checked in, from its TicketCheckedIn event (the same source My Tickets uses).
+// TODO(#219): start from the contract's deploy block instead of 0, so this stays fast on Sepolia.
 async function readCheckInTime(client: Client, tokenId: bigint): Promise<number | null> {
   try {
     const logs = await client.getContractEvents({ ...nft, eventName: "TicketCheckedIn", args: { tokenId }, fromBlock: BigInt(0) });
