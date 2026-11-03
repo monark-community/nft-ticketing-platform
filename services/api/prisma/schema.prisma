@@ -58,30 +58,45 @@ model Event {
   created_at        DateTime    @default(now())
   updated_at        DateTime    @updatedAt
 
+  // Copied from the contract by the blockchain listener (#215, #299). The contract is the
+  // source of truth: these are a cache for lists and dashboards. The settings stay null until the
+  // event is published and its on-chain setup is copied.
+  sale_active      Boolean   @default(false)
+  presale_active   Boolean   @default(false)
+  royalty_bps      Int? // organizer royalty on resales, 1000 = 10%
+  resale_cap_bps   Int? // resale cap as % of face value, 20000 = 2x; 0 = no cap
+  per_wallet_limit Int? // 0 = no limit
+  sales_end_at     DateTime? // the contract's endTime: sales stop and the resale cap ends
+
   organizer    User         @relation("organizer", fields: [organizer_wallet], references: [wallet_address], onDelete: Restrict)
   ticket_types TicketType[]
   tickets      Ticket[]
   scanners     Scanner[]
   whitelist    Whitelist[]
+  withdrawals  Withdrawal[]
 
   @@index([category])
 }
 
 model TicketType {
-  id          String   @id @default(uuid())
-  event_id    String
-  name        String
-  description String?
-  price       Decimal  @db.Decimal(18, 8)
-  supply      Int
-  sold        Int      @default(0)
-  metadata    Json?
-  ipfs_hash   String?
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  id               String   @id @default(uuid())
+  event_id         String
+  name             String
+  description      String?
+  price            Decimal  @db.Decimal(18, 8)
+  supply           Int
+  sold             Int      @default(0)
+  metadata         Json?
+  ipfs_hash        String?
+  // The type's ID on the contract (0, 1, 2, ...), set when it's added on-chain (#216)
+  contract_type_id Int?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
 
   event   Event    @relation(fields: [event_id], references: [id], onDelete: Cascade)
   tickets Ticket[]
+
+  @@unique([event_id, contract_type_id])
 }
 
 model Ticket {
@@ -93,10 +108,50 @@ model Ticket {
   used_at        DateTime?
   minted_at      DateTime     @default(now())
   updated_at     DateTime     @updatedAt
+  // Face value in USDC: the price paid, or the type's price for an issued ticket. The resale cap is based on it.
+  face_value     Decimal?     @db.Decimal(18, 8)
+  // What the buyer paid in USDC (#215). Null for tickets the organizer issued for free.
+  purchase_price Decimal?     @db.Decimal(18, 8)
+  mint_tx_hash   String?
 
   event        Event        @relation(fields: [event_id], references: [id], onDelete: Restrict)
   ticket_type  TicketType   @relation(fields: [ticket_type_id], references: [id], onDelete: Restrict)
   checkin_logs CheckinLog[]
+  listing      Listing?
+
+  @@index([owner_wallet])
+}
+
+// A ticket listed for resale on the platform (#299). One row per listed ticket; the row is
+// removed when the listing is cancelled, the ticket is resold, transferred or checked in.
+model Listing {
+  token_id      BigInt   @id
+  seller_wallet String
+  price         Decimal  @db.Decimal(18, 8) // in USDC
+  listed_at     DateTime
+  tx_hash       String?
+
+  ticket Ticket @relation(fields: [token_id], references: [token_id], onDelete: Cascade)
+
+  @@index([price])
+  @@index([listed_at])
+}
+
+// Revenue an organizer withdrew from an event (#215)
+model Withdrawal {
+  id               String   @id @default(uuid())
+  event_id         String
+  organizer_wallet String
+  amount           Decimal  @db.Decimal(18, 8) // in USDC
+  withdrawn_at     DateTime
+  tx_hash          String?
+  log_index        Int?
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+
+  // The same on-chain event is only recorded once, even when the listener sees it twice
+  @@unique([tx_hash, log_index])
+  @@index([event_id])
 }
 
 model Scanner {
