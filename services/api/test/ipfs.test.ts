@@ -22,9 +22,9 @@ const pinata = vi.hoisted(() => ({
 
 vi.mock('pinata', () => ({
   PinataSDK: class {
-    upload = { 
+    upload = {
       public: {file: pinata.uploadFile, json: pinata.uploadJson },
-      private: { file:pinata.uploadPrivate, json: pinata.uploadPrivate },
+      private: { file: pinata.uploadPrivate, json: pinata.uploadPrivate },
     };
     constructor(config: unknown) {
       pinata.config(config);
