@@ -37,13 +37,13 @@ export async function pinImageToIPFS(
 
   const client = getPinataClient();
   const file = new File([fileBuffer], fileName, { type: mimeType });
-  const result = await client.upload.file(file);
+  const result = await client.upload.public.file(file);
   return result.cid;
 }
 
 export async function pinMetadataToIPFS(metadata: Record<string, unknown>): Promise<string> {
   const client = getPinataClient();
-  const result = await client.upload.json(metadata);
+  const result = await client.upload.public.json(metadata);
   return result.cid;
 }
 
