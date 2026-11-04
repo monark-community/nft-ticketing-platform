@@ -189,3 +189,11 @@ model CheckinLog {
   ticket  Ticket @relation(fields: [token_id], references: [token_id], onDelete: Restrict)
   scanner User   @relation(fields: [scanner_wallet], references: [wallet_address], onDelete: Restrict)
 }
+
+// How far the blockchain listener has read, so after a restart it reads the blocks it missed (#119).
+// One row per contract, keyed "<chain id>:<contract address>": a new deploy starts its own row.
+model SyncState {
+  id         String   @id
+  last_block Int // the last block whose events are all saved
+  updated_at DateTime @updatedAt
+}
