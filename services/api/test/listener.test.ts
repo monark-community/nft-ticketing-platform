@@ -40,12 +40,13 @@ const handlers = new Proxy({} as Record<string, (...args: any[]) => Promise<void
   },
 });
 
-// Makes the next Event.updateMany fail as if the database were unreachable
-let dropNextEventUpdate = false;
+// Makes the next matching query fail with a Prisma error, as if the database dropped or timed out
+let dbFailNext: { model: string; action: string; code: string; message: string } | null = null;
 prisma.$use(async (params, next) => {
-  if (dropNextEventUpdate && params.model === 'Event' && params.action === 'updateMany') {
-    dropNextEventUpdate = false;
-    throw new Prisma.PrismaClientKnownRequestError("Can't reach database server", { code: 'P1001', clientVersion: Prisma.prismaVersion.client });
+  if (dbFailNext && params.model === dbFailNext.model && params.action === dbFailNext.action) {
+    const { code, message } = dbFailNext;
+    dbFailNext = null;
+    throw new Prisma.PrismaClientKnownRequestError(message, { code, clientVersion: Prisma.prismaVersion.client });
   }
   return next(params);
 });
@@ -622,11 +623,11 @@ describe('blockchain listener database updates', () => {
         chainLog('SaleStatusUpdated', [5n, true], 96, 0),
       ];
       // The database drops while the third event is saved
-      dropNextEventUpdate = true;
+      dbFailNext = { model: 'Event', action: 'updateMany', code: 'P1001', message: "Can't reach database server" };
       const poller = createLogPoller(provider, CONTRACT, { deployBlock: 90 });
       await poller.start();
       await expect(poller.poll()).rejects.toThrow("Can't reach database server");
-      expect(dropNextEventUpdate).toBe(false);
+      expect(dbFailNext).toBeNull();
       expect(await cursor()).toBeNull(); // the blocks aren't marked as read
 
       await poller.poll();
@@ -638,9 +639,29 @@ describe('blockchain listener database updates', () => {
       expect((await cursor())!.last_block).toBe(100);
     });
 
+    it('reads a check-in again when its transaction times out', async () => {
+      const scanner = checksummed();
+      chainLogs = [
+        chainLog('TicketMinted', [1n, 5n, 0n, checksummed(), 'ipfs://ticket'], 95, 0),
+        chainLog('TicketCheckedIn', [1n, scanner], 96, 0),
+      ];
+      // The scanner's account is saved inside the check-in's transaction
+      dbFailNext = { model: 'User', action: 'upsert', code: 'P2028', message: 'Transaction API error: Transaction already closed' };
+      const poller = createLogPoller(provider, CONTRACT, { deployBlock: 90 });
+      await poller.start();
+      await expect(poller.poll()).rejects.toThrow('Transaction already closed');
+      // Rolled back: the ticket isn't USED without its log
+      expect((await prisma.ticket.findUnique({ where: { token_id: 1n } }))!.status).toBe('VALID');
+
+      await poller.poll();
+
+      expect((await prisma.ticket.findUnique({ where: { token_id: 1n } }))!.status).toBe('USED');
+      expect(await prisma.checkinLog.count({ where: { token_id: 1n, scanner_wallet: scanner.toLowerCase() } })).toBe(1);
+    });
+
     it('tells a database that is down from an event that cannot be saved', () => {
       const known = (code: string) => new Prisma.PrismaClientKnownRequestError('error', { code, clientVersion: Prisma.prismaVersion.client });
-      for (const code of ['P1001', 'P1002', 'P1008', 'P1017', 'P2024']) expect(isDatabaseUnavailable(known(code))).toBe(true);
+      for (const code of ['P1001', 'P1002', 'P1008', 'P1017', 'P2024', 'P2028']) expect(isDatabaseUnavailable(known(code))).toBe(true);
       expect(isDatabaseUnavailable(new Prisma.PrismaClientInitializationError("Can't reach database server", Prisma.prismaVersion.client))).toBe(true);
       // A unique constraint or a value too big for its column: the event's own problem
       expect(isDatabaseUnavailable(known('P2002'))).toBe(false);

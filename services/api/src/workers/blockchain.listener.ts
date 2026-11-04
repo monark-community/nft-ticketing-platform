@@ -238,9 +238,10 @@ export interface LogPollerOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
-// Prisma's errors for a database it can't reach: can't connect (P1001), connection timed out (P1002),
-// operation timed out (P1008), connection closed (P1017), no free connection in the pool (P2024)
-const DATABASE_UNAVAILABLE_CODES = new Set(['P1001', 'P1002', 'P1008', 'P1017', 'P2024']);
+// Prisma's errors for a database it can't reach or that is too slow to answer: can't connect (P1001),
+// connection timed out (P1002), operation timed out (P1008), connection closed (P1017), no free
+// connection in the pool (P2024), a transaction that timed out or couldn't start in time (P2028)
+const DATABASE_UNAVAILABLE_CODES = new Set(['P1001', 'P1002', 'P1008', 'P1017', 'P2024', 'P2028']);
 
 export function isDatabaseUnavailable(err: unknown): boolean {
   if (err instanceof Prisma.PrismaClientInitializationError) return true;
