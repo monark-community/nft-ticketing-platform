@@ -81,6 +81,47 @@ describe('event status rules', () => {
     expect(res.body.events[0].id).toBe(published.id);
   });
 
+  describe('upcoming filter', () => {
+    const HOUR = 60 * 60 * 1000;
+    const ago = (h: number) => new Date(Date.now() - h * HOUR);
+    const fromNow = (h: number) => new Date(Date.now() + h * HOUR);
+    const ids = (res: request.Response) => res.body.events.map((e: { id: string }) => e.id).sort();
+    let n = 100n;
+    const published = (dates: { start_date: Date; end_date?: Date | null }) =>
+      createEvent(organizer.wallet_address, { status: 'PUBLISHED', contract_event_id: n++, ...dates });
+
+    it('lists events in progress and leaves ended ones out of the list and the total', async () => {
+      const inProgress = await published({ start_date: ago(2), end_date: fromNow(2) });
+      await published({ start_date: ago(5), end_date: ago(1) });
+      const upcoming = await published({ start_date: fromNow(24) });
+
+      const res = await request(app).get('/api/events');
+      expect(res.status).toBe(200);
+      expect(res.body.total).toBe(2);
+      expect(ids(res)).toEqual([inProgress.id, upcoming.id].sort());
+    });
+
+    it('treats an event with no end date as over 12 hours after it starts', async () => {
+      const startedAnHourAgo = await published({ start_date: ago(1) });
+      await published({ start_date: ago(13) });
+
+      const res = await request(app).get('/api/events');
+      expect(res.body.total).toBe(1);
+      expect(ids(res)).toEqual([startedAnHourAgo.id]);
+    });
+
+    it('lists every published event with include_past=true, but still not drafts', async () => {
+      const ended = await published({ start_date: ago(48), end_date: ago(40) });
+      const upcoming = await published({ start_date: fromNow(24) });
+      await createEvent(organizer.wallet_address, { status: 'DRAFT', start_date: ago(48) });
+
+      const res = await request(app).get('/api/events').query({ include_past: 'true' });
+      expect(res.status).toBe(200);
+      expect(res.body.total).toBe(2);
+      expect(ids(res)).toEqual([ended.id, upcoming.id].sort());
+    });
+  });
+
   it('lets a DRAFT be edited, but never its status, owner or IPFS hash', async () => {
     const event = await createEvent(organizer.wallet_address);
     const res = await request(app).put(`/api/events/${event.id}`).set('Cookie', cookie).send({

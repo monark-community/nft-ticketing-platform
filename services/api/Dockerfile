@@ -28,5 +28,7 @@ EXPOSE 3001
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 
-# Apply committed migrations before starting the API.
-CMD ["sh", "-c", "npm run db:migrate:deploy && npm run dev"]
+# Regenerate the Prisma client on every start: node_modules lives in its own volume and keeps the
+# client from when it was created, so after a schema change it wouldn't know the new fields.
+# Then apply committed migrations and start the API.
+CMD ["sh", "-c", "npx prisma generate && npm run db:migrate:deploy && npm run dev"]
