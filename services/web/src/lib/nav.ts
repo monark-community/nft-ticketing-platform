@@ -8,6 +8,7 @@ export const ROUTES = {
   admin: "/admin",
   profile: "/profile",
   signUp: "/signup", // sign in and account creation (#288)
+  newEvent: "/organizer/events/new", // create event flow (#187)
 } as const;
 
 // Signed out = no wallet; Connected = wallet connected but not signed in yet (SIWE);

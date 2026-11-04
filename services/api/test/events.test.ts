@@ -178,6 +178,51 @@ describe('event status rules', () => {
     expect(res.body.event_id).toBe(event.id);
   });
 
+  it('saves the pinned cover image on the event when it freezes', async () => {
+    const event = await createEvent(organizer.wallet_address);
+    await createTicketType(event.id);
+
+    const res = await freeze(event.id, cookie);
+    expect(res.status).toBe(200);
+    expect(res.body.event.image_url).toBe('ipfs://bafy-image');
+  });
+
+  it('lets a draft clear its end date, and keeps it when the field is left out', async () => {
+    const event = await createEvent(organizer.wallet_address);
+    const set = await request(app).put(`/api/events/${event.id}`).set('Cookie', cookie).send({ end_date: '2030-01-01T23:00:00Z' });
+    expect(set.body.end_date).toBe('2030-01-01T23:00:00.000Z');
+
+    const kept = await request(app).put(`/api/events/${event.id}`).set('Cookie', cookie).send({ title: 'Renamed' });
+    expect(kept.body.end_date).toBe('2030-01-01T23:00:00.000Z');
+
+    const cleared = await request(app).put(`/api/events/${event.id}`).set('Cookie', cookie).send({ end_date: null });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.end_date).toBeNull();
+  });
+
+  it('deletes a ticket type while the event is a draft', async () => {
+    const event = await createEvent(organizer.wallet_address);
+    const ticketType = await createTicketType(event.id);
+
+    const res = await request(app).delete(`/api/ticket-types/${ticketType.id}`).set('Cookie', cookie);
+    expect(res.status).toBe(204);
+    expect(await prisma.ticketType.findUnique({ where: { id: ticketType.id } })).toBeNull();
+  });
+
+  it('will not delete a ticket type once the event is frozen', async () => {
+    const event = await createEvent(organizer.wallet_address, { status: 'FROZEN' });
+    const ticketType = await createTicketType(event.id);
+
+    const res = await request(app).delete(`/api/ticket-types/${ticketType.id}`).set('Cookie', cookie);
+    expect(res.status).toBe(409);
+    expect(await prisma.ticketType.findUnique({ where: { id: ticketType.id } })).not.toBeNull();
+  });
+
+  it('returns 404 when deleting a ticket type that does not exist', async () => {
+    const res = await request(app).delete('/api/ticket-types/00000000-0000-0000-0000-000000000000').set('Cookie', cookie);
+    expect(res.status).toBe(404);
+  });
+
   it('will not freeze an event twice, and does not pin anything the second time', async () => {
     const event = await createEvent(organizer.wallet_address, { status: 'FROZEN' });
     await createTicketType(event.id);
@@ -246,6 +291,15 @@ describe('organizer ownership', () => {
 
     const edit = await request(app).put(`/api/ticket-types/${ticketType.id}`).set('Cookie', otherCookie).send({ supply: 1 });
     expect(edit.status).toBe(403);
+  });
+
+  it('blocks another organizer from deleting a ticket type', async () => {
+    const event = await createEvent(organizer.wallet_address);
+    const ticketType = await createTicketType(event.id);
+
+    const res = await request(app).delete(`/api/ticket-types/${ticketType.id}`).set('Cookie', otherCookie);
+    expect(res.status).toBe(403);
+    expect(await prisma.ticketType.findUnique({ where: { id: ticketType.id } })).not.toBeNull();
   });
 
   it.each(['scanners', 'whitelist'])('blocks another organizer from viewing the %s', async (path) => {
