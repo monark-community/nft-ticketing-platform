@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { keccak256, stringToHex, zeroHash } from "viem";
-import { useAccount, useReadContract } from "wagmi";
+import { useAccount, useChains, useReadContract, useSwitchChain } from "wagmi";
 
 import { Footer } from "@/components/Footer";
 import { Navbar } from "@/components/Navbar";
@@ -29,6 +29,7 @@ import { useHasMounted } from "@/hooks/useHasMounted";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useWalletAuth } from "@/hooks/useWalletAuth";
 import {
+  displayNameInitial,
   formatRequestDate,
   organizerAccountName,
   organizerDisplayName,
@@ -53,7 +54,8 @@ const ORGANIZER_ROLE = keccak256(stringToHex("ORGANIZER_ROLE"));
 const DEFAULT_ADMIN_ROLE = zeroHash;
 
 const ADMIN_ROLE_ERROR =
-  "This wallet does not have the on-chain admin role, so it cannot manage organizers. Use the wallet that holds DEFAULT_ADMIN_ROLE.";
+  "This wallet doesn't have the platform's admin role, so it can't approve or revoke organizers. Use the platform's admin wallet.";
+const ADMIN_ACCOUNT_ERROR = "This account isn't an admin. Sign in with the platform's admin wallet.";
 
 type Tab = "requests" | "organizers";
 type Notice = { tone: "success" | "warning" | "error"; title: string; message?: string };
@@ -64,8 +66,11 @@ type ActiveAction = { type: "approve" | "reject" | "revoke"; id: string };
 // revocation are on-chain from the admin's wallet; the API only records them.
 export default function AdminPage() {
   const hasMounted = useHasMounted();
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
   const { user, isLoading: signingIn, signIn } = useWalletAuth();
+  const chains = useChains();
+  const contractChain = chains.find((chain) => chain.id === TICKET_NFT_CHAIN_ID);
+  const { switchChain, isPending: switchingNetwork } = useSwitchChain();
 
   const [tab, setTab] = useState<Tab>("requests");
   const [requests, setRequests] = useState<OrganizerRequest[]>([]);
@@ -102,7 +107,9 @@ export default function AdminPage() {
   });
 
   const onChainAdminRole = typeof hasOnChainAdminRole === "boolean" ? hasOnChainAdminRole : undefined;
-  const canActOnChain = onChainAdminRole === true && !checkingAdminRole && !adminRoleError;
+  const onContractChain = chainId === TICKET_NFT_CHAIN_ID;
+  const canActOnChain = onChainAdminRole === true && !checkingAdminRole && !adminRoleError && onContractChain;
+  const networkName = contractChain?.name ?? "the contract's network";
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -129,8 +136,12 @@ export default function AdminPage() {
   const recentDecisions = useMemo(() => recentOrganizerDecisions(requests), [requests]);
 
   async function approve(request: OrganizerRequest) {
+    if (!onContractChain) {
+      setNotice({ tone: "error", title: "Switch network first", message: `Switch to ${networkName} to approve organizers.` });
+      return;
+    }
     if (!canActOnChain) {
-      setNotice({ tone: "error", title: "On-chain admin role required", message: ADMIN_ROLE_ERROR });
+      setNotice({ tone: "error", title: "Admin wallet required", message: ADMIN_ROLE_ERROR });
       return;
     }
 
@@ -203,8 +214,12 @@ export default function AdminPage() {
   }
 
   async function revoke(organizer: Organizer) {
+    if (!onContractChain) {
+      setNotice({ tone: "error", title: "Switch network first", message: `Switch to ${networkName} to revoke organizer access.` });
+      return;
+    }
     if (!canActOnChain) {
-      setNotice({ tone: "error", title: "On-chain admin role required", message: ADMIN_ROLE_ERROR });
+      setNotice({ tone: "error", title: "Admin wallet required", message: ADMIN_ROLE_ERROR });
       return;
     }
     if (!window.confirm(`Revoke organizer access for ${organizerAccountName(organizer)}?`)) return;
@@ -312,7 +327,7 @@ export default function AdminPage() {
     return (
       <PageShell>
         <Alert tone="error" title="Admin access required">
-          This account is not an admin. Sign in with the wallet configured in <code>ADMIN_WALLET</code>.
+          {ADMIN_ACCOUNT_ERROR}
         </Alert>
       </PageShell>
     );
@@ -330,11 +345,29 @@ export default function AdminPage() {
         </Button>
       </div>
 
-      <AdminRoleNotice
-        checking={checkingAdminRole && Boolean(address)}
-        hasRole={onChainAdminRole}
-        error={adminRoleError ? "Could not read your on-chain admin role. Check the network and try again." : null}
-      />
+      {!onContractChain ? (
+        <Alert
+          tone="warning"
+          title="Switch network to manage organizers"
+          action={
+            <Button
+              size="sm"
+              onClick={() => switchChain({ chainId: TICKET_NFT_CHAIN_ID })}
+              loading={switchingNetwork}
+            >
+              Switch network
+            </Button>
+          }
+        >
+          Your wallet is on a different network. Switch to {networkName} to approve or revoke organizer access.
+        </Alert>
+      ) : (
+        <AdminRoleNotice
+          checking={checkingAdminRole && Boolean(address)}
+          hasRole={onChainAdminRole}
+          error={adminRoleError ? "Could not read your admin role. Check the network and try again." : null}
+        />
+      )}
 
       {notice && (
         <Alert tone={notice.tone} title={notice.title}>
@@ -388,8 +421,8 @@ export default function AdminPage() {
             <div>
               <h2 className="type-heading-sm text-foreground">Pending requests</h2>
               <p className="type-body-sm text-muted-foreground">
-                Approving grants <span className="type-mono-address">ORGANIZER_ROLE</span> on-chain from your wallet. The
-                database updates after the transaction confirms.
+                Approving grants the organizer role on-chain. Your wallet will ask you to confirm the transaction, and
+                the database updates after it confirms.
               </p>
             </div>
 
@@ -420,12 +453,11 @@ export default function AdminPage() {
                       return (
                         <tr key={request.id} className="border-b border-border last:border-0">
                           <Td>
-                            <div className="flex flex-col gap-0.5">
-                              <span className="type-body-md-strong text-foreground">{organizerDisplayName(request)}</span>
+                            <NameCell name={organizerDisplayName(request)} wallet={request.wallet}>
                               {request.message && (
                                 <span className="line-clamp-1 type-body-sm text-muted-foreground">{request.message}</span>
                               )}
-                            </div>
+                            </NameCell>
                           </Td>
                           <Td className="type-body-md text-secondary-foreground">{request.user?.email ?? "—"}</Td>
                           <Td>
@@ -469,9 +501,9 @@ export default function AdminPage() {
           </section>
 
           <section className="flex flex-col gap-3">
-            <div>
+            <div className="flex items-center gap-3">
               <h2 className="type-heading-sm text-foreground">Recent decisions</h2>
-              <p className="type-body-sm text-muted-foreground">Approved and rejected requests from the past 30 days.</p>
+              <Badge tone="neutral">Past 30 days</Badge>
             </div>
 
             {recentDecisions.length === 0 ? (
@@ -495,12 +527,11 @@ export default function AdminPage() {
                     {recentDecisions.map((request) => (
                       <tr key={request.id} className="border-b border-border last:border-0">
                         <Td>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="type-body-md-strong text-foreground">{organizerDisplayName(request)}</span>
+                          <NameCell name={organizerDisplayName(request)} wallet={request.wallet}>
                             {request.status === "REJECTED" && request.rejection_reason && (
                               <span className="line-clamp-1 type-body-sm text-muted-foreground">{request.rejection_reason}</span>
                             )}
-                          </div>
+                          </NameCell>
                         </Td>
                         <Td>
                           <WalletChip wallet={request.wallet} />
@@ -530,7 +561,7 @@ export default function AdminPage() {
           <div>
             <h2 className="type-heading-sm text-foreground">Organizers</h2>
             <p className="type-body-sm text-muted-foreground">
-              Revoking removes <span className="type-mono-address">ORGANIZER_ROLE</span> on-chain from your wallet.
+              Revoking removes the organizer role on-chain. Your wallet will ask you to confirm the transaction.
             </p>
           </div>
 
@@ -561,7 +592,7 @@ export default function AdminPage() {
                     return (
                       <tr key={organizer.wallet} className="border-b border-border last:border-0">
                         <Td>
-                          <span className="type-body-md-strong text-foreground">{organizerAccountName(organizer)}</span>
+                          <NameCell name={organizerAccountName(organizer)} wallet={organizer.wallet} />
                         </Td>
                         <Td className="type-body-md text-secondary-foreground">{organizer.email ?? "—"}</Td>
                         <Td>
@@ -610,16 +641,16 @@ function AdminRoleNotice({
 }) {
   if (error) {
     return (
-      <Alert tone="error" title="Could not check your on-chain admin role" icon={ShieldAlert}>
+      <Alert tone="error" title="Could not check your admin role" icon={ShieldAlert}>
         {error}
       </Alert>
     );
   }
   if (checking) {
     return (
-      <Alert tone="info" title="Checking your on-chain admin role" icon={null}>
+      <Alert tone="info" title="Checking your admin wallet" icon={null}>
         <span className="inline-flex items-center gap-2">
-          <Spinner /> Reading <span className="type-mono-address">DEFAULT_ADMIN_ROLE</span> from the contract.
+          <Spinner /> Reading your admin role from the contract.
         </span>
       </Alert>
     );
@@ -664,6 +695,23 @@ function TabButton({
         {count}
       </span>
     </button>
+  );
+}
+
+function NameCell({ name, wallet, children }: { name: string; wallet: string; children?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary type-label-md text-primary-foreground tracking-normal"
+        aria-hidden="true"
+      >
+        {displayNameInitial(name, wallet)}
+      </span>
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="type-body-md-strong text-foreground">{name}</span>
+        {children}
+      </div>
+    </div>
   );
 }
 

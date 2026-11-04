@@ -67,6 +67,14 @@ export function organizerAccountName(organizer: Organizer): string {
   );
 }
 
+// Initial shown in the round avatar next to a name. Falls back to the wallet's
+// first character when there is no name, or when the name is just the address.
+export function displayNameInitial(name: string, wallet: string): string {
+  const trimmed = name.trim();
+  if (trimmed && !trimmed.startsWith("0x")) return trimmed[0].toUpperCase();
+  return wallet[2]?.toUpperCase() ?? "?";
+}
+
 export function formatRequestDate(value: string | null): string {
   if (!value) return "—";
   const date = new Date(value);

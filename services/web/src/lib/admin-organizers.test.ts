@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  displayNameInitial,
   formatRequestDate,
   organizerAccountName,
   organizerDisplayName,
@@ -65,6 +66,13 @@ describe("admin organizer helpers", () => {
         user: { email: null, nickname: null, first_name: null, last_name: null },
       }),
     ).toBe("0x1234…5678");
+  });
+
+  it("uses the display name's first letter, then the wallet", () => {
+    expect(displayNameInitial("Monark Events", request.wallet)).toBe("M");
+    expect(displayNameInitial("alex", request.wallet)).toBe("A");
+    expect(displayNameInitial("0x1234…5678", request.wallet)).toBe("1");
+    expect(displayNameInitial("", request.wallet)).toBe("1");
   });
 
   it("formats the request date", () => {
