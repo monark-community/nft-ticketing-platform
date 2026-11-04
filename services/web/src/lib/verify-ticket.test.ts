@@ -177,12 +177,13 @@ describe("verifyTicketQR", () => {
     );
   });
 
-  it("rejects a ticket that has already been used", async () => {
+  it("rejects a ticket that has already been checked in", async () => {
     const client = fakeClient({ isValidTicket: false, isUsed: true });
     const result = await verify(await makeQR(), client);
 
     expect(result.ok).toBe(false);
-    expect(result.reason).toBe("This ticket has already been used.");
+    expect(result.reason).toBe("This ticket has already been checked in.");
+    expect(result.used).toBe(true);
   });
 
   it("rejects a ticket that does not exist", async () => {
