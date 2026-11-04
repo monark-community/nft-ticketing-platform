@@ -254,12 +254,24 @@ export default function AdminPage() {
         message: `${organizerAccountName(organizer)} can no longer create events.`,
       });
       await loadData();
-    } catch {
-      setNotice({
-        tone: "warning",
-        title: "Revoked on-chain, but the database was not updated",
-        message: "The role was revoked. Refresh in a moment and the listener will save it, or try again.",
-      });
+    } catch (err) {
+      // The listener can save the on-chain revoke before this request arrives, so
+      // the API reports that the user is already back to attendee. That is the
+      // outcome we wanted, not a failed database update.
+      if (err instanceof Error && err.message === "User is not an organizer") {
+        setNotice({
+          tone: "success",
+          title: "Organizer access revoked",
+          message: `${organizerAccountName(organizer)} can no longer create events.`,
+        });
+        await loadData();
+      } else {
+        setNotice({
+          tone: "warning",
+          title: "Revoked on-chain, but the database was not updated",
+          message: "The role was revoked. Refresh in a moment and the listener will save it, or try again.",
+        });
+      }
     } finally {
       setSyncing(false);
       setActiveAction(null);
