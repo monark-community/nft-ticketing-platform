@@ -1,9 +1,21 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { ethers } from 'ethers';
-import { Event, TicketType } from '@prisma/client';
+import { Event, Prisma, TicketType } from '@prisma/client';
 import { prisma } from '../src/lib/prisma';
 import { TICKET_NFT_ABI } from '../src/lib/ticketNft';
-import { MAX_BLOCK_RANGE, SYNCED_EVENTS, createLogPoller, handleEvent, startBlockchainListener } from '../src/workers/blockchain.listener';
+import {
+  MAX_BLOCK_RANGE,
+  RATE_LIMIT_RETRIES,
+  REORG_OVERLAP,
+  SYNCED_EVENTS,
+  createLogPoller,
+  deployBlockFromEnv,
+  handleEvent,
+  isDatabaseUnavailable,
+  isRangeTooLarge,
+  isRateLimited,
+  startBlockchainListener,
+} from '../src/workers/blockchain.listener';
 import { resetDb, createUser, createEvent, createTicketType, randomWallet, fakePayload } from './helpers/db';
 
 // startBlockchainListener() must not reach a real node: count the providers it creates instead
@@ -26,6 +38,17 @@ const handlers = new Proxy({} as Record<string, (...args: any[]) => Promise<void
     const withLog = last !== null && typeof last === 'object' && 'log' in last;
     await handleEvent(eventName, withLog ? args.slice(0, -1) : args, withLog ? last.log : undefined);
   },
+});
+
+// Makes the next matching query fail with a Prisma error, as if the database dropped or timed out
+let dbFailNext: { model: string; action: string; code: string; message: string } | null = null;
+prisma.$use(async (params, next) => {
+  if (dbFailNext && params.model === dbFailNext.model && params.action === dbFailNext.action) {
+    const { code, message } = dbFailNext;
+    dbFailNext = null;
+    throw new Prisma.PrismaClientKnownRequestError(message, { code, clientVersion: Prisma.prismaVersion.client });
+  }
+  return next(params);
 });
 
 // Addresses arrive from the chain checksummed (mixed case)
@@ -55,6 +78,19 @@ describe('blockchain listener setup', () => {
       vi.clearAllTimers();
       vi.useRealTimers();
     }
+  });
+});
+
+describe('CONTRACT_DEPLOY_BLOCK', () => {
+  it('reads a block number, and ignores anything else', () => {
+    expect(deployBlockFromEnv('9412345')).toBe(9412345);
+    expect(deployBlockFromEnv(' 3 ')).toBe(3);
+    expect(deployBlockFromEnv('0')).toBe(0);
+    expect(deployBlockFromEnv('')).toBeNull();
+    expect(deployBlockFromEnv(undefined)).toBeNull();
+    expect(deployBlockFromEnv('0x10')).toBeNull();
+    expect(deployBlockFromEnv('-1')).toBeNull();
+    expect(deployBlockFromEnv('12.5')).toBeNull();
   });
 });
 
@@ -440,12 +476,23 @@ describe('blockchain listener database updates', () => {
       expect(log.checked_in_at).toEqual(new Date(1_900_000_500 * 1000));
     });
 
-    it('still marks the ticket USED when the scanner has no account, but cannot log it', async () => {
-      await handlers.TicketCheckedIn(1n, checksummed());
+    it('logs a check-in by a scanner wallet that never signed in (#117)', async () => {
+      const scanner = checksummed();
+      await handlers.TicketCheckedIn(1n, scanner);
 
       const ticket = await prisma.ticket.findUnique({ where: { token_id: 1n } });
       expect(ticket!.status).toBe('USED');
-      expect(await prisma.checkinLog.count()).toBe(0);
+      const [log] = await prisma.checkinLog.findMany({ where: { token_id: 1n } });
+      expect(log.scanner_wallet).toBe(scanner.toLowerCase());
+      // An empty account, like the one signing in creates
+      expect(await prisma.user.findUnique({ where: { wallet_address: scanner.toLowerCase() } })).toMatchObject({ role: 'USER', email: null });
+    });
+
+    it("keeps the scanner's account as it is", async () => {
+      const scanner = await createUser({ role: 'SCANNER', email: 'door@example.com' });
+      await handlers.TicketCheckedIn(1n, ethers.getAddress(scanner.wallet_address));
+
+      expect(await prisma.user.findUnique({ where: { wallet_address: scanner.wallet_address } })).toMatchObject({ role: 'SCANNER', email: 'door@example.com' });
     });
   });
 
@@ -468,6 +515,9 @@ describe('blockchain listener database updates', () => {
       } as unknown as ethers.Log;
     }
 
+    // getLogsError(from, to) returns the error the node answers a request with, if any
+    let getLogsError: ((fromBlock: number, toBlock: number) => Error | null) | null;
+
     // Just the calls the poller makes
     const provider = {
       getNetwork: async () => {
@@ -484,6 +534,8 @@ describe('blockchain listener database updates', () => {
           failNext = false;
           throw new Error('RPC unavailable');
         }
+        const err = getLogsError?.(fromBlock, toBlock);
+        if (err) throw err;
         return chainLogs.filter((l) => l.blockNumber >= fromBlock && l.blockNumber <= toBlock);
       },
     } as unknown as ethers.Provider;
@@ -495,7 +547,12 @@ describe('blockchain listener database updates', () => {
       unreachable = false;
       chainId = 11155111n; // Sepolia
       requests = [];
+      getLogsError = null;
     });
+
+    // Errors as ethers reports them: the node's own error is in err.error
+    const rpcError = (code: number, message: string) => Object.assign(new Error(`could not coalesce error (error={ "code": ${code}, "message": "${message}" })`), { code: 'UNKNOWN_ERROR', error: { code, message } });
+    const cursor = () => prisma.syncState.findUnique({ where: { id: `${chainId}:${CONTRACT}` } });
 
     it('handles events in the order they happened, across event types', async () => {
       const poller = createLogPoller(provider, CONTRACT);
@@ -547,14 +604,69 @@ describe('blockchain listener database updates', () => {
       await poller.start();
       chainLogs = [
         chainLog('TicketMinted', [1n, 5n, 0n, checksummed(), 'ipfs://ticket'], 101, 0),
-        // A scanner with no account: the check-in log can't be saved and the handler fails
-        chainLog('TicketCheckedIn', [1n, checksummed()], 101, 1),
+        // A price too big for the database: the listing can't be saved and the handler fails
+        chainLog('TicketListed', [1n, checksummed(), 10n ** 30n], 101, 1),
         chainLog('SaleStatusUpdated', [5n, true], 101, 2),
       ];
       blockNumber = 101;
       await poller.poll();
 
+      expect(await prisma.listing.count()).toBe(0);
       expect((await prisma.event.findUnique({ where: { id: event.id } }))!.sale_active).toBe(true);
+    });
+
+    it("reads the same blocks again when the database can't be reached, without counting anything twice", async () => {
+      const buyer = checksummed();
+      chainLogs = [
+        chainLog('TicketMinted', [1n, 5n, 0n, buyer, 'ipfs://ticket'], 95, 0),
+        chainLog('TicketPurchased', [1n, 5n, 0n, buyer, 15_000_000n], 95, 1),
+        chainLog('SaleStatusUpdated', [5n, true], 96, 0),
+      ];
+      // The database drops while the third event is saved
+      dbFailNext = { model: 'Event', action: 'updateMany', code: 'P1001', message: "Can't reach database server" };
+      const poller = createLogPoller(provider, CONTRACT, { deployBlock: 90 });
+      await poller.start();
+      await expect(poller.poll()).rejects.toThrow("Can't reach database server");
+      expect(dbFailNext).toBeNull();
+      expect(await cursor()).toBeNull(); // the blocks aren't marked as read
+
+      await poller.poll();
+
+      expect(requests).toEqual([{ fromBlock: 90, toBlock: 100 }, { fromBlock: 90, toBlock: 100 }]);
+      expect((await prisma.event.findUnique({ where: { id: event.id } }))!.sale_active).toBe(true);
+      expect(await prisma.ticket.count()).toBe(1);
+      expect((await prisma.ticketType.findUnique({ where: { id: ticketType.id } }))!.sold).toBe(1);
+      expect((await cursor())!.last_block).toBe(100);
+    });
+
+    it('reads a check-in again when its transaction times out', async () => {
+      const scanner = checksummed();
+      chainLogs = [
+        chainLog('TicketMinted', [1n, 5n, 0n, checksummed(), 'ipfs://ticket'], 95, 0),
+        chainLog('TicketCheckedIn', [1n, scanner], 96, 0),
+      ];
+      // The scanner's account is saved inside the check-in's transaction
+      dbFailNext = { model: 'User', action: 'upsert', code: 'P2028', message: 'Transaction API error: Transaction already closed' };
+      const poller = createLogPoller(provider, CONTRACT, { deployBlock: 90 });
+      await poller.start();
+      await expect(poller.poll()).rejects.toThrow('Transaction already closed');
+      // Rolled back: the ticket isn't USED without its log
+      expect((await prisma.ticket.findUnique({ where: { token_id: 1n } }))!.status).toBe('VALID');
+
+      await poller.poll();
+
+      expect((await prisma.ticket.findUnique({ where: { token_id: 1n } }))!.status).toBe('USED');
+      expect(await prisma.checkinLog.count({ where: { token_id: 1n, scanner_wallet: scanner.toLowerCase() } })).toBe(1);
+    });
+
+    it('tells a database that is down from an event that cannot be saved', () => {
+      const known = (code: string) => new Prisma.PrismaClientKnownRequestError('error', { code, clientVersion: Prisma.prismaVersion.client });
+      for (const code of ['P1001', 'P1002', 'P1008', 'P1017', 'P2024', 'P2028']) expect(isDatabaseUnavailable(known(code))).toBe(true);
+      expect(isDatabaseUnavailable(new Prisma.PrismaClientInitializationError("Can't reach database server", Prisma.prismaVersion.client))).toBe(true);
+      // A unique constraint or a value too big for its column: the event's own problem
+      expect(isDatabaseUnavailable(known('P2002'))).toBe(false);
+      expect(isDatabaseUnavailable(known('P2020'))).toBe(false);
+      expect(isDatabaseUnavailable(new Error('numeric field overflow'))).toBe(false);
     });
 
     it(`asks for at most ${MAX_BLOCK_RANGE} blocks at a time`, async () => {
@@ -570,19 +682,214 @@ describe('blockchain listener database updates', () => {
       ]);
     });
 
-    it('starts from the next block, and reads a restarted local chain from block 0', async () => {
+    it('reads a local chain from block 0 when it starts, and again when the chain restarts', async () => {
       chainId = 31337n; // Hardhat
+      chainLogs = [chainLog('SaleStatusUpdated', [5n, true], 50, 0)];
       const poller = createLogPoller(provider, CONTRACT);
       await poller.start();
       await poller.poll();
-      expect(requests).toEqual([]); // nothing new since it started at block 100
+      expect(requests).toEqual([{ fromBlock: 0, toBlock: 100 }]);
+      expect((await prisma.event.findUnique({ where: { id: event.id } }))!.sale_active).toBe(true);
 
+      requests = [];
       blockNumber = 3; // a new local chain
-      chainLogs = [chainLog('SaleStatusUpdated', [5n, true], 2, 0)];
+      chainLogs = [chainLog('SaleStatusUpdated', [5n, false], 2, 0)];
       await poller.poll();
 
       expect(requests).toEqual([{ fromBlock: 0, toBlock: 3 }]);
-      expect((await prisma.event.findUnique({ where: { id: event.id } }))!.sale_active).toBe(true);
+      expect((await prisma.event.findUnique({ where: { id: event.id } }))!.sale_active).toBe(false);
+    });
+
+    it('reads a local chain from the start even with a saved block, since it may be a new chain', async () => {
+      chainId = 31337n;
+      await prisma.syncState.create({ data: { id: `31337:${CONTRACT}`, last_block: 80 } });
+      const poller = createLogPoller(provider, CONTRACT, { deployBlock: 3 });
+      await poller.start();
+      await poller.poll();
+      expect(requests).toEqual([{ fromBlock: 3, toBlock: 100 }]);
+    });
+
+    describe('catching up after a restart (#119)', () => {
+      it('saves the last block it read', async () => {
+        const poller = createLogPoller(provider, CONTRACT, { deployBlock: 10 });
+        await poller.start();
+        await poller.poll();
+        expect((await cursor())!.last_block).toBe(100);
+
+        blockNumber = 120;
+        await poller.poll();
+        expect((await cursor())!.last_block).toBe(120);
+      });
+
+      it('reads the events from while the API was down when it starts again', async () => {
+        const first = createLogPoller(provider, CONTRACT, { deployBlock: 10 });
+        await first.start();
+        await first.poll(); // read up to block 100, then the API stops
+
+        // Bought while the API was down
+        const buyer = checksummed();
+        chainLogs = [
+          chainLog('TicketMinted', [1n, 5n, 0n, buyer, 'ipfs://ticket'], 150, 0),
+          chainLog('TicketPurchased', [1n, 5n, 0n, buyer, 15_000_000n], 150, 1),
+        ];
+        blockNumber = 160;
+        requests = [];
+
+        const second = createLogPoller(provider, CONTRACT, { deployBlock: 10 });
+        await second.start();
+        await second.poll();
+
+        // From a few blocks before the saved one, in case a reorg replaced them
+        expect(requests).toEqual([{ fromBlock: 101 - REORG_OVERLAP, toBlock: 160 }]);
+        const ticket = await prisma.ticket.findUnique({ where: { token_id: 1n } });
+        expect(ticket).toMatchObject({ owner_wallet: buyer.toLowerCase() });
+        expect((await prisma.ticketType.findUnique({ where: { id: ticketType.id } }))!.sold).toBe(1);
+      });
+
+      it('reads the blocks it read before the stop again without counting anything twice', async () => {
+        const buyer = checksummed();
+        chainLogs = [
+          chainLog('TicketMinted', [1n, 5n, 0n, buyer, 'ipfs://ticket'], 99, 0),
+          chainLog('TicketPurchased', [1n, 5n, 0n, buyer, 15_000_000n], 99, 1),
+          chainLog('RevenueWithdrawn', [5n, ethers.getAddress(event.organizer_wallet), 15_000_000n], 100, 0),
+        ];
+        const first = createLogPoller(provider, CONTRACT, { deployBlock: 10 });
+        await first.start();
+        await first.poll();
+
+        const second = createLogPoller(provider, CONTRACT, { deployBlock: 10 });
+        await second.start();
+        await second.poll(); // blocks 96 to 100 again
+
+        expect(await prisma.ticket.count()).toBe(1);
+        expect((await prisma.ticketType.findUnique({ where: { id: ticketType.id } }))!.sold).toBe(1);
+        expect(await prisma.withdrawal.count()).toBe(1);
+      });
+
+      it('starts at the deploy block the first time', async () => {
+        const poller = createLogPoller(provider, CONTRACT, { deployBlock: 40 });
+        await poller.start();
+        await poller.poll();
+        expect(requests).toEqual([{ fromBlock: 40, toBlock: 100 }]);
+      });
+
+      it('never reads before the deploy block', async () => {
+        await prisma.syncState.create({ data: { id: `${chainId}:${CONTRACT}`, last_block: 41 } });
+        const poller = createLogPoller(provider, CONTRACT, { deployBlock: 40 });
+        await poller.start();
+        await poller.poll();
+        expect(requests).toEqual([{ fromBlock: 40, toBlock: 100 }]);
+      });
+
+      it("doesn't use the saved block of another contract", async () => {
+        await prisma.syncState.create({ data: { id: `${chainId}:0x0000000000000000000000000000000000000002`, last_block: 90 } });
+        const poller = createLogPoller(provider, CONTRACT, { deployBlock: 40 });
+        await poller.start();
+        await poller.poll();
+        expect(requests).toEqual([{ fromBlock: 40, toBlock: 100 }]);
+      });
+
+      it('without a deploy block or a saved block, starts from the next block', async () => {
+        const poller = createLogPoller(provider, CONTRACT);
+        await poller.start();
+        await poller.poll();
+        expect(requests).toEqual([]);
+
+        blockNumber = 101;
+        await poller.poll();
+        expect(requests).toEqual([{ fromBlock: 101, toBlock: 101 }]);
+      });
+
+      it('waits when the saved block is ahead of a node that is behind', async () => {
+        await prisma.syncState.create({ data: { id: `${chainId}:${CONTRACT}`, last_block: 120 } });
+        const poller = createLogPoller(provider, CONTRACT, { deployBlock: 10 });
+        await poller.start(); // carries on from block 116
+        await poller.poll(); // the node is at block 100
+        expect(requests).toEqual([]);
+
+        blockNumber = 125;
+        await poller.poll();
+        expect(requests).toEqual([{ fromBlock: 121 - REORG_OVERLAP, toBlock: 125 }]);
+      });
+
+      it('does not save a block whose events it could not read', async () => {
+        const poller = createLogPoller(provider, CONTRACT, { deployBlock: 10 });
+        await poller.start();
+        failNext = true;
+        await expect(poller.poll()).rejects.toThrow('RPC unavailable');
+        expect(await cursor()).toBeNull();
+      });
+    });
+
+    describe('when the RPC refuses a request', () => {
+      it('splits a range that is too big for one request in half until it fits', async () => {
+        // Like Pinax's "query exceeds max results": only 300 blocks fit in one request here
+        getLogsError = (from, to) => (to - from + 1 > 300 ? rpcError(-32602, 'query exceeds max results 20000, retry with the range 1-300') : null);
+        chainLogs = [chainLog('SaleStatusUpdated', [5n, true], 700, 0)];
+        const poller = createLogPoller(provider, CONTRACT, { deployBlock: 0 });
+        blockNumber = 799;
+        await poller.start();
+        await poller.poll();
+
+        const answered = requests.filter(({ fromBlock, toBlock }) => toBlock - fromBlock + 1 <= 300);
+        // Every block read exactly once, in order
+        expect(answered.map((r) => [r.fromBlock, r.toBlock])).toEqual([
+          [0, 199], [200, 399], [400, 599], [600, 799], // 800 blocks, then 400, then 200 at a time
+        ]);
+        expect((await prisma.event.findUnique({ where: { id: event.id } }))!.sale_active).toBe(true);
+        expect((await cursor())!.last_block).toBe(799);
+      });
+
+      it('gives up when even one block is too big, and tries again on the next poll', async () => {
+        getLogsError = () => rpcError(-32602, 'query exceeds max results 20000');
+        const poller = createLogPoller(provider, CONTRACT, { deployBlock: 100 });
+        await poller.start();
+        await expect(poller.poll()).rejects.toThrow('max results');
+        expect(requests).toEqual([{ fromBlock: 100, toBlock: 100 }]);
+      });
+
+      it('waits and asks again for the same blocks when rate limited', async () => {
+        let limited = 2;
+        getLogsError = () => (limited-- > 0 ? rpcError(-32005, 'Too Many Requests') : null);
+        const waits: number[] = [];
+        const poller = createLogPoller(provider, CONTRACT, { deployBlock: 90, sleep: async (ms) => void waits.push(ms) });
+        await poller.start();
+        await poller.poll();
+
+        expect(waits).toEqual([1000, 2000]);
+        expect(requests).toEqual([
+          { fromBlock: 90, toBlock: 100 },
+          { fromBlock: 90, toBlock: 100 },
+          { fromBlock: 90, toBlock: 100 },
+        ]);
+        expect((await cursor())!.last_block).toBe(100);
+      });
+
+      it('stops waiting after a few tries, then reads the same blocks on the next poll', async () => {
+        getLogsError = () => rpcError(429, 'rate limit exceeded');
+        const waits: number[] = [];
+        const poller = createLogPoller(provider, CONTRACT, { deployBlock: 90, sleep: async (ms) => void waits.push(ms) });
+        await poller.start();
+        await expect(poller.poll()).rejects.toThrow('rate limit');
+        expect(waits).toHaveLength(RATE_LIMIT_RETRIES);
+        expect(requests).toHaveLength(RATE_LIMIT_RETRIES + 1);
+
+        getLogsError = null;
+        requests = [];
+        await poller.poll();
+        expect(requests).toEqual([{ fromBlock: 90, toBlock: 100 }]);
+      });
+
+      it('tells range limits from rate limits and other errors', () => {
+        expect(isRangeTooLarge(rpcError(-32602, 'query exceeds max block range 100000'))).toBe(true);
+        expect(isRangeTooLarge(rpcError(-32701, 'exceed maximum block range: 50000'))).toBe(true);
+        expect(isRangeTooLarge(rpcError(-32005, 'query returned more than 10000 results'))).toBe(true);
+        expect(isRangeTooLarge(rpcError(-32005, 'daily request count exceeded, request rate limited'))).toBe(false);
+        expect(isRateLimited(rpcError(-32005, 'daily request count exceeded, request rate limited'))).toBe(true);
+        expect(isRateLimited(Object.assign(new Error('response throttled'), { code: 'SERVER_ERROR' }))).toBe(true);
+        expect(isRangeTooLarge(new Error('connect ECONNREFUSED 127.0.0.1:8545'))).toBe(false);
+        expect(isRateLimited(new Error('connect ECONNREFUSED 127.0.0.1:8545'))).toBe(false);
+      });
     });
 
     it('waits for a Sepolia node that is behind instead of reading the chain again from block 0', async () => {

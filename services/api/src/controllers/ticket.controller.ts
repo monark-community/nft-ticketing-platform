@@ -1,15 +1,34 @@
 import { Request, Response } from 'express';
 import {
+  getTicketsByOwner,
   getTicketsByWallet,
   getTicketByTokenId,
   validateTicket,
 } from '../services/ticket.service';
+import { isWalletAddress } from '../lib/validation';
+import logger from '../lib/logger';
 
 export async function getMyTickets(req: Request, res: Response): Promise<void> {
   try {
     const tickets = await getTicketsByWallet(req.user!.wallet_address);
     res.json(tickets);
   } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch tickets' });
+  }
+}
+
+// GET /api/tickets/owner/:address (#219)
+export async function getOwnerTickets(req: Request, res: Response): Promise<void> {
+  const { address } = req.params;
+  if (!isWalletAddress(address)) {
+    res.status(400).json({ error: 'address must be a wallet address' });
+    return;
+  }
+
+  try {
+    res.json({ tickets: await getTicketsByOwner(address) });
+  } catch (err) {
+    logger.error('Failed to fetch tickets by owner', { error: err });
     res.status(500).json({ error: 'Failed to fetch tickets' });
   }
 }
