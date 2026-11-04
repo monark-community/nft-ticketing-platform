@@ -187,6 +187,13 @@
 }
 @utility animate-pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
 
+/* Scanner: orange line sweeping across the camera frame (#287) */
+@keyframes scan-line {
+  0%, 100% { top: 12%; }
+  50% { top: 88%; }
+}
+@utility animate-scan-line { animation: scan-line 2.4s ease-in-out infinite; }
+
 /* Respect reduced motion everywhere */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

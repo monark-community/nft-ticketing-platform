@@ -9,6 +9,39 @@ export async function getTicketsByWallet(walletAddress: string) {
   });
 }
 
+// GET /api/tickets/owner/:address (#219): the tickets a wallet holds, for My Tickets. Ownership is
+// public on-chain, so this needs no sign-in. The listener keeps owners in line with the contract.
+export async function getTicketsByOwner(walletAddress: string) {
+  const tickets = await prisma.ticket.findMany({
+    where: { owner_wallet: walletAddress.toLowerCase() },
+    include: { event: true, ticket_type: true, listing: true },
+    orderBy: [{ minted_at: 'desc' }, { token_id: 'asc' }],
+  });
+
+  return tickets.map(({ event, ticket_type: type, listing, ...ticket }) => ({
+    token_id: ticket.token_id,
+    owner_wallet: ticket.owner_wallet,
+    status: ticket.status,
+    used_at: ticket.used_at,
+    minted_at: ticket.minted_at,
+    face_value: ticket.face_value,
+    purchase_price: ticket.purchase_price,
+    // The resale price when the ticket is listed
+    listing_price: listing?.price ?? null,
+    event: {
+      id: event.id,
+      contract_event_id: event.contract_event_id,
+      title: event.title,
+      location: event.location,
+      category: event.category,
+      start_date: event.start_date,
+      end_date: event.end_date,
+      image_url: event.image_url,
+    },
+    ticket_type: { id: type.id, name: type.name, contract_type_id: type.contract_type_id },
+  }));
+}
+
 export async function getTicketByTokenId(tokenId: bigint) {
   return prisma.ticket.findUnique({
     where: { token_id: tokenId },
@@ -63,6 +96,22 @@ export async function createTicketType(
       metadata: data.metadata as Prisma.InputJsonValue | undefined,
     },
   });
+}
+
+// The create event flow (#187) lets organizers remove a ticket type while the event is a draft.
+// Once frozen, the types are pinned to IPFS and go on-chain, so they can't be removed.
+export async function deleteTicketType(id: string, organizerWallet: string) {
+  const ticketType = await prisma.ticketType.findUnique({
+    where: { id },
+    include: { event: true },
+  });
+
+  if (!ticketType) return null;
+  if (ticketType.event.organizer_wallet !== organizerWallet) return 'forbidden';
+  if (ticketType.event.status !== EventStatus.DRAFT) return 'frozen';
+
+  await prisma.ticketType.delete({ where: { id } });
+  return 'deleted';
 }
 
 export async function updateTicketType(

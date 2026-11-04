@@ -14,6 +14,7 @@ export interface ApiTicketType {
   price: string; // e.g. "15" or "15.00000000"
   supply: number;
   sold: number;
+  contract_type_id: number | null; // the type's ID on TicketNFT, once it's added on-chain (#216)
   created_at: string;
 }
 
@@ -52,11 +53,19 @@ export interface EventTier {
   remaining: number;
 }
 
-// The API returns ticket types in no particular order. They are created in the same order as on
-// the contract, so creation order gives each row's on-chain type ID.
-// TODO(#216): match on contract_type_id once the API stores it, instead of relying on order.
+// The API returns ticket types in no particular order: this is the order they were created in
 export function sortTicketTypes(types: ApiTicketType[]): ApiTicketType[] {
   return [...types].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
+}
+
+// The API's ticket type for an on-chain type ID (#216). Once the API has linked the event's types
+// to the contract, only that link counts. Before then (an API that hasn't synced the event yet),
+// types are added on-chain in creation order, so that order is the best guess.
+export function ticketTypeForTypeId(types: ApiTicketType[], typeId: number): ApiTicketType | undefined {
+  if (types.some((t) => t.contract_type_id !== null && t.contract_type_id !== undefined)) {
+    return types.find((t) => t.contract_type_id === typeId);
+  }
+  return sortTicketTypes(types)[typeId];
 }
 
 export function buildTiers(apiTypes: ApiTicketType[], chainTypes: OnChainTicketType[] | null, usdcDecimals: number): EventTier[] {
@@ -65,7 +74,7 @@ export function buildTiers(apiTypes: ApiTicketType[], chainTypes: OnChainTicketT
   // On-chain: the contract decides which types exist, their price and supply
   if (chainTypes && chainTypes.length > 0) {
     return chainTypes.map((type) => {
-      const details = sorted[type.typeId];
+      const details = ticketTypeForTypeId(apiTypes, type.typeId);
       return {
         key: details?.id ?? `type-${type.typeId}`,
         typeId: type.typeId,

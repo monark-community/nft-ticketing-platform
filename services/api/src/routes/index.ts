@@ -4,6 +4,7 @@ import userRoutes from './user.routes';
 import eventRoutes from './event.routes';
 import ticketTypeRoutes from './ticketType.routes';
 import ticketRoutes from './ticket.routes';
+import listingRoutes from './listing.routes';
 import adminRoutes from './admin.routes';
 
 const router = Router();
@@ -13,6 +14,7 @@ router.use('/users', userRoutes);
 router.use('/events', eventRoutes);
 router.use('/ticket-types', ticketTypeRoutes);
 router.use('/tickets', ticketRoutes);
+router.use('/listings', listingRoutes);
 router.use('/admin', adminRoutes);
 
 export default router;

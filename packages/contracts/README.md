@@ -65,7 +65,7 @@ npx hardhat node
 npx hardhat run scripts/deploy.ts --network localhost
 ```
 
-On a fresh node, a local deploy leaves git clean: `services/web/src/contracts/addresses.json` already holds the local addresses. If `TicketNFT.json` changes, the contract's ABI changed: commit it with your contract change.
+On a fresh node, a local deploy leaves git clean: `services/web/src/contracts/addresses.json` already holds the local addresses and the block TicketNFT was deployed in (`deployBlock`). On another network, put that block in `CONTRACT_DEPLOY_BLOCK` in `services/api/.env` so the API reads the contract's events from there. If `TicketNFT.json` changes, the contract's ABI changed: commit it with your contract change.
 
 ## Local Test Data
 

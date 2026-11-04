@@ -75,7 +75,7 @@ export async function updateEvent(
     location?: string;
     category?: string;
     start_date?: string;
-    end_date?: string;
+    end_date?: string | null; // null clears it
     image_url?: string;
   }
 ) {
@@ -95,7 +95,8 @@ export async function updateEvent(
       location,
       category,
       start_date: start_date ? new Date(start_date) : undefined,
-      end_date: end_date ? new Date(end_date) : undefined,
+      // null removes the end date; leaving it out keeps the current one
+      end_date: end_date === null ? null : end_date ? new Date(end_date) : undefined,
       image_url,
     },
   });
@@ -105,7 +106,8 @@ export async function freezeEvent(
   id: string,
   organizerWallet: string,
   ipfsHash: string,
-  ticketPins: Array<{ id: string; ipfsHash: string }> = []
+  ticketPins: Array<{ id: string; ipfsHash: string }> = [],
+  imageUrl?: string
 ) {
   const event = await prisma.event.findUnique({
     where: { id },
@@ -123,7 +125,8 @@ export async function freezeEvent(
   await prisma.$transaction([
     prisma.event.update({
       where: { id },
-      data: { ipfs_hash: ipfsHash, status: EventStatus.FROZEN },
+      // The cover image pinned at freeze is what the event page and cards show (#187)
+      data: { ipfs_hash: ipfsHash, status: EventStatus.FROZEN, ...(imageUrl ? { image_url: imageUrl } : {}) },
     }),
     ...ticketPins.map((pin) =>
       prisma.ticketType.update({
