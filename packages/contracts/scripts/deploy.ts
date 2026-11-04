@@ -29,6 +29,13 @@ async function main() {
     const address = await contract.getAddress();
     console.log("TicketNFT deployed to:", address);
 
+    // The block the proxy was deployed in: the API's listener reads the contract's events from here
+    // (CONTRACT_DEPLOY_BLOCK, #242). Its initialize() runs in the same transaction.
+    const receipt = await contract.deploymentTransaction()?.wait();
+    if (!receipt) throw new Error("Could not read the TicketNFT deployment transaction");
+    const deployBlock = receipt.blockNumber;
+    console.log("TicketNFT deploy block:", deployBlock);
+
     // Grant the ORGANIZER_ROLE to the second signer if available
     if (signers.length > 1) {
         const organizer = signers[1];
@@ -42,10 +49,10 @@ async function main() {
     }
 
     // Export the ABI and addresses to the frontend
-    await exportToFrontend(address, usdcAddress);
+    await exportToFrontend(address, usdcAddress, deployBlock);
 }
 
-async function exportToFrontend(ticketNFTAddress: string, usdcAddress: string) {
+async function exportToFrontend(ticketNFTAddress: string, usdcAddress: string, deployBlock: number) {
         const targetDir = path.resolve(__dirname, "../../..", "services", "web", "src", "contracts");
 
         if (!fs.existsSync(targetDir)) {
@@ -67,6 +74,7 @@ async function exportToFrontend(ticketNFTAddress: string, usdcAddress: string) {
             const addresses = {
                 TicketNFT: ticketNFTAddress,
                 MockUSDC: usdcAddress,
+                deployBlock,
                 network: network.name,
                 chainId: Number(currentNetwork.chainId),
             };
