@@ -100,6 +100,8 @@ export function cameraErrorMessage(error: CameraError): string {
     return "No camera found. Connect a camera or open this page on a phone.";
   }
   if (name === "NotReadableError" || kind === "in-use") return "The camera is in use by another app. Close it, then reload this page.";
+  // Opened over plain http (e.g. the laptop's local IP on a phone): browsers only allow the camera on https or localhost
+  if (kind === "insecure-context") return "The camera needs a secure (https) page. Open the scanner over https, or on localhost.";
 
   const text = error?.message?.trim();
   const sentence = !text ? "The camera couldn't start." : /[.!?]$/.test(text) ? text : `${text}.`;

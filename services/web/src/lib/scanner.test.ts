@@ -140,6 +140,12 @@ describe("cameraErrorMessage", () => {
     expect(cameraErrorMessage(dom("NotReadableError"))).toBe("The camera is in use by another app. Close it, then reload this page.");
   });
 
+  it("asks for https when the page isn't a secure context", () => {
+    expect(cameraErrorMessage({ kind: "insecure-context", message: "" })).toBe(
+      "The camera needs a secure (https) page. Open the scanner over https, or on localhost.",
+    );
+  });
+
   it("reads the name from the error itself or the library's kind too", () => {
     expect(cameraErrorMessage({ name: "NotFoundError", message: "" })).toBe("No camera found. Connect a camera or open this page on a phone.");
     expect(cameraErrorMessage({ kind: "in-use", message: "" })).toBe("The camera is in use by another app. Close it, then reload this page.");
