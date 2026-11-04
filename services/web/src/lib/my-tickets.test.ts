@@ -21,8 +21,8 @@ import { buildCheckInMessage } from "./ticket-qr";
 
 const NOW = Date.parse("2026-10-30T12:00:00Z");
 
-function type(name: string, createdAt: string): ApiTicketType {
-  return { id: name, event_id: "e", name, description: null, price: "15", supply: 100, sold: 0, created_at: createdAt };
+function type(name: string, createdAt: string, contractTypeId: number | null = null): ApiTicketType {
+  return { id: name, event_id: "e", name, description: null, price: "15", supply: 100, sold: 0, contract_type_id: contractTypeId, created_at: createdAt };
 }
 
 function event(overrides: Partial<ApiEvent> = {}): ApiEvent {
@@ -73,7 +73,15 @@ describe("indexEventsByChainId", () => {
 });
 
 describe("ticketTypeName", () => {
-  it("maps the on-chain type ID to the API name by creation order", () => {
+  it("maps the on-chain type ID to the API name by its contract_type_id (#216)", () => {
+    const linked = event({
+      ticket_types: [type("VIP", "2026-10-01T10:00:00Z", 1), type("General Admission", "2026-10-01T10:00:01Z", 0)],
+    });
+    expect(ticketTypeName(linked, 0)).toBe("General Admission");
+    expect(ticketTypeName(linked, 1)).toBe("VIP");
+  });
+
+  it("uses creation order while the API hasn't linked the types yet", () => {
     expect(ticketTypeName(event(), 0)).toBe("General Admission");
     expect(ticketTypeName(event(), 2)).toBe("Early Bird");
   });

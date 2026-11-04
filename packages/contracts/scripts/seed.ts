@@ -20,7 +20,7 @@ const DAY = 24 * 60 * 60;
 
 const usdc = (amount: number) => ethers.parseUnits(amount.toString(), 6);
 
-// Same tiers, in the same order, as the database seed (order = on-chain type ID until #216)
+// Same tiers, in the same order, as the database seed (order = on-chain type ID = contract_type_id)
 const TIERS = [
   { name: "General Admission", price: 15, supply: 1000 },
   { name: "VIP", price: 28, supply: 300 },

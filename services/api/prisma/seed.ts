@@ -61,16 +61,23 @@ const events = [
 	},
 ];
 
-// Same tiers, in the same order, as the on-chain seed. Until #216 adds contract_type_id,
-// the order is what links each row to its on-chain type ID (0, 1, 2).
+// Same tiers, in the same order, as the on-chain seed: each tier's position is its on-chain
+// type ID (contract_type_id 0, 1, 2), which the listener uses to save each ticket's type (#216)
 const tiers = [
 	{ slug: "general-admission", name: "General Admission", description: "Orchestra floor seating", price: "15.00", supply: 1000 },
 	{ slug: "vip", name: "VIP", description: "Balcony box and reception", price: "28.00", supply: 300 },
 	{ slug: "early-bird", name: "Early Bird", description: "Discounted early tickets", price: "10.00", supply: 2 },
 ];
 
+// sold starts at 0: the listener counts the on-chain seed's purchases (#215)
 const ticketTypes = events.flatMap((event) =>
-	tiers.map(({ slug, ...tier }) => ({ id: `${event.id}-${slug}`, event_id: event.id, ...tier })),
+	tiers.map(({ slug, ...tier }, typeId) => ({
+		id: `${event.id}-${slug}`,
+		event_id: event.id,
+		...tier,
+		contract_type_id: typeId,
+		sold: 0,
+	})),
 );
 
 async function main() {

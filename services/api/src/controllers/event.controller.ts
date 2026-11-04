@@ -8,6 +8,7 @@ import {
   publishEvent,
 } from '../services/event.service';
 import { pinImageToIPFS, pinMetadataToIPFS, buildEventMetadata, buildTicketMetadata } from '../services/ipfs.service';
+import { syncEventFromChain } from '../services/sync.service';
 import logger from '../lib/logger';
 import { validateEventInput } from '../lib/validation';
 
@@ -216,7 +217,15 @@ export async function postPublishEvent(req: Request, res: Response): Promise<voi
     if (result === 'forbidden') { res.status(403).json({ error: 'Not your event' }); return; }
     if (result === 'not_frozen') { res.status(409).json({ error: 'Event must be frozen before publishing' }); return; }
 
-    res.json(result);
+    // The event was set up on-chain before the API knew its contract ID, so the listener couldn't
+    // save that setup: copy it now. The event is published either way; the listener keeps it up to date.
+    try {
+      await syncEventFromChain(result.id);
+    } catch (err) {
+      logger.error('Could not copy the event\'s on-chain setup after publishing', { error: err, eventId: result.id });
+    }
+
+    res.json(await getEventById(result.id));
   } catch (err) {
     res.status(500).json({ error: 'Failed to publish event' });
   }

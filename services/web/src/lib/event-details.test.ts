@@ -13,7 +13,7 @@ import { getStockStatus, percentRemaining, ticketsRemaining } from "@/lib/ticket
 
 // Event page helpers (#284): joining API and contract data, and what the page displays.
 
-const apiType = (id: string, name: string, created_at: string): ApiTicketType => ({
+const apiType = (id: string, name: string, created_at: string, contract_type_id: number | null = null): ApiTicketType => ({
   id,
   event_id: "event-1",
   name,
@@ -21,6 +21,7 @@ const apiType = (id: string, name: string, created_at: string): ApiTicketType =>
   price: "15",
   supply: 100,
   sold: 0,
+  contract_type_id,
   created_at,
 });
 
@@ -31,7 +32,26 @@ const API_TYPES = [
 ];
 
 describe("buildTiers", () => {
-  it("matches API names to on-chain types by creation order (until #216)", () => {
+  it("matches API names to on-chain types by contract_type_id (#216)", () => {
+    // Created in the opposite order to their on-chain IDs
+    const linked = [apiType("vip", "VIP", "2026-10-01T10:00:00.000Z", 1), apiType("ga", "General Admission", "2026-10-01T10:00:01.000Z", 0)];
+    const tiers = buildTiers(
+      linked,
+      [
+        { typeId: 0, price: BigInt(15_000_000), maxSupply: 1000, sold: 0, issued: 0 },
+        { typeId: 1, price: BigInt(28_000_000), maxSupply: 300, sold: 0, issued: 0 },
+        { typeId: 2, price: BigInt(10_000_000), maxSupply: 2, sold: 0, issued: 0 },
+      ],
+      6,
+    );
+    expect(tiers.map((t) => [t.typeId, t.name])).toEqual([
+      [0, "General Admission"],
+      [1, "VIP"],
+      [2, "Ticket type 3"],
+    ]);
+  });
+
+  it("matches API names to on-chain types by creation order while the API hasn't linked them", () => {
     const tiers = buildTiers(
       API_TYPES,
       [
