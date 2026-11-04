@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import logger from '../lib/logger';
 import { TICKET_NFT_ABI } from '../lib/ticketNft';
@@ -237,14 +238,27 @@ export interface LogPollerOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
-// Runs one contract event through its handler. Events the database doesn't keep are ignored, and a
-// failing handler is logged without stopping the events after it.
+// Prisma's errors for a database it can't reach: can't connect (P1001), connection timed out (P1002),
+// operation timed out (P1008), connection closed (P1017), no free connection in the pool (P2024)
+const DATABASE_UNAVAILABLE_CODES = new Set(['P1001', 'P1002', 'P1008', 'P1017', 'P2024']);
+
+export function isDatabaseUnavailable(err: unknown): boolean {
+  if (err instanceof Prisma.PrismaClientInitializationError) return true;
+  return err instanceof Prisma.PrismaClientKnownRequestError && DATABASE_UNAVAILABLE_CODES.has(err.code);
+}
+
+// Runs one contract event through its handler. Events the database doesn't keep are ignored.
+// A handler that fails because of the event itself is logged without stopping the events after it,
+// so one bad event can't hold up the listener. When the database can't be reached, the error goes
+// up instead: the poller then reads the same blocks again, rather than move past an event it
+// couldn't save (every handler is safe to run twice).
 export async function handleEvent(eventName: string, args: readonly unknown[], log?: ethers.Log): Promise<void> {
   const handler = HANDLERS[eventName];
   if (!handler) return;
   try {
     await handler(...args, log ? { log } : undefined);
   } catch (err) {
+    if (isDatabaseUnavailable(err)) throw err;
     logger.error(`${eventName} handler error`, { error: err });
   }
 }
@@ -419,7 +433,7 @@ export async function startBlockchainListener(): Promise<void> {
       await poller.poll();
       if (!wasStarted) connected();
     } catch (err) {
-      const message = wasStarted ? 'could not read new events' : 'still cannot start';
+      const message = wasStarted ? 'could not read or save new events' : 'still cannot start';
       logger.error(`Blockchain listener: ${message}, trying again`, { error: err });
     } finally {
       setTimeout(tick, POLL_INTERVAL_MS);

@@ -10,7 +10,8 @@ app.listen(PORT, () => {
   logger.info(`NFTokenPass API running on port ${PORT}`);
   logger.info(`Health check: http://localhost:${PORT}/health`);
   logger.info(`Database health: http://localhost:${PORT}/db-health`);
-  startBlockchainListener();
+  // It catches its own errors and keeps retrying; this only logs anything unexpected
+  startBlockchainListener().catch((err) => logger.error('Blockchain listener stopped', { error: err }));
 });
 
 // Graceful shutdown

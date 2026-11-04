@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { ethers } from 'ethers';
-import { Event, TicketType } from '@prisma/client';
+import { Event, Prisma, TicketType } from '@prisma/client';
 import { prisma } from '../src/lib/prisma';
 import { TICKET_NFT_ABI } from '../src/lib/ticketNft';
 import {
@@ -11,6 +11,7 @@ import {
   createLogPoller,
   deployBlockFromEnv,
   handleEvent,
+  isDatabaseUnavailable,
   isRangeTooLarge,
   isRateLimited,
   startBlockchainListener,
@@ -37,6 +38,16 @@ const handlers = new Proxy({} as Record<string, (...args: any[]) => Promise<void
     const withLog = last !== null && typeof last === 'object' && 'log' in last;
     await handleEvent(eventName, withLog ? args.slice(0, -1) : args, withLog ? last.log : undefined);
   },
+});
+
+// Makes the next Event.updateMany fail as if the database were unreachable
+let dropNextEventUpdate = false;
+prisma.$use(async (params, next) => {
+  if (dropNextEventUpdate && params.model === 'Event' && params.action === 'updateMany') {
+    dropNextEventUpdate = false;
+    throw new Prisma.PrismaClientKnownRequestError("Can't reach database server", { code: 'P1001', clientVersion: Prisma.prismaVersion.client });
+  }
+  return next(params);
 });
 
 // Addresses arrive from the chain checksummed (mixed case)
@@ -601,6 +612,40 @@ describe('blockchain listener database updates', () => {
 
       expect(await prisma.listing.count()).toBe(0);
       expect((await prisma.event.findUnique({ where: { id: event.id } }))!.sale_active).toBe(true);
+    });
+
+    it("reads the same blocks again when the database can't be reached, without counting anything twice", async () => {
+      const buyer = checksummed();
+      chainLogs = [
+        chainLog('TicketMinted', [1n, 5n, 0n, buyer, 'ipfs://ticket'], 95, 0),
+        chainLog('TicketPurchased', [1n, 5n, 0n, buyer, 15_000_000n], 95, 1),
+        chainLog('SaleStatusUpdated', [5n, true], 96, 0),
+      ];
+      // The database drops while the third event is saved
+      dropNextEventUpdate = true;
+      const poller = createLogPoller(provider, CONTRACT, { deployBlock: 90 });
+      await poller.start();
+      await expect(poller.poll()).rejects.toThrow("Can't reach database server");
+      expect(dropNextEventUpdate).toBe(false);
+      expect(await cursor()).toBeNull(); // the blocks aren't marked as read
+
+      await poller.poll();
+
+      expect(requests).toEqual([{ fromBlock: 90, toBlock: 100 }, { fromBlock: 90, toBlock: 100 }]);
+      expect((await prisma.event.findUnique({ where: { id: event.id } }))!.sale_active).toBe(true);
+      expect(await prisma.ticket.count()).toBe(1);
+      expect((await prisma.ticketType.findUnique({ where: { id: ticketType.id } }))!.sold).toBe(1);
+      expect((await cursor())!.last_block).toBe(100);
+    });
+
+    it('tells a database that is down from an event that cannot be saved', () => {
+      const known = (code: string) => new Prisma.PrismaClientKnownRequestError('error', { code, clientVersion: Prisma.prismaVersion.client });
+      for (const code of ['P1001', 'P1002', 'P1008', 'P1017', 'P2024']) expect(isDatabaseUnavailable(known(code))).toBe(true);
+      expect(isDatabaseUnavailable(new Prisma.PrismaClientInitializationError("Can't reach database server", Prisma.prismaVersion.client))).toBe(true);
+      // A unique constraint or a value too big for its column: the event's own problem
+      expect(isDatabaseUnavailable(known('P2002'))).toBe(false);
+      expect(isDatabaseUnavailable(known('P2020'))).toBe(false);
+      expect(isDatabaseUnavailable(new Error('numeric field overflow'))).toBe(false);
     });
 
     it(`asks for at most ${MAX_BLOCK_RANGE} blocks at a time`, async () => {
