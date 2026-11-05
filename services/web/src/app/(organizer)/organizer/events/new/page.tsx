@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { CreateEventFlow, FlowSkeleton } from "@/components/create-event/CreateEventFlow";
@@ -18,9 +19,12 @@ export default function CreateEventPage() {
       <main className="page-glow flex-1 pb-16">
         <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-4 py-8 md:px-10 md:py-12">
           <header className="flex flex-col gap-3">
-            {/* "My events" becomes a link once that page exists (it needs #250) */}
+            {/* "My events" goes back to the organizer dashboard (#250) */}
             <p className="type-body-sm text-muted-foreground">
-              My events <span aria-hidden="true">/</span> <span className="text-secondary-foreground">New event</span>
+              <Link href={ROUTES.organizer} className="transition-colors hover:text-foreground">
+                My events
+              </Link>{" "}
+              <span aria-hidden="true">/</span> <span className="text-secondary-foreground">New event</span>
             </p>
             <h1 className="type-heading-lg text-foreground">Create event</h1>
           </header>
@@ -41,7 +45,7 @@ function GatedFlow() {
   const query = searchParams.toString();
   return (
     // Signing in comes back to the same draft and step
-    <OrganizerGate nextPath={query ? `${ROUTES.newEvent}?${query}` : ROUTES.newEvent}>
+    <OrganizerGate nextPath={query ? `${ROUTES.newEvent}?${query}` : ROUTES.newEvent} feature="the create event form">
       <CreateEventFlow />
     </OrganizerGate>
   );

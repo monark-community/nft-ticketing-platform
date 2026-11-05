@@ -249,6 +249,47 @@ describe('event status rules', () => {
   });
 });
 
+describe('organizer events list', () => {
+  it('requires a signed-in organizer', async () => {
+    expect((await request(app).get('/api/events/mine')).status).toBe(401);
+
+    const attendee = await createUser({ role: 'USER' });
+    const res = await request(app).get('/api/events/mine').set('Cookie', authCookie(attendee.wallet_address, 'USER'));
+    expect(res.status).toBe(403);
+  });
+
+  it('lists only the signed-in organizer\'s events, in every status, with their ticket types', async () => {
+    const draft = await createEvent(organizer.wallet_address, { title: 'Draft event', status: 'DRAFT' });
+    const frozen = await createEvent(organizer.wallet_address, { title: 'Frozen event', status: 'FROZEN' });
+    const published = await createEvent(organizer.wallet_address, {
+      title: 'Published event',
+      status: 'PUBLISHED',
+      contract_event_id: 9n,
+    });
+    await createTicketType(draft.id, { name: 'Early Bird' });
+
+    const other = await createUser({ role: 'ORGANIZER' });
+    await createEvent(other.wallet_address, { title: 'Another organizer\'s event' });
+
+    const res = await request(app).get('/api/events/mine').set('Cookie', cookie);
+
+    expect(res.status).toBe(200);
+    expect(res.body.map((event: { id: string }) => event.id).sort()).toEqual([draft.id, frozen.id, published.id].sort());
+    expect(res.body.map((event: { status: string }) => event.status).sort()).toEqual(['DRAFT', 'FROZEN', 'PUBLISHED']);
+    expect(res.body.map((event: { title: string }) => event.title)).not.toContain('Another organizer\'s event');
+
+    const draftRow = res.body.find((event: { id: string }) => event.id === draft.id);
+    expect(draftRow.ticket_types).toHaveLength(1);
+    expect(draftRow.ticket_types[0]).toMatchObject({ name: 'Early Bird', supply: 100, sold: 0 });
+  });
+
+  it('returns an empty list for an organizer without events', async () => {
+    const res = await request(app).get('/api/events/mine').set('Cookie', cookie);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+});
+
 describe('organizer ownership', () => {
   let otherCookie: string;
 

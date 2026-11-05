@@ -39,6 +39,20 @@ export async function getEventById(id: string) {
   });
 }
 
+// Every event the organizer owns, whatever its status, for the organizer dashboard (#187, #250).
+// Ticket types are in creation order, which is also their on-chain type order.
+export async function listEventsForOrganizer(organizerWallet: string) {
+  return prisma.event.findMany({
+    where: { organizer_wallet: organizerWallet.toLowerCase() },
+    orderBy: [{ created_at: 'desc' }, { id: 'asc' }],
+    include: {
+      ticket_types: {
+        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      },
+    },
+  });
+}
+
 export async function createEvent(
   organizerWallet: string,
   data: {
