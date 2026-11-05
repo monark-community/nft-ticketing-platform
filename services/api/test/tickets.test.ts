@@ -41,6 +41,9 @@ describe('GET /api/tickets/owner/:address', () => {
       title: 'Gala Opera Concert',
       status: 'PUBLISHED',
       contract_event_id: 281474976710655n, // a 48-bit contract event ID (#312)
+      resale_cap_bps: 20000,
+      royalty_bps: 1000,
+      sales_end_at: new Date('2030-01-01T18:00:00Z'),
     });
     type = await createTicketType(event.id, { name: 'General Admission', contract_type_id: 0 });
     owner = randomWallet();
@@ -59,7 +62,14 @@ describe('GET /api/tickets/owner/:address', () => {
       used_at: null,
       purchase_price: '15.5',
       listing_price: null,
-      event: { id: event.id, contract_event_id: '281474976710655', title: 'Gala Opera Concert' },
+      event: {
+        id: event.id,
+        contract_event_id: '281474976710655',
+        title: 'Gala Opera Concert',
+        resale_cap_bps: 20000,
+        royalty_bps: 1000,
+        sales_end_at: '2030-01-01T18:00:00.000Z',
+      },
       ticket_type: { id: type.id, name: 'General Admission', contract_type_id: 0 },
     });
   });
