@@ -4,3 +4,4 @@ export * from './event.controller';
 export * from './ticketType.controller';
 export * from './ticket.controller';
 export * from './operations.controller';
+export * from './organizer.controller';

@@ -112,6 +112,8 @@ describe('blockchain listener database updates', () => {
         'ListingCancelled',
         'PresaleStatusUpdated',
         'RevenueWithdrawn',
+        'RoleGranted',
+        'RoleRevoked',
         'SaleStatusUpdated',
         'ScannerUpdated',
         'TicketCheckedIn',
@@ -970,6 +972,98 @@ describe('blockchain listener database updates', () => {
     it('ignores events it does not know about', async () => {
       await handlers[eventName](999n, ethers.getAddress(wallet), false);
       expect(await model().count()).toBe(1);
+    });
+  });
+
+  describe('RoleGranted', () => {
+    const organizerRole = ethers.id('ORGANIZER_ROLE');
+    const txHash = `0x${'ab'.repeat(32)}`;
+
+    it('promotes the user and approves their pending request', async () => {
+      const user = await createUser({ role: 'USER' });
+      const request = await prisma.organizerRequest.create({ data: { wallet: user.wallet_address } });
+      const admin = randomWallet();
+
+      await handlers.RoleGranted(
+        organizerRole,
+        ethers.getAddress(user.wallet_address),
+        ethers.getAddress(admin),
+        { log: { transactionHash: txHash } }
+      );
+
+      const updatedUser = await prisma.user.findUnique({ where: { wallet_address: user.wallet_address } });
+      expect(updatedUser!.role).toBe('ORGANIZER');
+
+      const updatedRequest = await prisma.organizerRequest.findUnique({ where: { id: request.id } });
+      expect(updatedRequest).toMatchObject({
+        status: 'APPROVED',
+        reviewed_by: admin,
+        tx_hash: txHash,
+      });
+    });
+
+    it('promotes a user who never submitted a request', async () => {
+      const user = await createUser({ role: 'USER' });
+
+      await handlers.RoleGranted(
+        organizerRole,
+        ethers.getAddress(user.wallet_address),
+        checksummed(),
+        { log: { transactionHash: txHash } }
+      );
+
+      const updatedUser = await prisma.user.findUnique({ where: { wallet_address: user.wallet_address } });
+      expect(updatedUser!.role).toBe('ORGANIZER');
+      expect(await prisma.organizerRequest.count()).toBe(0);
+    });
+
+    it('ignores roles other than ORGANIZER_ROLE', async () => {
+      const user = await createUser({ role: 'USER' });
+
+      await handlers.RoleGranted(
+        ethers.id('SCANNER_ROLE'),
+        ethers.getAddress(user.wallet_address),
+        checksummed(),
+        { log: { transactionHash: txHash } }
+      );
+
+      const updatedUser = await prisma.user.findUnique({ where: { wallet_address: user.wallet_address } });
+      expect(updatedUser!.role).toBe('USER');
+    });
+
+    it('creates the account when the grant happens before the first sign-in', async () => {
+      const wallet = checksummed();
+
+      await handlers.RoleGranted(organizerRole, wallet, checksummed(), { log: { transactionHash: txHash } });
+
+      const created = await prisma.user.findUnique({ where: { wallet_address: wallet.toLowerCase() } });
+      expect(created!.role).toBe('ORGANIZER');
+    });
+  });
+
+  describe('RoleRevoked', () => {
+    it('moves an organizer back to USER', async () => {
+      const organizer = await createUser({ role: 'ORGANIZER' });
+
+      await handlers.RoleRevoked(
+        ethers.id('ORGANIZER_ROLE'),
+        ethers.getAddress(organizer.wallet_address),
+        checksummed()
+      );
+
+      const updatedUser = await prisma.user.findUnique({ where: { wallet_address: organizer.wallet_address } });
+      expect(updatedUser!.role).toBe('USER');
+    });
+
+    it('does not touch admins or attendees', async () => {
+      const admin = await createUser({ role: 'ADMIN' });
+      const attendee = await createUser({ role: 'USER' });
+
+      await handlers.RoleRevoked(ethers.id('ORGANIZER_ROLE'), ethers.getAddress(admin.wallet_address), checksummed());
+      await handlers.RoleRevoked(ethers.id('ORGANIZER_ROLE'), ethers.getAddress(attendee.wallet_address), checksummed());
+
+      expect((await prisma.user.findUnique({ where: { wallet_address: admin.wallet_address } }))!.role).toBe('ADMIN');
+      expect((await prisma.user.findUnique({ where: { wallet_address: attendee.wallet_address } }))!.role).toBe('USER');
     });
   });
 });

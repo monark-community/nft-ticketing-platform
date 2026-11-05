@@ -1,8 +1,10 @@
 import { ethers } from 'ethers';
 import { Prisma } from '@prisma/client';
+import { ORGANIZER_ROLE } from '../lib/chain';
 import { prisma } from '../lib/prisma';
 import logger from '../lib/logger';
 import { TICKET_NFT_ABI } from '../lib/ticketNft';
+import { approveOrganizerFromChain, revokeOrganizerFromChain } from '../services/organizer.service';
 import {
   LogMeta,
   applyEventSettings,
@@ -191,6 +193,22 @@ const HANDLERS: Record<string, Handler> = {
       });
       logger.info(`ScannerUpdated: wallet ${wallet} removed from event ${event.id}`);
     }
+  },
+
+  // RoleGranted — an admin approved an organizer from their own wallet. The chain is
+  // the source of truth, so the user is promoted even if they never submitted a request.
+  RoleGranted: async (role: string, account: string, sender: string, payload?: LogPayload) => {
+    if (role.toLowerCase() !== ORGANIZER_ROLE) return;
+    const result = await approveOrganizerFromChain(account.toLowerCase(), sender.toLowerCase(), payload?.log?.transactionHash);
+    if (result === 'approved') logger.info(`RoleGranted: ${account} approved as organizer by ${sender}`);
+    else logger.warn(`RoleGranted: organizer role for ${account} not synced (${result})`);
+  },
+
+  // RoleRevoked — an admin removed an organizer
+  RoleRevoked: async (role: string, account: string, sender: string) => {
+    if (role.toLowerCase() !== ORGANIZER_ROLE) return;
+    const result = await revokeOrganizerFromChain(account.toLowerCase());
+    logger.info(`RoleRevoked: organizer role for ${account} revoked by ${sender} (${result})`);
   },
 };
 

@@ -28,6 +28,10 @@ export const TICKET_NFT_ABI = [
   'event ListingCancelled(uint256 indexed tokenId, address indexed seller)',
   'event TicketResold(uint256 indexed tokenId, address indexed from, address indexed to, uint256 price)',
 
+  // Access control — the organizer approval listener syncs these (#195)
+  'event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender)',
+  'event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender)',
+
   // Reads
   'function eventOrganizer(uint256 eventId) view returns (address)',
   'function eventConfigs(uint256 eventId) view returns (uint256 endTime, uint256 resaleCapBps, uint256 ticketTypeCount, uint256 sold, bool configured, bool active, uint256 perWalletLimit)',

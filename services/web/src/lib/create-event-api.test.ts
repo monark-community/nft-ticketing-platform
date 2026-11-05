@@ -46,8 +46,8 @@ describe("saveDetails", () => {
 
 describe("syncTicketTypes", () => {
   const saved: ApiTicketType[] = [
-    { id: "a", event_id: "e1", name: "GA", description: null, price: "15.00000000", supply: 100, sold: 0, created_at: "2026-01-01T00:00:00Z" },
-    { id: "b", event_id: "e1", name: "VIP", description: null, price: "30.00000000", supply: 10, sold: 0, created_at: "2026-01-01T00:00:01Z" },
+    { id: "a", event_id: "e1", name: "GA", description: null, price: "15.00000000", supply: 100, sold: 0, contract_type_id: null, created_at: "2026-01-01T00:00:00Z" },
+    { id: "b", event_id: "e1", name: "VIP", description: null, price: "30.00000000", supply: 10, sold: 0, contract_type_id: null, created_at: "2026-01-01T00:00:01Z" },
   ];
 
   it("deletes, then updates, then creates in order, and returns the new ids", async () => {

@@ -231,8 +231,8 @@ describe("ticketTotals", () => {
 
 describe("ticket types and the API", () => {
   const saved: ApiTicketType[] = [
-    { id: "a", event_id: "e", name: "General Admission", description: "Floor", price: "15.00000000", supply: 1000, sold: 0, created_at: "2026-11-01T00:00:00Z" },
-    { id: "b", event_id: "e", name: "VIP", description: null, price: "28.50000000", supply: 300, sold: 0, created_at: "2026-11-01T00:00:01Z" },
+    { id: "a", event_id: "e", name: "General Admission", description: "Floor", price: "15.00000000", supply: 1000, sold: 0, contract_type_id: null, created_at: "2026-11-01T00:00:00Z" },
+    { id: "b", event_id: "e", name: "VIP", description: null, price: "28.50000000", supply: 300, sold: 0, contract_type_id: null, created_at: "2026-11-01T00:00:01Z" },
   ];
 
   it("reads the API's decimal prices back as typed", () => {

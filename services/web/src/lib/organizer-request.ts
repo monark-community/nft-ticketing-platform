@@ -1,6 +1,6 @@
 // Asking to become an organizer at sign-up (#288, Figma: "Sign in / Organizer pending").
-// The endpoint is POST /api/users/me/organizer-request from the organizer approval work
-// (branch feat/organizer-approval). An admin approves it on-chain later.
+// The endpoint is POST /api/users/me/organizer-request (#195). An admin approves it
+// on-chain later, from their own wallet.
 
 import { apiClient } from "@/lib/api";
 

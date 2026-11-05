@@ -160,6 +160,27 @@ describe('wallet login', () => {
       expect(me.status).toBe(200);
       expect(me.body.wallet_address).toBe(wallet.address.toLowerCase());
     });
+
+    it('ignores a role sent by the client at signup or profile update', async () => {
+      const nonce = await getNonce(wallet.address);
+      const signature = await wallet.signMessage(loginMessage(nonce));
+
+      const login = await request(app)
+        .post('/api/auth/verify')
+        .send({ wallet: wallet.address, signature, role: 'ADMIN' });
+      expect(login.status).toBe(200);
+      expect(login.body.role).toBe('USER');
+
+      const update = await request(app)
+        .put('/api/users/me')
+        .set('Cookie', tokenCookie(login)!.split(';')[0])
+        .send({ email: 'new@test.local', role: 'ADMIN' });
+      expect(update.status).toBe(200);
+      expect(update.body.role).toBe('USER');
+
+      const user = await prisma.user.findUnique({ where: { wallet_address: wallet.address.toLowerCase() } });
+      expect(user!.role).toBe('USER');
+    });
   });
 
   describe('POST /api/auth/logout', () => {
