@@ -55,6 +55,9 @@ services:
     environment:
       NODE_ENV: development
       PORT: ${WEB_PORT:-3000}
+      # RainbowKit throws at import time without a projectId, so the page 500s.
+      # The default is a placeholder that satisfies the check; set a real one in .env.
+      NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: ${NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID:-local-dev-placeholder}
     ports:
       - "${WEB_PORT:-3000}:3000"
     volumes:

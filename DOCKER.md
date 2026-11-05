@@ -128,6 +128,7 @@ docker-compose exec web sh
 ## Notes on current setup
 
 - The API and web Dockerfiles are intentionally simple because both services are still early-stage.
+- The web container runs with a placeholder `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` unless you set a real one; without it RainbowKit throws and every page returns HTTP 500.
 - Compose is the primary workflow; no root Dockerfile is required for day-to-day usage.
 - As the project matures, we can add a separate optimized deploy configuration if needed.
 

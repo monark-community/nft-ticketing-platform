@@ -1,0 +1,80 @@
+# Verifies the Docker setup still works end to end: builds both images, boots
+# the compose stack (db + api + web) and checks the API, its database
+# connection and the web app are actually serving. Mirrors what DOCKER.md
+# tells developers to do.
+name: Docker
+
+on:
+  pull_request:
+    branches: [dev, main]
+
+# The workflow only reads the repository.
+permissions:
+  contents: read
+
+# A new push to the same PR cancels the previous run.
+concurrency:
+  group: docker-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Build & smoke test the Docker stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # No .env file needed: every variable in docker-compose.yml has a default.
+      - name: Build images
+        run: docker compose build
+
+      - name: Start the stack
+        run: docker compose up -d
+
+      # The API applies migrations and compiles on boot, and Next.js compiles
+      # each page on first request, so poll generously. 2xx/3xx counts as up.
+      - name: Wait for the API and database
+        run: |
+          set -euo pipefail
+          wait_for() {
+            local name="$1" url="$2" attempts="$3" code="none"
+            for i in $(seq 1 "$attempts"); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 "$url" || true)
+              if [ "$code" -ge 200 ] && [ "$code" -lt 400 ]; then
+                echo "$name is up (HTTP $code) after ${i} attempt(s)"
+                return 0
+              fi
+              echo "$name not ready yet (attempt ${i}/${attempts}, HTTP ${code})"
+              sleep 5
+            done
+            echo "$name did not come up in time (last HTTP code: $code)"
+            return 1
+          }
+          wait_for "API" http://localhost:3001/health 72
+          wait_for "API database" http://localhost:3001/db-health 12
+
+      - name: Wait for the web app
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 72); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 120 http://localhost:3000/ || true)
+            if [ "$code" -ge 200 ] && [ "$code" -lt 400 ]; then
+              echo "Web is up (HTTP $code) after ${i} attempt(s)"
+              exit 0
+            fi
+            echo "Web not ready yet (attempt ${i}/72, HTTP ${code})"
+            sleep 5
+          done
+          echo "Web did not come up in time (last HTTP code: $code)"
+          exit 1
+
+      - name: Print container logs on failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
