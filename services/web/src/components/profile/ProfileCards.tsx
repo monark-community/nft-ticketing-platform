@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Check, CircleCheck, Copy, KeyRound, Power, Save, Send, Store, Wallet } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { getAddress } from "viem";
 
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -134,10 +135,12 @@ export function AccountDetailsCard({ user, onSaved }: { user: UserProfile; onSav
 // "Wallet": address with copy, the account's role, and disconnect
 export function WalletCard({ user, onDisconnect }: { user: UserProfile; onDisconnect: () => void }) {
   const [copied, setCopied] = useState(false);
+  // The API stores addresses in lowercase; show and copy the checksummed form, like the navbar
+  const address = checksummed(user.wallet_address);
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(user.wallet_address);
+      await navigator.clipboard.writeText(address);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -151,8 +154,8 @@ export function WalletCard({ user, onDisconnect }: { user: UserProfile; onDiscon
       <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-4 py-3">
         <span className="flex min-w-0 items-center gap-3">
           <KeyRound className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span className="truncate type-mono-value text-foreground" title={user.wallet_address}>
-            {shortAddress(user.wallet_address)}
+          <span className="truncate type-mono-value text-foreground" title={address}>
+            {shortAddress(address)}
           </span>
         </span>
         <button
@@ -174,6 +177,14 @@ export function WalletCard({ user, onDisconnect }: { user: UserProfile; onDiscon
       </Button>
     </Card>
   );
+}
+
+function checksummed(address: string): string {
+  try {
+    return getAddress(address);
+  } catch {
+    return address;
+  }
 }
 
 // "Become an organizer", and "Organizer request sent" while an admin reviews it (Figma "Profile /
