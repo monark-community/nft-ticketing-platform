@@ -5,6 +5,7 @@ import { Event, TicketType } from '@prisma/client';
 import app from '../src/app';
 import { prisma } from '../src/lib/prisma';
 import { resetDb, createUser, createEvent, createTicketType, randomWallet } from './helpers/db';
+import { authCookie } from './helpers/auth';
 
 // GET /api/tickets/owner/:address (#219): the tickets a wallet holds, for My Tickets
 describe('GET /api/tickets/owner/:address', () => {
@@ -108,5 +109,17 @@ describe('GET /api/tickets/owner/:address', () => {
     const res = await request(app).get(`/api/tickets/${tokenId}`);
     expect(res.status).toBe(200);
     expect(res.body.token_id).toBe(tokenId.toString());
+  });
+});
+
+// #118: ticket validity comes from the contract, so the API has no validate route
+describe('GET /api/tickets/:tokenId/validate', () => {
+  it('no longer exists', async () => {
+    const scanner = await createUser({ role: 'SCANNER' });
+    const res = await request(app)
+      .get('/api/tickets/1/validate')
+      .query({ eventId: 'any' })
+      .set('Cookie', authCookie(scanner.wallet_address, 'SCANNER'));
+    expect(res.status).toBe(404);
   });
 });
