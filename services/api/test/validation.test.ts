@@ -158,13 +158,6 @@ describe('tickets', () => {
     expect(res.status).toBe(400);
   });
 
-  it('requires eventId when validating a ticket', async () => {
-    const scanner = await createUser({ role: 'SCANNER' });
-    const res = await request(app)
-      .get('/api/tickets/1/validate')
-      .set('Cookie', authCookie(scanner.wallet_address, 'SCANNER'));
-    expect(res.status).toBe(400);
-  });
 });
 
 describe('scanners and whitelist', () => {

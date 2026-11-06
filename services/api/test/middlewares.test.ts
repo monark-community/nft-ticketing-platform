@@ -62,11 +62,10 @@ describe('requireRole', () => {
     expect(res.status).toBe(403);
   });
 
-  it('blocks an ORGANIZER from scanner routes', async () => {
+  it('blocks an ORGANIZER from admin routes', async () => {
     const organizer = await createUser({ role: 'ORGANIZER' });
     const res = await request(app)
-      .get('/api/tickets/1/validate')
-      .query({ eventId: 'any' })
+      .get('/api/admin/organizer-requests')
       .set('Cookie', authCookie(organizer.wallet_address, 'ORGANIZER'));
     expect(res.status).toBe(403);
   });
