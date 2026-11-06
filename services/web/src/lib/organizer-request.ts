@@ -21,3 +21,26 @@ export async function sendOrganizerRequest(
     return "failed";
   }
 }
+
+// The latest request's status, from GET /api/users/me/organizer-request (#195), so the profile
+// keeps showing "Pending review" after a reload (#285). null when it can't be read.
+export type OrganizerRequestStatus = "none" | "pending" | "approved" | "rejected";
+
+export interface OrganizerRequestState {
+  status: OrganizerRequestStatus;
+  rejectionReason: string | null;
+}
+
+export async function fetchOrganizerRequest(
+  request: (path: string) => Promise<unknown> = apiClient,
+): Promise<OrganizerRequestState | null> {
+  try {
+    const found = (await request(ORGANIZER_REQUEST_PATH)) as { status?: string; rejection_reason?: string | null };
+    const status = found.status === "PENDING" ? "pending" : found.status === "APPROVED" ? "approved" : found.status === "REJECTED" ? "rejected" : null;
+    if (!status) return null;
+    return { status, rejectionReason: found.rejection_reason?.trim() || null };
+  } catch (err) {
+    if (err instanceof Error && err.message === "No organizer request found") return { status: "none", rejectionReason: null };
+    return null;
+  }
+}
