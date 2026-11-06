@@ -14,15 +14,16 @@ export interface PurchaseStep {
 export const APPROVE_STEP_LABEL = "Approve USDC";
 export const BUY_STEP_LABEL = "Buy tickets";
 
-// approvalNeeded: whether the current allowance is too low for this order (before any run)
-export function getPurchaseSteps(state: TxState, approvalNeeded: boolean): PurchaseStep[] {
-  const rows = [APPROVE_STEP_LABEL, BUY_STEP_LABEL];
+// approvalNeeded: whether the current allowance is too low for this order (before any run).
+// buyLabel: the second row's label ("Buy ticket" on the Marketplace, #295).
+export function getPurchaseSteps(state: TxState, approvalNeeded: boolean, buyLabel: string = BUY_STEP_LABEL): PurchaseStep[] {
+  const rows = [APPROVE_STEP_LABEL, buyLabel];
 
   if (state.phase === "idle") {
     return [
       // An earlier approval already covers this order, so only the buy step will run
       { label: APPROVE_STEP_LABEL, status: approvalNeeded ? "notStarted" : "done" },
-      { label: BUY_STEP_LABEL, status: "notStarted" },
+      { label: buyLabel, status: "notStarted" },
     ];
   }
 

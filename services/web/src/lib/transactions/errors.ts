@@ -21,6 +21,9 @@ export const TX_ERRORS = {
   cancelled: "The transaction was cancelled in your wallet before it confirmed.",
   replaced:
     "The transaction was replaced by a different transaction from your wallet, so it did not go through.",
+  // The wallet's transaction count doesn't match the chain's, e.g. after the local node restarted
+  nonce:
+    "Your wallet is out of sync with the network, so nothing was sent. In MetaMask, go to Settings → Advanced → Clear activity tab data, then try again.",
   unknown: "The transaction failed. Please try again.",
 };
 
@@ -58,6 +61,8 @@ const USER_REJECTED_PATTERN = /user (rejected|denied)/i;
 const INSUFFICIENT_FUNDS_PATTERN =
   /insufficient funds|(doesn't|does not) have enough funds|exceeds (the )?balance|exceeds transaction sender account balance/i;
 const NETWORK_PATTERN = /failed to fetch|network error|fetch failed|ECONNREFUSED/i;
+// Hardhat: "Nonce too high. Expected nonce to be 0 but got 5"; most RPCs: "nonce too low"
+const NONCE_PATTERN = /nonce too (high|low)|invalid nonce|nonce has already been used/i;
 
 function has(err: unknown, type: abstract new (...args: never[]) => Error): boolean {
   return err instanceof BaseError && !!err.walk((e) => e instanceof type);
@@ -72,6 +77,10 @@ export function getTransactionErrorMessage(err: unknown, overrides: ErrorOverrid
   }
   if (has(err, InsufficientFundsError) || INSUFFICIENT_FUNDS_PATTERN.test(text)) {
     return messages.insufficientFunds;
+  }
+  // viem reports this as a contract revert, so it's checked before the revert reasons
+  if (NONCE_PATTERN.test(text)) {
+    return messages.nonce;
   }
   if (has(err, ChainMismatchError)) {
     return messages.wrongNetwork;
