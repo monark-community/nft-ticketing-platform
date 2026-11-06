@@ -6,6 +6,7 @@ import {
   eventSales,
   fetchOrganizerEvents,
   filterOrganizerEvents,
+  formatRevenue,
   NO_END_DATE_GRACE_MS,
   organizerEventStatus,
   organizerFilterFor,
@@ -70,7 +71,7 @@ describe("organizerEventStatus", () => {
       phase: "draft",
       label: "Draft",
       tone: "neutral",
-      action: "Continue editing",
+      action: "Continue setup",
       href: "/organizer/events/new?draft=a+b",
     });
     expect(eventEditorHref(event({ status: "DRAFT" }))).toBe("/organizer/events/new?draft=event-1");
@@ -81,7 +82,7 @@ describe("organizerEventStatus", () => {
     expect(organizerEventStatus(frozen, NOW)).toMatchObject({
       label: "Ready to publish",
       tone: "warning",
-      action: "Finish publishing",
+      action: "Publish",
       href: "/organizer/events/new?draft=event-1&step=review",
     });
   });
@@ -93,11 +94,32 @@ describe("organizerEventStatus", () => {
       tone: "success",
       action: "View event",
       href: "/events/event-2",
+      dot: true,
     });
 
     const ended = event({ status: "PUBLISHED", start_date: iso(NOW - 3 * HOUR), end_date: iso(NOW - HOUR) });
-    expect(organizerEventStatus(ended, NOW)).toMatchObject({ label: "Ended", tone: "neutral" });
+    expect(organizerEventStatus(ended, NOW)).toMatchObject({ label: "Ended", tone: "neutral", dot: false });
     expect(publicEventHref(event({ id: "a b" }))).toBe("/events/a%20b");
+  });
+
+  it("shows a published event in presale as Presale, not Live", () => {
+    const presale = event({ id: "event-3", status: "PUBLISHED", presale_active: true });
+    expect(organizerEventStatus(presale, NOW)).toMatchObject({
+      label: "Presale",
+      tone: "highlight",
+      action: "View event",
+      href: "/events/event-3",
+      dot: true,
+    });
+    expect(organizerFilterFor(presale, NOW)).toBe("live");
+
+    const ended = event({
+      status: "PUBLISHED",
+      presale_active: true,
+      start_date: iso(NOW - 3 * HOUR),
+      end_date: iso(NOW - HOUR),
+    });
+    expect(organizerEventStatus(ended, NOW).label).toBe("Ended");
   });
 });
 
@@ -134,6 +156,7 @@ describe("filters and totals", () => {
       unpublished: 1,
       past: 1,
       ticketsSold: 14,
+      revenue: 410,
     });
   });
 });
@@ -152,6 +175,11 @@ describe("eventSales", () => {
 
   it("is empty for an event without ticket types", () => {
     expect(eventSales({ ticket_types: [] })).toEqual({ sold: 0, supply: 0, remaining: 0, revenue: 0 });
+  });
+
+  it("shows revenue in USDC with two decimals and thousands separators", () => {
+    expect(formatRevenue(331)).toBe("331.00 USDC");
+    expect(formatRevenue(23_400)).toBe("23,400.00 USDC");
   });
 });
 

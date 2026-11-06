@@ -1,5 +1,5 @@
 // Organizer dashboard (#187): the organizer's own events in every status, the filter tabs,
-// the status labels and the card totals. Kept free of React so the rules can be unit tested.
+// the status labels and the table totals. Kept free of React so the rules can be unit tested.
 
 import { apiClient } from "@/lib/api";
 import { sortTicketTypes, type ApiEvent } from "@/lib/event-details";
@@ -16,7 +16,7 @@ export interface OrganizerEvent extends ApiEvent {
 
 export type OrganizerFilter = "all" | "live" | "unpublished" | "past";
 export type OrganizerPhase = "draft" | "frozen" | "live" | "ended";
-export type OrganizerBadgeTone = "neutral" | "warning" | "success";
+export type OrganizerBadgeTone = "neutral" | "warning" | "highlight" | "success";
 
 export interface OrganizerStatus {
   phase: OrganizerPhase;
@@ -24,6 +24,7 @@ export interface OrganizerStatus {
   tone: OrganizerBadgeTone;
   action: string;
   href: string;
+  dot?: boolean; // pulse the badge dot for a published event that is on sale
 }
 
 export interface OrganizerSummary {
@@ -32,6 +33,7 @@ export interface OrganizerSummary {
   unpublished: number;
   past: number;
   ticketsSold: number;
+  revenue: number;
 }
 
 export interface EventSales {
@@ -72,10 +74,13 @@ export function publicEventHref(event: Pick<OrganizerEvent, "id">): string {
 export function organizerEventStatus(event: OrganizerEvent, now = Date.now()): OrganizerStatus {
   const phase = organizerPhase(event, now);
   if (phase === "draft") {
-    return { phase, label: "Draft", tone: "neutral", action: "Continue editing", href: eventEditorHref(event) };
+    return { phase, label: "Draft", tone: "neutral", action: "Continue setup", href: eventEditorHref(event) };
   }
   if (phase === "frozen") {
-    return { phase, label: "Ready to publish", tone: "warning", action: "Finish publishing", href: eventEditorHref(event) };
+    return { phase, label: "Ready to publish", tone: "warning", action: "Publish", href: eventEditorHref(event) };
+  }
+  if (phase === "live" && event.presale_active) {
+    return { phase, label: "Presale", tone: "highlight", action: "View event", href: publicEventHref(event), dot: true };
   }
   return {
     phase,
@@ -83,6 +88,7 @@ export function organizerEventStatus(event: OrganizerEvent, now = Date.now()): O
     tone: phase === "live" ? "success" : "neutral",
     action: "View event",
     href: publicEventHref(event),
+    dot: phase === "live",
   };
 }
 
@@ -115,17 +121,24 @@ export function eventSales(event: Pick<OrganizerEvent, "ticket_types">): EventSa
 }
 
 export function summarizeOrganizerEvents(events: OrganizerEvent[], now = Date.now()): OrganizerSummary {
-  const summary: OrganizerSummary = { total: events.length, live: 0, unpublished: 0, past: 0, ticketsSold: 0 };
+  const summary: OrganizerSummary = { total: events.length, live: 0, unpublished: 0, past: 0, ticketsSold: 0, revenue: 0 };
 
   for (const event of events) {
     const filter = organizerFilterFor(event, now);
     if (filter === "live") summary.live += 1;
     else if (filter === "past") summary.past += 1;
     else summary.unpublished += 1;
-    summary.ticketsSold += eventSales(event).sold;
+    const sales = eventSales(event);
+    summary.ticketsSold += sales.sold;
+    summary.revenue += sales.revenue;
   }
 
   return summary;
+}
+
+// Revenue in USDC, with thousands separators: 1234.5 -> "1,234.50 USDC"
+export function formatRevenue(amount: number): string {
+  return `${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`;
 }
 
 type Request = <T>(path: string) => Promise<T>;
