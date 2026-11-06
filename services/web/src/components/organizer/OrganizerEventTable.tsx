@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 export function OrganizerEventTable({ events, now }: { events: OrganizerEvent[]; now: number }) {
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <table className="w-full table-fixed text-left">
+      <table className="block w-full table-fixed text-left lg:table">
         <caption className="sr-only">Your events</caption>
         <thead className="hidden border-b border-border lg:table-header-group">
           <tr>
@@ -33,7 +33,7 @@ export function OrganizerEventTable({ events, now }: { events: OrganizerEvent[];
             </Th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="block lg:table-row-group">
           {events.map((event) => (
             <OrganizerEventRow key={event.id} event={event} now={now} />
           ))}
@@ -49,7 +49,7 @@ function OrganizerEventRow({ event, now }: { event: OrganizerEvent; now: number 
 
   return (
     <tr className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border p-4 last:border-0 lg:table-row lg:p-0">
-      <td className="col-span-2 min-w-0 lg:table-cell lg:px-5 lg:py-4">
+      <td className="col-span-2 block min-w-0 lg:table-cell lg:px-5 lg:py-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="relative size-12 shrink-0 overflow-hidden rounded-sm border border-border bg-muted">
             <EventImage src={event.image_url} />
@@ -76,7 +76,7 @@ function OrganizerEventRow({ event, now }: { event: OrganizerEvent; now: number 
         </div>
       </td>
 
-      <td className="lg:table-cell lg:px-5 lg:py-4">
+      <td className="block lg:table-cell lg:px-5 lg:py-4">
         <p className="type-label-sm text-muted-foreground lg:hidden">Date</p>
         <p className="flex items-center gap-1.5 type-body-sm text-secondary-foreground">
           <CalendarDays className="hidden size-3.5 shrink-0 text-primary lg:block" aria-hidden="true" />
@@ -84,14 +84,14 @@ function OrganizerEventRow({ event, now }: { event: OrganizerEvent; now: number 
         </p>
       </td>
 
-      <td className="lg:table-cell lg:px-5 lg:py-4">
+      <td className="block lg:table-cell lg:px-5 lg:py-4">
         <p className="type-label-sm text-muted-foreground lg:hidden">Status</p>
         <Badge tone={status.tone} dot={status.dot}>
           {status.label}
         </Badge>
       </td>
 
-      <td className="lg:table-cell lg:px-5 lg:py-4 lg:text-right">
+      <td className="block lg:table-cell lg:px-5 lg:py-4 lg:text-right">
         <p className="type-label-sm text-muted-foreground lg:hidden">Sold</p>
         <p className="type-body-md text-foreground">
           <span className="font-semibold">{sales.sold.toLocaleString("en-US")}</span>
@@ -99,12 +99,12 @@ function OrganizerEventRow({ event, now }: { event: OrganizerEvent; now: number 
         </p>
       </td>
 
-      <td className="lg:table-cell lg:px-5 lg:py-4 lg:text-right">
+      <td className="block lg:table-cell lg:px-5 lg:py-4 lg:text-right">
         <p className="type-label-sm text-muted-foreground lg:hidden">Revenue</p>
         <p className="type-body-md text-foreground">{formatRevenue(sales.revenue)}</p>
       </td>
 
-      <td className="col-span-2 lg:table-cell lg:px-5 lg:py-4 lg:text-right">
+      <td className="col-span-2 block lg:table-cell lg:px-5 lg:py-4 lg:text-right">
         <Link
           href={status.href}
           className={cn(
