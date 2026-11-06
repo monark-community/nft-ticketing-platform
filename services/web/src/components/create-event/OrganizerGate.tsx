@@ -15,9 +15,17 @@ import { ROUTES } from "@/lib/nav";
 import { sendOrganizerRequest, type OrganizerRequestResult } from "@/lib/organizer-request";
 import { cn } from "@/lib/utils";
 
-// Only signed-in organizers can create events (the API's organizer routes need the ORGANIZER role
-// and an email). Everyone else gets the step that gets them there.
-export function OrganizerGate({ nextPath, children }: { nextPath: string; children: ReactNode }) {
+// Only signed-in organizers can use the organizer pages (the API's organizer routes need the
+// ORGANIZER role and an email). Everyone else gets the step that gets them there.
+export function OrganizerGate({
+  nextPath,
+  feature = "this page",
+  children,
+}: {
+  nextPath: string;
+  feature?: string; // what the organizer is opening, e.g. "the organizer dashboard"
+  children: ReactNode;
+}) {
   const hasMounted = useHasMounted();
   const { isConnected } = useAccount();
   const { user, isLoading, authError } = useWalletAuth();
@@ -39,15 +47,15 @@ export function OrganizerGate({ nextPath, children }: { nextPath: string; childr
   if (isConnected && !user && !authError) {
     return (
       <GateCard icon={<Spinner className="size-6 text-primary" />} title={isLoading ? "Confirm the sign-in in your wallet" : "Checking your account…"}>
-        Creating events needs a signed-in organizer account.
+        Opening {feature} needs a signed-in organizer account.
       </GateCard>
     );
   }
 
   if (!user) {
     return (
-      <GateCard icon={<LockKeyhole className="size-6" aria-hidden="true" />} title="Sign in to create events">
-        Connect the wallet of your organizer account and sign in. You&apos;ll come back here afterwards.
+      <GateCard icon={<LockKeyhole className="size-6" aria-hidden="true" />} title="Sign in to continue">
+        Connect the wallet of your organizer account and sign in to open {feature}. You&apos;ll come back here afterwards.
         <Link href={signUpHref} className={cn(buttonVariants({ size: "md" }), "mt-4 w-full sm:w-auto")}>
           Sign in <ArrowRight aria-hidden="true" />
         </Link>
@@ -58,7 +66,7 @@ export function OrganizerGate({ nextPath, children }: { nextPath: string; childr
   if (!user.profile_complete) {
     return (
       <GateCard icon={<LockKeyhole className="size-6" aria-hidden="true" />} title="Finish your account">
-        Add your name and email before creating events.
+        Add your name and email before opening {feature}.
         <Link href={signUpHref} className={cn(buttonVariants({ size: "md" }), "mt-4 w-full sm:w-auto")}>
           Finish your account <ArrowRight aria-hidden="true" />
         </Link>
@@ -69,7 +77,7 @@ export function OrganizerGate({ nextPath, children }: { nextPath: string; childr
   if (user.role === "ADMIN") {
     return (
       <GateCard icon={<LockKeyhole className="size-6" aria-hidden="true" />} title="Use an organizer account">
-        Admin accounts can&apos;t create events. Switch to your organizer wallet in your wallet app.
+        Admin accounts can&apos;t open {feature}. Switch to your organizer wallet in your wallet app.
       </GateCard>
     );
   }
@@ -82,7 +90,7 @@ export function OrganizerGate({ nextPath, children }: { nextPath: string; childr
       >
         {request === "sent"
           ? "An admin will review your request. Once it's approved, sign in again and come back here."
-          : "Only approved organizers can create events. Ask for access and an admin will review it."}
+          : `Only approved organizers can open ${feature}. Ask for access and an admin will review it.`}
         {request === "failed" && <Alert tone="error" title="Your request didn't go through. Try again." className="mt-4 text-left" />}
         {request !== "sent" && (
           <Button size="md" className="mt-4 w-full sm:w-auto" onClick={ask} loading={requesting}>

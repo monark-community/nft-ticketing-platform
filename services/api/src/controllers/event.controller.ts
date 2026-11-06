@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import {
   listEvents,
+  listEventsForOrganizer,
   getEventById,
   createEvent,
   updateEvent,
@@ -36,6 +37,15 @@ export async function getEvent(req: Request, res: Response): Promise<void> {
     res.json(event);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch event' });
+  }
+}
+
+// GET /api/events/mine: the signed-in organizer's own events in every status (#187, #250).
+export async function getMyEvents(req: Request, res: Response): Promise<void> {
+  try {
+    res.json(await listEventsForOrganizer(req.user!.wallet_address));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch your events' });
   }
 }
 
