@@ -4,13 +4,48 @@
 import { ticketTypeForTypeId, type ApiEvent } from "@/lib/event-details";
 import { QR_MAX_AGE_SECONDS, type TicketQRData } from "@/lib/ticket-qr";
 
-// One ticket the connected wallet owns, read from the contract (useOwnedTickets)
+// One ticket the connected wallet owns (useOwnedTickets)
 export interface OwnedTicket {
   tokenId: bigint;
   eventId: bigint;
-  typeId: number | null; // tokenTicketType; null if it couldn't be read
+  typeId: number | null; // the on-chain ticket type ID; null if unknown
   isUsed: boolean;
   checkedInAt: number | null; // unix seconds of the check-in, when known
+}
+
+// One ticket from GET /api/tickets/owner/:address (#219). The API saves the contract's events as
+// they happen, and reads the ones it missed after a restart. BigInts arrive as strings.
+export interface ApiOwnedTicket {
+  token_id: string;
+  status: "VALID" | "USED";
+  used_at: string | null;
+  event: { contract_event_id: string | null };
+  ticket_type: { contract_type_id: number | null };
+}
+
+export function ownedTicketsFromApi(tickets: ApiOwnedTicket[]): OwnedTicket[] {
+  const owned: OwnedTicket[] = [];
+  for (const t of tickets) {
+    // Every minted ticket belongs to an on-chain event; skip anything that doesn't parse
+    if (t.event.contract_event_id === null) continue;
+    let tokenId: bigint;
+    let eventId: bigint;
+    try {
+      tokenId = BigInt(t.token_id);
+      eventId = BigInt(t.event.contract_event_id);
+    } catch {
+      continue;
+    }
+    const usedAt = t.used_at ? Date.parse(t.used_at) : NaN;
+    owned.push({
+      tokenId,
+      eventId,
+      typeId: t.ticket_type.contract_type_id,
+      isUsed: t.status === "USED",
+      checkedInAt: Number.isNaN(usedAt) ? null : Math.floor(usedAt / 1000),
+    });
+  }
+  return owned;
 }
 
 // valid = can still be used at the door, used = checked in, expired = the event is over and it wasn't used

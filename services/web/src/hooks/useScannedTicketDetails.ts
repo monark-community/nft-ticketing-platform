@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { usePublicClient } from "wagmi";
 
+import { apiClient } from "@/lib/api";
 import { TICKET_NFT_ADDRESS, TICKET_NFT_CHAIN_ID, ticketNftAbi } from "@/lib/contracts/ticket-nft";
 import type { ApiEvent } from "@/lib/event-details";
 import { ticketTypeName } from "@/lib/my-tickets";
@@ -44,7 +45,7 @@ export function useScannedTicketDetails(result: TicketVerification | null, event
               .readContract({ ...nft, functionName: "ownerOf", args: [id] })
               .then((o) => o as `0x${string}`)
               .catch(() => null),
-        result!.used ? readCheckInTime(client, id) : Promise.resolve(null),
+        result!.used ? readCheckInTime(id) : Promise.resolve(null),
       ]);
 
       return { typeName: ticketTypeName(event, typeId), owner, checkedInAt };
@@ -54,16 +55,13 @@ export function useScannedTicketDetails(result: TicketVerification | null, event
   return wanted ? (query.data ?? EMPTY) : EMPTY;
 }
 
-type Client = NonNullable<ReturnType<typeof usePublicClient>>;
-
-// When the ticket was checked in, from its TicketCheckedIn event (the same source My Tickets uses).
-// TODO(#219): start from the contract's deploy block instead of 0, so this stays fast on Sepolia.
-async function readCheckInTime(client: Client, tokenId: bigint): Promise<number | null> {
+// When the ticket was checked in, from the API (GET /api/tickets/:tokenId), which saves each
+// TicketCheckedIn event (#219). No log scan from block 0, which hosted Sepolia RPCs refuse.
+async function readCheckInTime(tokenId: bigint): Promise<number | null> {
   try {
-    const logs = await client.getContractEvents({ ...nft, eventName: "TicketCheckedIn", args: { tokenId }, fromBlock: BigInt(0) });
-    const block = logs[logs.length - 1]?.blockNumber;
-    if (block === undefined || block === null) return null;
-    return Number((await client.getBlock({ blockNumber: block })).timestamp);
+    const ticket = await apiClient<{ used_at: string | null }>(`/api/tickets/${tokenId}`);
+    const usedAt = ticket.used_at ? Date.parse(ticket.used_at) : NaN;
+    return Number.isNaN(usedAt) ? null : Math.floor(usedAt / 1000);
   } catch {
     return null;
   }

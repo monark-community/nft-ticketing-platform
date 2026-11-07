@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ApiEvent, ApiTicketType } from "./event-details";
 import {
+  ownedTicketsFromApi,
   buildEntryQRData,
   eventHasEnded,
   formatCheckInDate,
@@ -253,5 +254,25 @@ describe("parseTicketView", () => {
     expect(parseTicketView("grid")).toBe("grid");
     expect(parseTicketView(null)).toBe("grid");
     expect(parseTicketView("<script>")).toBe("grid");
+  });
+});
+
+describe("ownedTicketsFromApi", () => {
+  const base = { token_id: "7", status: "VALID" as const, used_at: null, event: { contract_event_id: "281474976710655" }, ticket_type: { contract_type_id: 1 } };
+
+  it("turns the API's tickets into owned tickets, reading BigInt strings", () => {
+    expect(ownedTicketsFromApi([base])).toEqual([{ tokenId: BigInt(7), eventId: BigInt("281474976710655"), typeId: 1, isUsed: false, checkedInAt: null }]);
+  });
+
+  it("marks used tickets and keeps the check-in time in seconds", () => {
+    const [t] = ownedTicketsFromApi([{ ...base, status: "USED", used_at: "2026-10-10T20:15:30.000Z" }]);
+    expect(t.isUsed).toBe(true);
+    expect(t.checkedInAt).toBe(Date.parse("2026-10-10T20:15:30.000Z") / 1000);
+  });
+
+  it("keeps an unknown ticket type as null and skips tickets without an on-chain event", () => {
+    expect(ownedTicketsFromApi([{ ...base, ticket_type: { contract_type_id: null } }])[0].typeId).toBeNull();
+    expect(ownedTicketsFromApi([{ ...base, event: { contract_event_id: null } }])).toEqual([]);
+    expect(ownedTicketsFromApi([{ ...base, token_id: "not a number" }])).toEqual([]);
   });
 });
