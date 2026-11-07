@@ -19,6 +19,11 @@ export interface ScannedTicketDetails {
 
 const EMPTY: ScannedTicketDetails = { typeName: null, owner: null, checkedInAt: null };
 
+// The API saves a check-in a few seconds after its block (the listener polls every 4 s), so a
+// ticket checked in moments ago may not have its time yet: ask again a few times
+const CHECK_IN_RETRY_MS = 4_000;
+const CHECK_IN_RETRIES = 3;
+
 // Extra rows for the scan result card (#287). Only labels: if a read fails the row is hidden,
 // and the verdict (valid or rejected) never depends on it.
 export function useScannedTicketDetails(result: TicketVerification | null, event: ApiEvent | null) {
@@ -30,6 +35,8 @@ export function useScannedTicketDetails(result: TicketVerification | null, event
     queryKey: ["scanned-ticket", tokenId, result?.used ?? false, event?.id ?? null],
     enabled: wanted && Boolean(publicClient),
     staleTime: Infinity,
+    refetchInterval: (q) =>
+      result?.used && q.state.data?.checkedInAt === null && q.state.dataUpdateCount <= CHECK_IN_RETRIES ? CHECK_IN_RETRY_MS : false,
     queryFn: async (): Promise<ScannedTicketDetails> => {
       const client = publicClient!;
       const id = BigInt(tokenId!);

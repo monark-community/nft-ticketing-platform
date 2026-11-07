@@ -8,6 +8,11 @@ import { ownedTicketsFromApi, type ApiOwnedTicket, type OwnedTicket } from "@/li
 
 export type { OwnedTicket } from "@/lib/my-tickets";
 
+// "View my tickets" opens this page right after a purchase, but the API saves the new ticket a few
+// seconds after its block (the listener polls every 4 s). So the list is read again, quietly,
+// 5 s and 10 s after it first loads.
+const QUIET_RELOADS_MS = [5_000, 10_000];
+
 // The connected wallet's tickets, from GET /api/tickets/owner/:address (#219). The API keeps them up
 // to date from the contract's events and reads the ones it missed after a restart, so this no
 // longer scans Transfer logs from block 0, which hosted Sepolia RPCs refuse. After a wallet switch,
@@ -18,27 +23,35 @@ export function useOwnedTickets() {
   const [result, setResult] = useState<{ owner: string; tickets: OwnedTicket[]; error: string | null } | null>(null);
   const [inFlight, setInFlight] = useState(false);
   const latestRequest = useRef(0);
+  const busy = useRef(false); // a load is running: a quiet reload then has nothing to add
 
-  const load = useCallback(async () => {
-    if (!address) return;
+  // quiet: refresh what's shown without the loading state, and keep it if the request fails
+  const load = useCallback(async (quiet = false) => {
+    if (!address || (quiet && busy.current)) return;
     const request = ++latestRequest.current;
-    setInFlight(true);
+    busy.current = true;
+    if (!quiet) setInFlight(true);
 
     try {
       const { tickets } = await apiClient<{ tickets: ApiOwnedTicket[] }>(`/api/tickets/owner/${address}`);
       if (request === latestRequest.current) setResult({ owner: address, tickets: ownedTicketsFromApi(tickets), error: null });
     } catch (err) {
       console.error("Failed to load tickets:", err);
-      if (request === latestRequest.current) {
+      if (request === latestRequest.current && !quiet) {
         setResult({ owner: address, tickets: [], error: "We couldn't load your tickets. Check your connection and try again." });
       }
     } finally {
-      if (request === latestRequest.current) setInFlight(false);
+      if (request === latestRequest.current) {
+        busy.current = false;
+        setInFlight(false);
+      }
     }
   }, [address]);
 
   useEffect(() => {
     load();
+    const timers = QUIET_RELOADS_MS.map((delay) => setTimeout(() => void load(true), delay));
+    return () => timers.forEach(clearTimeout);
   }, [load]);
 
   // Only results for the wallet that is connected now count
@@ -48,6 +61,6 @@ export function useOwnedTickets() {
     tickets: current ? result.tickets : [],
     loading: Boolean(address) && (!current || inFlight),
     error: current ? result.error : null,
-    reload: load,
+    reload: () => load(),
   };
 }
