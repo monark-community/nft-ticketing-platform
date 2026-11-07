@@ -48,6 +48,19 @@ describe("getTransactionErrorMessage", () => {
     expect(getTransactionErrorMessage(err)).toBe(TX_ERRORS.insufficientFunds);
   });
 
+  it("maps a stale wallet nonce, which viem reports as a revert", () => {
+    // What MetaMask returns after the local node restarted (#295)
+    const message =
+      "RPC 0x7a69 Custom eth_sendRawTransaction: Nonce too high. Expected nonce to be 0 but got 5. Note that transactions can't be queued when automining.";
+    const err = new ContractFunctionExecutionError(new ContractFunctionRevertedError({ abi, functionName: "approve", message }), {
+      abi,
+      functionName: "approve",
+      args: [],
+    });
+    expect(getTransactionErrorMessage(err)).toBe(TX_ERRORS.nonce);
+    expect(getTransactionErrorMessage(new Error("nonce too low: next nonce 7, tx nonce 6"))).toBe(TX_ERRORS.nonce);
+  });
+
   it("gives the generic message for an unknown error", () => {
     expect(getTransactionErrorMessage(unknownError())).toBe(TX_ERRORS.unknown);
     expect(getTransactionErrorMessage("not even an Error")).toBe(TX_ERRORS.unknown);

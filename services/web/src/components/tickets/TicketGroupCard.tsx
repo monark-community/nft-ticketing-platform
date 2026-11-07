@@ -1,9 +1,11 @@
 "use client";
 
-import { Calendar, CircleCheck, Clock, MapPin, QrCode } from "lucide-react";
+import { ArrowRight, Calendar, CircleCheck, Clock, MapPin, QrCode } from "lucide-react";
+import Link from "next/link";
 
 import { EventImage } from "@/components/event/EventImage";
 import { Button } from "@/components/ui/button";
+import { ROUTES } from "@/lib/nav";
 import {
   formatCheckInDate,
   formatTicketDate,
@@ -17,7 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 
 // One card per event + ticket type + status, from the Figma "My Tickets / Grid" and "List" frames.
-// "Sell on Marketplace" from the design is left out until the Marketplace exists (#295).
+// "Sell on Marketplace" opens the Marketplace's Sell popup for the group's first ticket (#295).
 export function TicketGroupCard({ group, view, onShowQr }: { group: TicketGroup; view: TicketView; onShowQr: () => void }) {
   const past = group.status !== "valid";
 
@@ -45,6 +47,7 @@ export function TicketGroupCard({ group, view, onShowQr }: { group: TicketGroup;
 
         <div className="col-span-2 flex flex-col items-stretch justify-center gap-2.5 px-4 pb-4 sm:min-w-[200px] sm:items-end sm:border-l sm:border-white/5 sm:px-6 sm:py-4">
           <Action group={group} onShowQr={onShowQr} compact />
+          <SellLink group={group} />
         </div>
       </article>
     );
@@ -72,6 +75,7 @@ export function TicketGroupCard({ group, view, onShowQr }: { group: TicketGroup;
 
         <div className="flex flex-col gap-2">
           <Action group={group} onShowQr={onShowQr} />
+          <SellLink group={group} />
         </div>
       </div>
     </article>
@@ -174,5 +178,20 @@ function Action({ group, onShowQr, compact = false }: { group: TicketGroup; onSh
       <Icon className={cn("size-3.5 shrink-0", group.status === "used" && "text-success")} aria-hidden="true" />
       {text}
     </p>
+  );
+}
+
+// Used and past tickets can be sold too: the contract lifts the price cap for collectibles
+function SellLink({ group }: { group: TicketGroup }) {
+  const tokenId = group.tickets[0].tokenId.toString();
+  return (
+    <Link
+      href={`${ROUTES.marketplace}?sell=${tokenId}`}
+      className="flex items-center justify-center gap-1.5 rounded-xs py-1 font-mono text-xs leading-4 text-secondary-foreground outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50"
+      aria-label={`Sell ticket #${tokenId} to ${group.title} on the Marketplace`}
+    >
+      Sell on Marketplace
+      <ArrowRight className="size-3" aria-hidden="true" />
+    </Link>
   );
 }

@@ -37,6 +37,10 @@ export async function getTicketsByOwner(walletAddress: string) {
       start_date: event.start_date,
       end_date: event.end_date,
       image_url: event.image_url,
+      // Resale terms, copied from the contract (#299): for selling on the Marketplace (#295)
+      resale_cap_bps: event.resale_cap_bps,
+      royalty_bps: event.royalty_bps,
+      sales_end_at: event.sales_end_at,
     },
     ticket_type: { id: type.id, name: type.name, contract_type_id: type.contract_type_id },
   }));
