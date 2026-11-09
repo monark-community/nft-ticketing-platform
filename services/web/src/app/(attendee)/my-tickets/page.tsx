@@ -21,8 +21,8 @@ import { groupTickets, parseTicketView, type TicketView } from "@/lib/my-tickets
 const VIEW_KEY = "nftokenpass:my-tickets-view";
 
 // My Tickets (#286), from the Figma "My Tickets Page": the connected wallet's tickets grouped into
-// upcoming and past, in a grid or a list, and the entry QR popup. Tickets are read from the contract
-// (useOwnedTickets); the API only adds the event's name, date, venue and image.
+// upcoming and past, in a grid or a list, and the entry QR popup. Tickets come from the API, which
+// saves the contract's events (useOwnedTickets, #219); the QR is still signed by the wallet.
 export default function MyTicketsPage() {
   const hasMounted = useHasMounted();
   const { address, isConnected } = useAccount();
