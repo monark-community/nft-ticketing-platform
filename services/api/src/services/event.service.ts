@@ -1,4 +1,4 @@
-import { EventStatus } from '@prisma/client';
+import { EventStatus, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
 // An event is over once its end date has passed. Without an end date it counts as over
@@ -14,11 +14,40 @@ export function notEndedFilter(now: Date = new Date()) {
   };
 }
 
+// LIKE treats % and _ as wildcards, and Prisma passes them through, so a search for "50%" or
+// "rock_n_roll" must escape them to match those characters only
+function escapeLike(text: string) {
+  return text.replace(/[\\%_]/g, '\\$&');
+}
+
+export interface EventFilters {
+  q?: string; // searched in the title and the location (venue and city are one free-text field)
+  category?: string;
+}
+
 // Published events, upcoming and in progress by default (#283).
 // includePast lists every published event, for My Tickets to show past tickets' details (#310).
-export async function listEvents(page: number, limit: number, includePast = false) {
+// The filters apply to the list and to the total (#320).
+export async function listEvents(page: number, limit: number, includePast = false, filters: EventFilters = {}) {
   const skip = (page - 1) * limit;
-  const where = { status: EventStatus.PUBLISHED, ...(includePast ? {} : notEndedFilter()) };
+  const q = filters.q?.trim();
+  const search = q ? escapeLike(q) : null;
+  // The date rule and the search are each an OR of their own, so they go in an AND
+  const and: Prisma.EventWhereInput[] = [];
+  if (!includePast) and.push(notEndedFilter());
+  if (search) {
+    and.push({
+      OR: [
+        { title: { contains: search, mode: 'insensitive' } },
+        { location: { contains: search, mode: 'insensitive' } },
+      ],
+    });
+  }
+  const where: Prisma.EventWhereInput = {
+    status: EventStatus.PUBLISHED,
+    ...(filters.category ? { category: filters.category } : {}),
+    ...(and.length ? { AND: and } : {}),
+  };
   const [events, total] = await Promise.all([
     prisma.event.findMany({
       where,

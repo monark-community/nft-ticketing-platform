@@ -40,6 +40,7 @@ export async function createEvent(
     status?: EventStatus;
     contract_event_id?: bigint;
     title?: string;
+    location?: string;
     category?: string;
     start_date?: Date;
     end_date?: Date | null;
@@ -52,6 +53,7 @@ export async function createEvent(
     data: {
       organizer_wallet: organizerWallet,
       title: overrides.title ?? 'Test Event',
+      location: overrides.location,
       category: overrides.category,
       start_date: overrides.start_date ?? new Date('2030-01-01T20:00:00Z'),
       end_date: overrides.end_date ?? null,
