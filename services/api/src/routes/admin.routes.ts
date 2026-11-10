@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { getAdminEvents } from '../controllers/admin-event.controller';
 import {
   deleteOrganizer,
   getOrganizerRequests,
@@ -28,5 +29,9 @@ router.get('/organizers', getOrganizers);
 // Both endpoints verify hasRole() on-chain before changing the database.
 router.post('/organizers/:wallet', postPromoteOrganizer);
 router.delete('/organizers/:wallet', deleteOrganizer);
+
+// Events tab: every event in every status, with its sale settings (#297). Changing the settings
+// is done on-chain from the admin's wallet (adminUpdateEventSettings); the listener saves them.
+router.get('/events', getAdminEvents);
 
 export default router;
