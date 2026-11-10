@@ -1,6 +1,6 @@
 import { CalendarDays, MapPin } from "lucide-react";
 
-import { AboutEventDialog } from "@/components/event/AboutEventDialog";
+import { AboutEvent } from "@/components/event/AboutEvent";
 import { EventImage } from "@/components/event/EventImage";
 import type { ApiEvent } from "@/lib/event-details";
 import { formatEventDate } from "@/lib/event-details";
@@ -13,7 +13,8 @@ interface EventHeroProps {
 }
 
 // Hero card from Figma (Event detail / Default): cover image with a dark vignette, category tag,
-// "About this event", title, date and venue, then the ticket availability bar.
+// title, date and venue, then the ticket availability bar and the "About this event" row, which
+// opens in place (a dropdown at Monark's request, where the Figma has a pill that opens a popup).
 export function EventHero({ event, availability }: EventHeroProps) {
   return (
     <section className="overflow-hidden rounded-lg bg-card shadow-[0_25px_50px_-12px_rgb(0_0_0/25%)]">
@@ -26,9 +27,6 @@ export function EventHero({ event, availability }: EventHeroProps) {
             {event.category}
           </span>
         )}
-        <div className="absolute top-5 right-4">
-          <AboutEventDialog event={event} />
-        </div>
 
         <div className="absolute inset-x-4 bottom-6 flex flex-col gap-1 md:right-4 md:left-6">
           <h1 className="font-serif text-[32px] leading-[1.1] font-semibold tracking-[-0.025em] text-foreground drop-shadow-md md:text-5xl md:leading-[48px]">
@@ -50,6 +48,7 @@ export function EventHero({ event, availability }: EventHeroProps) {
       </div>
 
       <AvailabilityBar availability={availability} />
+      <AboutEvent event={event} />
     </section>
   );
 }
