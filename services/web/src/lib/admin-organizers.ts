@@ -58,7 +58,9 @@ export function organizerDisplayName(request: OrganizerRequest): string {
   );
 }
 
-export function organizerAccountName(organizer: Organizer): string {
+export function organizerAccountName(
+  organizer: Pick<Organizer, "wallet" | "organization_name" | "nickname" | "first_name" | "last_name">,
+): string {
   return (
     organizer.organization_name?.trim() ||
     organizer.nickname?.trim() ||
