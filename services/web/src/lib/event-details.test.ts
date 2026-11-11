@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  aboutPreview,
   buildTiers,
   eventImageUrl,
   formatDuration,
@@ -113,6 +114,19 @@ describe("display helpers", () => {
     expect(formatTokenAmount(BigInt(1_450_000_000), 6)).toBe("1,450.00");
     expect(formatEth(BigInt(400_000_000_000_000))).toBe("0.0004");
     expect(formatEth(BigInt(1_000))).toBe("<0.0001");
+  });
+});
+
+describe("aboutPreview", () => {
+  it("is the description's first line that has text", () => {
+    expect(aboutPreview("An evening of opera.\n\nDoors open at 5:15 PM.")).toBe("An evening of opera.");
+    expect(aboutPreview("\n  \r\n  Late start  \nMore")).toBe("Late start");
+  });
+
+  it("says what the row opens to when there's no description", () => {
+    expect(aboutPreview(null)).toBe("Event length and start time");
+    expect(aboutPreview("")).toBe("Event length and start time");
+    expect(aboutPreview("  \n ")).toBe("Event length and start time");
   });
 });
 

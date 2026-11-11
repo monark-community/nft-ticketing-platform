@@ -119,6 +119,13 @@ export function formatEventTime(iso: string, timeZone?: string): string {
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone });
 }
 
+// The closed "About this event" row shows the description's first line as a teaser (the row cuts
+// it to fit); without a description it says what the row opens to.
+export function aboutPreview(description: string | null | undefined): string {
+  const firstLine = description?.split(/\r?\n/).find((line) => line.trim() !== "");
+  return firstLine?.trim() ?? "Event length and start time";
+}
+
 // "3h", "2h 15m" or "45m"; null when there is no end date or it is not after the start
 export function formatDuration(startIso: string, endIso: string | null): string | null {
   if (!endIso) return null;
