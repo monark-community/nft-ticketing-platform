@@ -122,6 +122,99 @@ describe('event status rules', () => {
     });
   });
 
+  // #320
+  describe('search and category', () => {
+    const titles = (res: request.Response) => res.body.events.map((e: { title: string }) => e.title);
+    let n = 200n;
+    const published = (data: { title: string; location?: string; category?: string; start_date?: Date; end_date?: Date | null }) =>
+      createEvent(organizer.wallet_address, { status: 'PUBLISHED', contract_event_id: n++, ...data });
+    const list = (query: Record<string, string | number | string[]>) => request(app).get('/api/events').query(query);
+
+    beforeEach(async () => {
+      // Listed by start date: Gala, Jazz, Soundfest, Ballet
+      await published({ title: 'Gala Opera Concert', location: 'National Arts Centre, Ottawa, ON', category: 'Classical & Opera', start_date: new Date('2030-01-01T20:00:00Z') });
+      await published({ title: 'Ottawa Jazz Night', location: 'Bronson Centre', category: 'Concerts', start_date: new Date('2030-02-01T20:00:00Z') });
+      await published({ title: 'Montreal Electronic Soundfest', location: 'Parc Jean-Drapeau, Montreal, QC', category: 'Electronic Music', start_date: new Date('2030-03-01T20:00:00Z') });
+      await published({ title: 'The National Ballet', location: 'Four Seasons Centre, Toronto, ON', category: 'Theater & Arts', start_date: new Date('2030-04-01T20:00:00Z') });
+    });
+
+    it('searches the title and the location, in any letter case', async () => {
+      const byTitle = await list({ q: 'soundFEST' });
+      expect(byTitle.status).toBe(200);
+      expect(titles(byTitle)).toEqual(['Montreal Electronic Soundfest']);
+      expect(byTitle.body.total).toBe(1);
+
+      // "ottawa" is in one event's title and another's venue
+      const byCity = await list({ q: ' ottawa ' });
+      expect(titles(byCity)).toEqual(['Gala Opera Concert', 'Ottawa Jazz Night']);
+      expect(byCity.body.total).toBe(2);
+
+      expect((await list({ q: 'four seasons' })).body.total).toBe(1);
+      expect((await list({ q: 'edmonton' })).body).toMatchObject({ events: [], total: 0 });
+    });
+
+    it('filters by category', async () => {
+      const res = await list({ category: 'Concerts' });
+      expect(res.status).toBe(200);
+      expect(titles(res)).toEqual(['Ottawa Jazz Night']);
+      expect(res.body.total).toBe(1);
+      expect((await list({ category: 'Sports & Arenas' })).body).toMatchObject({ events: [], total: 0 });
+    });
+
+    it('applies both filters together', async () => {
+      expect(titles(await list({ q: 'ottawa', category: 'Classical & Opera' }))).toEqual(['Gala Opera Concert']);
+      expect((await list({ q: 'ottawa', category: 'Theater & Arts' })).body.total).toBe(0);
+    });
+
+    it('rejects a category that is not on the list, and repeated parameters', async () => {
+      const unknown = await list({ category: 'Comedy' });
+      expect(unknown.status).toBe(400);
+      expect(unknown.body.error).toContain('Concerts');
+      expect((await list({ category: 'concerts' })).status).toBe(400);
+      expect((await list({ category: ['Concerts', 'Web3 & Tech'] })).status).toBe(400);
+      expect((await list({ q: ['a', 'b'] })).status).toBe(400);
+      expect((await list({ q: 'x'.repeat(101) })).status).toBe(400);
+    });
+
+    it('treats an empty search or category as no filter', async () => {
+      const res = await list({ q: '  ', category: '' });
+      expect(res.status).toBe(200);
+      expect(res.body.total).toBe(4);
+    });
+
+    it('pages through filtered results, with the filtered total', async () => {
+      const first = await list({ q: 'o', limit: 2, page: 1 }); // all four contain an "o"
+      expect(first.body.total).toBe(4);
+      expect(titles(first)).toEqual(['Gala Opera Concert', 'Ottawa Jazz Night']);
+      const second = await list({ q: 'o', limit: 2, page: 2 });
+      expect(titles(second)).toEqual(['Montreal Electronic Soundfest', 'The National Ballet']);
+
+      const filtered = await list({ q: 'centre', limit: 1, page: 2 });
+      expect(filtered.body.total).toBe(3);
+      expect(filtered.body.events).toHaveLength(1);
+    });
+
+    it('keeps drafts and ended events out, unless include_past is set', async () => {
+      const HOUR = 60 * 60 * 1000;
+      await published({ title: 'Ottawa Winter Classic', category: 'Concerts', start_date: new Date(Date.now() - 48 * HOUR), end_date: new Date(Date.now() - 40 * HOUR) });
+      await createEvent(organizer.wallet_address, { status: 'DRAFT', title: 'Ottawa Draft Night', category: 'Concerts' });
+
+      expect((await list({ q: 'ottawa' })).body.total).toBe(2);
+      expect((await list({ category: 'Concerts' })).body.total).toBe(1);
+      const withPast = await list({ q: 'ottawa', include_past: 'true' });
+      expect(withPast.body.total).toBe(3);
+      expect(titles(withPast)).toContain('Ottawa Winter Classic');
+    });
+
+    it('matches % and _ as plain characters', async () => {
+      await published({ title: '100% Local_Bands Showcase', category: 'Concerts', start_date: new Date('2030-05-01T20:00:00Z') });
+      expect(titles(await list({ q: '100%' }))).toEqual(['100% Local_Bands Showcase']);
+      expect(titles(await list({ q: 'local_b' }))).toEqual(['100% Local_Bands Showcase']);
+      expect((await list({ q: '%' })).body.total).toBe(1);
+      expect((await list({ q: '_' })).body.total).toBe(1);
+    });
+  });
+
   it('lets a DRAFT be edited, but never its status, owner or IPFS hash', async () => {
     const event = await createEvent(organizer.wallet_address);
     const res = await request(app).put(`/api/events/${event.id}`).set('Cookie', cookie).send({

@@ -11,6 +11,17 @@ import { pinImageToIPFS, pinMetadataToIPFS, buildEventMetadata, buildTicketMetad
 import { syncEventFromChain } from '../services/sync.service';
 import logger from '../lib/logger';
 import { validateEventInput } from '../lib/validation';
+import { EVENT_CATEGORIES, isEventCategory } from '../lib/categories';
+
+const SEARCH_MAX = 100;
+
+// Optional text filter: absent or empty is fine, but a repeated parameter (?q=a&q=b) arrives as an array
+function optionalString(value: unknown): { ok: boolean; value?: string } {
+  if (value === undefined) return { ok: true };
+  if (typeof value !== 'string') return { ok: false };
+  const trimmed = value.trim();
+  return { ok: true, value: trimmed === '' ? undefined : trimmed };
+}
 
 export async function getEvents(req: Request, res: Response): Promise<void> {
   const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -18,8 +29,20 @@ export async function getEvents(req: Request, res: Response): Promise<void> {
   // Upcoming and in-progress events only, unless ?include_past=true (#310)
   const includePast = req.query.include_past === 'true';
 
+  // Search and category (#320)
+  const q = optionalString(req.query.q);
+  if (!q.ok || (q.value !== undefined && q.value.length > SEARCH_MAX)) {
+    res.status(400).json({ error: `q must be a single value of ${SEARCH_MAX} characters or fewer` });
+    return;
+  }
+  const category = optionalString(req.query.category);
+  if (!category.ok || (category.value !== undefined && !isEventCategory(category.value))) {
+    res.status(400).json({ error: `category must be one of: ${EVENT_CATEGORIES.join(', ')}` });
+    return;
+  }
+
   try {
-    const result = await listEvents(page, limit, includePast);
+    const result = await listEvents(page, limit, includePast, { q: q.value, category: category.value });
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch events' });
