@@ -9,6 +9,7 @@ import {
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
+  Ticket,
   Users,
   X,
   XCircle,
@@ -19,12 +20,15 @@ import { useAccount, useChains, useReadContract, useSwitchChain } from "wagmi";
 
 import { Footer } from "@/components/Footer";
 import { Navbar } from "@/components/Navbar";
+import { AdminEventsTab } from "@/components/admin/AdminEventsTab";
+import { EmptyState, TableShell, Td, Th } from "@/components/admin/AdminTable";
 import { TransactionStatus } from "@/components/TransactionStatus";
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { useAdminEvents } from "@/hooks/useAdminEvents";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useWalletAuth } from "@/hooks/useWalletAuth";
@@ -54,16 +58,17 @@ const ORGANIZER_ROLE = keccak256(stringToHex("ORGANIZER_ROLE"));
 const DEFAULT_ADMIN_ROLE = zeroHash;
 
 const ADMIN_ROLE_ERROR =
-  "This wallet doesn't have the platform's admin role, so it can't approve or revoke organizers. Use the platform's admin wallet.";
+  "This wallet doesn't have the platform's admin role, so it can't approve or revoke organizers or change event settings. Use the platform's admin wallet.";
 const ADMIN_ACCOUNT_ERROR = "This account isn't an admin. Sign in with the platform's admin wallet.";
 
-type Tab = "requests" | "organizers";
+type Tab = "requests" | "organizers" | "events";
 type Notice = { tone: "success" | "warning" | "error"; title: string; message?: string };
 type ActiveAction = { type: "approve" | "reject" | "revoke"; id: string };
 
 // Admin page (#198): organizer requests and organizer access, built from the
 // Figma "Admin/Requests page" and "Admin/Organizer Page" (#282). Approval and
 // revocation are on-chain from the admin's wallet; the API only records them.
+// The Events tab (#296) lists every event and lets the admin change its sale settings.
 export default function AdminPage() {
   const hasMounted = useHasMounted();
   const { address, isConnected, chainId } = useAccount();
@@ -80,6 +85,7 @@ export default function AdminPage() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [activeAction, setActiveAction] = useState<ActiveAction | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const adminEvents = useAdminEvents(user?.role === "ADMIN");
 
   const transaction = useTransaction({
     getErrorMessage: (err) =>
@@ -350,9 +356,20 @@ export default function AdminPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="type-heading-lg text-foreground">Admin</h1>
-          <p className="type-body-md text-secondary-foreground">Review organizer requests and manage organizer access.</p>
+          <p className="type-body-md text-secondary-foreground">
+            Review organizer requests, manage organizer access and see all events.
+          </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void loadData()} loading={loading} disabled={busy}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            void loadData();
+            void adminEvents.reload();
+          }}
+          loading={loading || adminEvents.loading}
+          disabled={busy}
+        >
           <RefreshCw aria-hidden="true" /> Refresh
         </Button>
       </div>
@@ -360,7 +377,7 @@ export default function AdminPage() {
       {!onContractChain ? (
         <Alert
           tone="warning"
-          title="Switch network to manage organizers"
+          title="Switch network to make changes"
           action={
             <Button
               size="sm"
@@ -371,7 +388,8 @@ export default function AdminPage() {
             </Button>
           }
         >
-          Your wallet is on a different network. Switch to {networkName} to approve or revoke organizer access.
+          Your wallet is on a different network. Switch to {networkName} to approve or revoke organizers and to change
+          event settings.
         </Alert>
       ) : (
         <AdminRoleNotice
@@ -394,7 +412,7 @@ export default function AdminPage() {
         onStopWaiting={transaction.stopWaiting}
       />
 
-      <div role="tablist" aria-label="Admin sections" className="flex gap-6 border-b border-border">
+      <div role="tablist" aria-label="Admin sections" className="flex gap-3 overflow-x-auto border-b border-border sm:gap-6">
         <TabButton
           active={tab === "requests"}
           onClick={() => setTab("requests")}
@@ -409,9 +427,18 @@ export default function AdminPage() {
           label="Organizers"
           count={organizers.length}
         />
+        <TabButton
+          active={tab === "events"}
+          onClick={() => setTab("events")}
+          icon={<Ticket aria-hidden="true" />}
+          label="Events"
+          count={adminEvents.allTotal}
+        />
       </div>
 
-      {loading ? (
+      {tab === "events" ? (
+        <AdminEventsTab events={adminEvents} hasAdminRole={adminRoleError ? undefined : onChainAdminRole} />
+      ) : loading ? (
         <Panel className="items-center py-12">
           <Spinner className="size-6 text-primary" label="Loading admin data" />
         </Panel>
@@ -669,7 +696,7 @@ function AdminRoleNotice({
   }
   if (hasRole === false) {
     return (
-      <Alert tone="error" title="This wallet cannot manage organizers" icon={ShieldAlert}>
+      <Alert tone="error" title="This wallet cannot make changes" icon={ShieldAlert}>
         {ADMIN_ROLE_ERROR}
       </Alert>
     );
@@ -697,11 +724,11 @@ function TabButton({
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        "flex items-center gap-2 border-b-2 pb-3 type-body-md-strong transition-colors",
+        "flex shrink-0 items-center gap-2 border-b-2 pb-3 type-body-md-strong whitespace-nowrap transition-colors",
         active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
       )}
     >
-      <span className="[&_svg]:size-4">{icon}</span>
+      <span className="hidden sm:inline [&_svg]:size-4">{icon}</span>
       {label}
       <span className={cn("rounded-xs px-1.5 py-0.5 type-label-sm", active ? "bg-primary-tint text-primary" : "bg-muted")}>
         {count}
@@ -756,38 +783,6 @@ function WalletChip({ wallet }: { wallet: string }) {
       {shortAddress(wallet)}
       {copied ? <Check className="size-3 text-success" aria-hidden="true" /> : <Copy className="size-3" aria-hidden="true" />}
     </button>
-  );
-}
-
-function TableShell({ children }: { children: React.ReactNode }) {
-  return <div className="overflow-x-auto rounded-lg border border-border bg-card">{children}</div>;
-}
-
-function Th({ children, align = "left" }: { children: React.ReactNode; align?: "left" | "right" }) {
-  return (
-    <th
-      scope="col"
-      className={cn(
-        "px-5 py-3 type-label-sm text-muted-foreground",
-        align === "right" ? "text-right" : "text-left",
-      )}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({ children, align = "left", className }: { children: React.ReactNode; align?: "left" | "right"; className?: string }) {
-  return <td className={cn("px-5 py-4 align-middle", align === "right" ? "text-right" : "text-left", className)}>{children}</td>;
-}
-
-function EmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
-  return (
-    <div className="dot-grid flex flex-col items-center gap-2 rounded-lg border border-border bg-card px-6 py-10 text-center">
-      <span className="text-muted-foreground">{icon}</span>
-      <h3 className="type-heading-sm text-foreground">{title}</h3>
-      <p className="type-body-md text-muted-foreground">{description}</p>
-    </div>
   );
 }
 
