@@ -177,6 +177,8 @@ contract TicketNFT is
 
     /// @notice Lets the admin change an event's settings at any time, including after the first sale.
     /// Organizers stay locked once tickets are sold (configureEvent); the event keeps its organizer.
+    /// The event's current end time can be kept even after it has passed, so changing another
+    /// setting once sales have ended doesn't reopen them. A new end time must be in the future.
     function adminUpdateEventSettings(
         uint256 eventId,
         uint256 endTime,
@@ -188,7 +190,8 @@ contract TicketNFT is
     {
         EventConfig storage config = eventConfigs[eventId];
         require(config.configured, "Event not configured");
-        _validateEventSettings(endTime, royaltyBps, resaleCapBps);
+        require(endTime == config.endTime || endTime > block.timestamp, "End time must be in the future");
+        _validateRoyaltyAndCap(royaltyBps, resaleCapBps);
 
         config.endTime = endTime;
         config.resaleCapBps = resaleCapBps;
@@ -491,6 +494,10 @@ contract TicketNFT is
     /// @dev Checks shared by configureEvent() and adminUpdateEventSettings().
     function _validateEventSettings(uint256 endTime, uint256 royaltyBps, uint256 resaleCapBps) internal view {
         require(endTime > block.timestamp, "End time must be in the future");
+        _validateRoyaltyAndCap(royaltyBps, resaleCapBps);
+    }
+
+    function _validateRoyaltyAndCap(uint256 royaltyBps, uint256 resaleCapBps) internal pure {
         require(royaltyBps <= 10000, "Royalty cannot exceed 100%");
         require(resaleCapBps == 0 || resaleCapBps >= 10000, "Resale cap must be 0 or at least 100% of face value");
     }

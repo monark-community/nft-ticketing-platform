@@ -1,5 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { deployTicketNFT, futureTime, setupEvent } from "./helpers";
 
 describe("TicketNFT - Admin event settings (#293)", function () {
@@ -121,6 +122,91 @@ describe("TicketNFT - Admin event settings (#293)", function () {
 
         expect(await ticketNFT.ownerOf(0)).to.equal(buyer.address);
         expect(await usdc.balanceOf(seller.address)).to.equal(sellerBefore + price - (price * 2000n) / 10000n);
+    });
+
+    it("lets the admin keep the current end time while sales are open", async function () {
+        const current = (await ticketNFT.eventConfigs(1)).endTime;
+        await ticketNFT.connect(admin).adminUpdateEventSettings(1, current, 500, 11000, 0);
+
+        expect((await ticketNFT.eventConfigs(1)).endTime).to.equal(current);
+        await firstSale(); // still on sale
+    });
+
+    // Monark (Oct 27): admins can change settings at any time. Once sales have ended, keeping the
+    // event's end time changes the other settings without reopening sales.
+    describe("after ticket sales have ended", function () {
+        let ended: bigint;
+
+        beforeEach(async function () {
+            await firstSale(); // token 0, held by the seller
+            ended = (await ticketNFT.eventConfigs(1)).endTime;
+            await time.increaseTo(ended + 60n);
+        });
+
+        it("changes the royalty and per-wallet limit and keeps sales closed", async function () {
+            await expect(ticketNFT.connect(admin).adminUpdateEventSettings(1, ended, 500, 11000, 2))
+                .to.emit(ticketNFT, "EventConfigured").withArgs(1, organizer.address, ended, 500, 11000, 2)
+                .and.to.emit(ticketNFT, "EventSettingsUpdatedByAdmin").withArgs(1, admin.address);
+
+            const config = await ticketNFT.eventConfigs(1);
+            expect(config.endTime).to.equal(ended);
+            expect(config.perWalletLimit).to.equal(2);
+            expect(await ticketNFT.royaltyPercentage(1)).to.equal(500);
+
+            await expect(ticketNFT.connect(buyer).buyTickets(1, 0, 1)).to.be.revertedWith("Event has ended");
+        });
+
+        it("leaves the resale cap off and applies the new royalty to the next resale", async function () {
+            await ticketNFT.connect(admin).adminUpdateEventSettings(1, ended, 500, 11000, 0); // royalty 10% -> 5%
+            expect(await ticketNFT.resaleCapApplies(0)).to.equal(false);
+
+            const price = ethers.parseUnits("500", 6); // far above the 110% cap, allowed after sales end
+            await ticketNFT.connect(seller).listForResale(0, price);
+            const organizerBefore = await usdc.balanceOf(organizer.address);
+            await ticketNFT.connect(buyer).buyResaleTicket(0, price);
+
+            expect(await ticketNFT.ownerOf(0)).to.equal(buyer.address);
+            expect(await usdc.balanceOf(organizer.address)).to.equal(organizerBefore + (price * 500n) / 10000n);
+        });
+
+        it("refuses a different end time that has also passed", async function () {
+            for (const endTime of [ended - 1n, ended + 1n]) {
+                await expect(ticketNFT.connect(admin).adminUpdateEventSettings(1, endTime, 500, 11000, 0))
+                    .to.be.revertedWith("End time must be in the future");
+            }
+        });
+
+        it("reopens sales and the resale cap with a new end time in the future", async function () {
+            const reopened = await futureTime(24 * 60 * 60);
+            await ticketNFT.connect(admin).adminUpdateEventSettings(1, reopened, 1000, 11000, 0);
+
+            expect(await ticketNFT.resaleCapApplies(0)).to.equal(true);
+            await expect(ticketNFT.connect(seller).listForResale(0, ethers.parseUnits("500", 6)))
+                .to.be.revertedWith("Sale price exceeds maximum resale price");
+            await ticketNFT.connect(buyer).buyTickets(1, 0, 1);
+            expect(await ticketNFT.ownerOf(1)).to.equal(buyer.address);
+        });
+
+        it("still checks the royalty and the resale cap", async function () {
+            await expect(ticketNFT.adminUpdateEventSettings(1, ended, 10001, 11000, 0))
+                .to.be.revertedWith("Royalty cannot exceed 100%");
+            await expect(ticketNFT.adminUpdateEventSettings(1, ended, 500, 9999, 0))
+                .to.be.revertedWith("Resale cap must be 0 or at least 100% of face value");
+        });
+
+        it("still rejects non-admins", async function () {
+            await expect(ticketNFT.connect(organizer).adminUpdateEventSettings(1, ended, 500, 11000, 0))
+                .to.be.revertedWithCustomError(ticketNFT, "AccessControlUnauthorizedAccount");
+        });
+    });
+
+    it("doesn't let the organizer keep an end time that has passed", async function () {
+        const ending = await futureTime(60 * 60);
+        await setupEvent(ticketNFT, organizer, 2, { endTime: ending }); // no tickets sold
+        await time.increaseTo(ending + 60n);
+
+        await expect(ticketNFT.connect(organizer).configureEvent(2, ending, 500, 11000, 0))
+            .to.be.revertedWith("End time must be in the future");
     });
 
 });
