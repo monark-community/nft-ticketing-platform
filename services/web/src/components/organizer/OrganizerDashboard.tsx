@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, CalendarPlus, RotateCw, Ticket } from "lucide-react";
+import { AlertCircle, CalendarPlus, Plus, RotateCw, Ticket } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
@@ -42,72 +42,82 @@ export function OrganizerDashboard() {
 
   const summary = useMemo(() => summarizeOrganizerEvents(events, now), [events, now]);
   const visible = useMemo(() => filterOrganizerEvents(events, filter, now), [events, filter, now]);
-
-  if (loading) {
-    return <OrganizerEventTableSkeleton />;
-  }
-
-  if (error) {
-    return (
-      <Alert
-        tone="error"
-        title="Couldn't load your events"
-        action={
-          <Button variant="secondary" size="sm" onClick={reload}>
-            <RotateCw aria-hidden="true" />
-            Try again
-          </Button>
-        }
-      >
-        Check your connection and try again.
-      </Alert>
-    );
-  }
-
-  if (events.length === 0) {
-    return (
-      <EventsMessage
-        icon={<CalendarPlus aria-hidden="true" />}
-        title="No events yet"
-        action={
-          <Link href={ROUTES.newEvent} className={buttonVariants({ size: "md" })}>
-            Create event
-          </Link>
-        }
-      >
-        <p>{EMPTY_TEXT.all}</p>
-      </EventsMessage>
-    );
-  }
+  // With no events the empty state has its own Create event button, so the header one stays hidden
+  const showCreate = !loading && !error && events.length > 0;
 
   return (
-    <div className="flex flex-col gap-6">
-      <SummaryStrip summary={summary} />
-
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <FilterTabs filter={filter} onChange={setFilter} summary={summary} />
-        <p className="type-body-sm text-muted-foreground" aria-live="polite">
-          Showing {visible.length} of {summary.total} {summary.total === 1 ? "event" : "events"}
-        </p>
-      </div>
-
-      <div id="organizer-events-panel" role="tabpanel" aria-labelledby={`organizer-filter-${filter}`}>
-        {visible.length === 0 ? (
-          <EventsMessage
-            icon={filter === "live" ? <Ticket aria-hidden="true" /> : <AlertCircle aria-hidden="true" />}
-            title={`No ${labelFor(filter)} events`}
-            action={
-              <Button variant="secondary" onClick={() => setFilter("all")}>
-                Show all events
-              </Button>
-            }
-          >
-            <p>{EMPTY_TEXT[filter]}</p>
-          </EventsMessage>
-        ) : (
-          <OrganizerEventTable events={visible} now={now} />
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <p className="type-body-sm text-muted-foreground">Organizer</p>
+          <h1 className="type-heading-lg text-foreground md:type-display-xl">My events</h1>
+          <p className="type-body-lg text-secondary-foreground">Create events, follow sales and manage your tickets.</p>
+        </div>
+        {showCreate && (
+          <Link href={ROUTES.newEvent} className={cn(buttonVariants({ size: "md" }), "w-full sm:w-auto")}>
+            <Plus aria-hidden="true" />
+            Create event
+          </Link>
         )}
-      </div>
+      </header>
+
+      {loading ? (
+        <OrganizerEventTableSkeleton />
+      ) : error ? (
+        <Alert
+          tone="error"
+          title="Couldn't load your events"
+          action={
+            <Button variant="secondary" size="sm" onClick={reload}>
+              <RotateCw aria-hidden="true" />
+              Try again
+            </Button>
+          }
+        >
+          Check your connection and try again.
+        </Alert>
+      ) : events.length === 0 ? (
+        <EventsMessage
+          icon={<CalendarPlus aria-hidden="true" />}
+          title="No events yet"
+          action={
+            <Link href={ROUTES.newEvent} className={buttonVariants({ size: "md" })}>
+              Create event
+            </Link>
+          }
+        >
+          <p>{EMPTY_TEXT.all}</p>
+        </EventsMessage>
+      ) : (
+        <div className="flex flex-col gap-6">
+          <SummaryStrip summary={summary} />
+
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <FilterTabs filter={filter} onChange={setFilter} summary={summary} />
+            <p className="type-body-sm text-muted-foreground" aria-live="polite">
+              Showing {visible.length} of {summary.total} {summary.total === 1 ? "event" : "events"}
+            </p>
+          </div>
+
+          <div id="organizer-events-panel" role="tabpanel" aria-labelledby={`organizer-filter-${filter}`}>
+            {visible.length === 0 ? (
+              <EventsMessage
+                icon={filter === "live" ? <Ticket aria-hidden="true" /> : <AlertCircle aria-hidden="true" />}
+                title={`No ${labelFor(filter)} events`}
+                action={
+                  <Button variant="secondary" onClick={() => setFilter("all")}>
+                    Show all events
+                  </Button>
+                }
+              >
+                <p>{EMPTY_TEXT[filter]}</p>
+              </EventsMessage>
+            ) : (
+              <OrganizerEventTable events={visible} now={now} />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

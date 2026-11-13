@@ -19,7 +19,7 @@ export function OrganizerEventTable({ events, now }: { events: OrganizerEvent[];
         <caption className="sr-only">Your events</caption>
         <thead className="hidden border-b border-border lg:table-header-group">
           <tr>
-            <Th className="w-[32%]">Event</Th>
+            <Th>Event</Th>
             <Th className="w-[15%]">Date</Th>
             <Th className="w-[13%]">Status</Th>
             <Th align="right" className="w-[10%]">
@@ -28,7 +28,7 @@ export function OrganizerEventTable({ events, now }: { events: OrganizerEvent[];
             <Th align="right" className="w-[15%]">
               Revenue
             </Th>
-            <Th align="right" className="w-[15%]">
+            <Th align="right" className="w-48">
               <span className="sr-only">Actions</span>
             </Th>
           </tr>
@@ -131,7 +131,7 @@ export function OrganizerEventTableSkeleton({ rows = 4 }: { rows?: number }) {
       aria-label="Loading your events"
     >
       <div
-        className="hidden border-b border-border px-5 py-3 type-label-sm text-muted-foreground lg:grid lg:grid-cols-[32%_15%_13%_10%_15%_15%]"
+        className="hidden border-b border-border px-5 py-3 type-label-sm text-muted-foreground lg:grid lg:grid-cols-[minmax(0,1fr)_15%_13%_10%_15%_12rem]"
         aria-hidden="true"
       >
         <span>Event</span>
@@ -145,7 +145,7 @@ export function OrganizerEventTableSkeleton({ rows = 4 }: { rows?: number }) {
         <div
           key={index}
           aria-hidden="true"
-          className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border p-4 last:border-0 lg:grid-cols-[32%_15%_13%_10%_15%_15%] lg:items-center lg:px-5 lg:py-4"
+          className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border p-4 last:border-0 lg:grid-cols-[minmax(0,1fr)_15%_13%_10%_15%_12rem] lg:items-center lg:px-5 lg:py-4"
         >
           <div className="col-span-2 flex items-center gap-3 lg:col-span-1">
             <div className="size-12 shrink-0 animate-pulse rounded-sm bg-muted motion-reduce:animate-none" />
