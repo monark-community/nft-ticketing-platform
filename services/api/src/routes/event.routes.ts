@@ -3,6 +3,7 @@ import multer from 'multer';
 import {
   getEvents,
   getEvent,
+  getMyEvents,
   postEvent,
   putEvent,
   postFreezeEvent,
@@ -31,6 +32,10 @@ const upload = multer({
 
 // Public
 router.get('/', publicRateLimiter, getEvents);
+
+// Organizer — own events, before /:id so "mine" isn't read as an event ID
+router.get('/mine', authenticate, requireRole('ORGANIZER'), requireEmail, getMyEvents);
+
 router.get('/:id', publicRateLimiter, getEvent);
 
 // Organizer — event lifecycle
