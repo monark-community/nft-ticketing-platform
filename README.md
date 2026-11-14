@@ -76,6 +76,7 @@ nft-ticketing-platform/
 │           ├── contracts/        # Contract ABI and addresses (exported by the deploy script)
 │           ├── hooks/            # React hooks
 │           └── lib/              # Wallet setup, helpers
+├── e2e/                          # End-to-end tests (Playwright), see e2e/README.md
 ├── docker-compose.yml            # Local Docker setup (api + web + db)
 └── DOCKER.md                     # Docker usage and deployment guide
 ```
@@ -257,6 +258,13 @@ npm run dev                   # needs services/web/.env.local (see above)
 | `npm run dev` | Start the development server |
 | `npm run build` / `npm start` | Build and run the production app |
 | `npm run lint` | Run ESLint |
+
+**End-to-end tests** (`e2e`, see the [e2e README](./e2e/README.md))
+
+| Command | Description |
+|---------|-------------|
+| `npm test` | Start the whole app on a fresh local chain and run every end-to-end test |
+| `npm run stack` | Start the app for the tests and keep it running, so test runs reuse it |
 
 ## Deployment
 

@@ -1,0 +1,26 @@
+{
+  "name": "nftokenpass-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end tests: a real browser with a test wallet, against a local chain, the API and the database (#336)",
+  "type": "module",
+  "scripts": {
+    "stack": "node stack/run.mjs",
+    "test": "playwright test",
+    "test:desktop": "playwright test --project=desktop",
+    "test:phone": "playwright test --project=phone",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "@types/qrcode": "^1.5.5",
+    "ethers": "^6.13.0",
+    "pg": "^8.13.1",
+    "qrcode": "^1.5.4",
+    "typescript": "^5.4.5"
+  }
+}

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import app from '../src/app';
+import { authRateLimitMax } from '../src/middlewares/rateLimiter';
 import { resetDb, createUser, randomWallet } from './helpers/db';
 import { authCookie } from './helpers/auth';
 
@@ -137,5 +138,23 @@ describe('requireEmail', () => {
 
     const tickets = await request(app).get('/api/tickets').set('Cookie', cookie);
     expect(tickets.status).toBe(200);
+  });
+});
+
+describe('authRateLimitMax', () => {
+  it('allows 10 sign-in requests a minute by default', () => {
+    expect(authRateLimitMax(undefined)).toBe(10);
+    expect(authRateLimitMax('')).toBe(10);
+  });
+
+  it('uses AUTH_RATE_LIMIT_MAX when it is a positive whole number', () => {
+    expect(authRateLimitMax('1000')).toBe(1000);
+  });
+
+  it('ignores a value that is not a positive whole number', () => {
+    expect(authRateLimitMax('0')).toBe(10);
+    expect(authRateLimitMax('-5')).toBe(10);
+    expect(authRateLimitMax('2.5')).toBe(10);
+    expect(authRateLimitMax('lots')).toBe(10);
   });
 });

@@ -62,6 +62,16 @@ describe('pinImageToIPFS', () => {
     });
   });
 
+  it('sends uploads to PINATA_UPLOAD_URL when it is set', async () => {
+    vi.stubEnv('PINATA_UPLOAD_URL', 'http://localhost:3102');
+    await pinImageToIPFS(png, 'poster.png', 'image/png');
+    expect(pinata.config).toHaveBeenCalledWith({
+      pinataJwt: 'test-pinata-jwt',
+      pinataGateway: 'gateway.pinata.cloud',
+      uploadUrl: 'http://localhost:3102',
+    });
+  });
+
   it('rejects unsupported file types without uploading', async () => {
     await expect(pinImageToIPFS(png, 'poster.gif', 'image/gif')).rejects.toThrow(/Unsupported file type/);
     expect(pinata.uploadFile).not.toHaveBeenCalled();

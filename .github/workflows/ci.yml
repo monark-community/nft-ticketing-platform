@@ -123,3 +123,96 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npm test
+
+  # End-to-end tests (Playwright): the whole app on a fresh local chain - sub-issue #337
+  e2e:
+    name: End-to-end tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      # Same settings as e2e/docker-compose.yml. The stack makes its nft_ticketing_e2e database here
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: e2e_user
+          POSTGRES_PASSWORD: e2e_password
+          POSTGRES_DB: postgres
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U e2e_user -d postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Only when the app, the API, the contracts or the tests changed
+      - name: Check what changed
+        id: changes
+        run: |
+          if git diff --quiet "origin/${{ github.base_ref }}...HEAD" -- services packages e2e .github/workflows/ci.yml; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No app, API, contract or test changes: the end-to-end tests are skipped."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.changes.outputs.run == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            packages/contracts/package-lock.json
+            services/api/package-lock.json
+            services/web/package-lock.json
+            e2e/package-lock.json
+
+      - name: Install dependencies
+        if: steps.changes.outputs.run == 'true'
+        run: |
+          npm ci --prefix packages/contracts
+          npm ci --prefix services/api
+          npm ci --prefix services/web
+          npm ci --prefix e2e
+
+      - name: Cache the Playwright browser
+        if: steps.changes.outputs.run == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
+
+      - name: Cache the Next.js build cache
+        if: steps.changes.outputs.run == 'true'
+        uses: actions/cache@v4
+        with:
+          path: services/web/.next/cache
+          key: next-e2e-${{ runner.os }}-${{ hashFiles('services/web/package-lock.json') }}-${{ github.sha }}
+          restore-keys: next-e2e-${{ runner.os }}-${{ hashFiles('services/web/package-lock.json') }}-
+
+      - name: Install Chromium
+        if: steps.changes.outputs.run == 'true'
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the end-to-end tests
+        if: steps.changes.outputs.run == 'true'
+        working-directory: e2e
+        run: npx playwright test
+
+      # Traces and screenshots of the failed tests only, plus the stack's logs
+      - name: Upload the failures
+        if: failure() && steps.changes.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: |
+            e2e/test-results/
+            e2e/playwright-report/
+            e2e/.stack/logs/
+          retention-days: 7
+          include-hidden-files: true
