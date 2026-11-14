@@ -12,6 +12,8 @@ import {
   resaleCapChoices,
   resaleCapText,
   royaltyText,
+  salesEndHint,
+  salesEndUnchanged,
   sameSettings,
   SETTINGS_ERRORS,
   settingsArgs,
@@ -160,26 +162,65 @@ describe("the settings form", () => {
   });
 
   it("accepts valid settings", () => {
-    expect(validateSettings(settingsToForm(current), NOW)).toEqual({});
-    expect(validateSettings({ ...settingsToForm(current), royaltyPercent: "100", resaleCapBps: 0, perWalletLimit: "0" }, NOW)).toEqual({});
+    expect(validateSettings(settingsToForm(current), current, NOW)).toEqual({});
+    expect(validateSettings({ ...settingsToForm(current), royaltyPercent: "100", resaleCapBps: 0, perWalletLimit: "0" }, current, NOW)).toEqual({});
   });
 
   it("applies the contract's rules", () => {
     const form = settingsToForm(current);
-    expect(validateSettings({ ...form, royaltyPercent: "100.01" }, NOW).royaltyPercent).toBeDefined();
-    expect(validateSettings({ ...form, royaltyPercent: "-1" }, NOW).royaltyPercent).toBeDefined();
-    expect(validateSettings({ ...form, royaltyPercent: "" }, NOW).royaltyPercent).toBeDefined();
-    expect(validateSettings({ ...form, resaleCapBps: 5000 }, NOW).resaleCapBps).toBeDefined();
-    expect(validateSettings({ ...form, perWalletLimit: "1.5" }, NOW).perWalletLimit).toBeDefined();
-    expect(validateSettings({ ...form, perWalletLimit: "10001" }, NOW).perWalletLimit).toBeDefined();
-    expect(validateSettings({ ...form, salesEnd: "" }, NOW).salesEnd).toBe("Choose when ticket sales end.");
+    expect(validateSettings({ ...form, royaltyPercent: "100.01" }, current, NOW).royaltyPercent).toBeDefined();
+    expect(validateSettings({ ...form, royaltyPercent: "-1" }, current, NOW).royaltyPercent).toBeDefined();
+    expect(validateSettings({ ...form, royaltyPercent: "" }, current, NOW).royaltyPercent).toBeDefined();
+    expect(validateSettings({ ...form, resaleCapBps: 5000 }, current, NOW).resaleCapBps).toBeDefined();
+    expect(validateSettings({ ...form, perWalletLimit: "1.5" }, current, NOW).perWalletLimit).toBeDefined();
+    expect(validateSettings({ ...form, perWalletLimit: "10001" }, current, NOW).perWalletLimit).toBeDefined();
+    expect(validateSettings({ ...form, salesEnd: "" }, current, NOW).salesEnd).toBe("Choose when ticket sales end.");
   });
 
-  it("needs a sales end in the future, also when it wasn't touched", () => {
-    const ended = { ...current, salesEndSec: Math.floor(NOW / 1000) - 3600 };
-    expect(validateSettings(settingsToForm(ended), NOW).salesEnd).toBe("Sales must end in the future.");
-    expect(validateSettings({ ...settingsToForm(ended), salesEnd: localInputFromMs(NOW) }, NOW).salesEnd).toBeDefined();
-    expect(validateSettings({ ...settingsToForm(ended), salesEnd: localInputFromMs(NOW + 60_000) }, NOW).salesEnd).toBeUndefined();
+  describe("after sales have ended", () => {
+    // Ended an hour ago, with seconds the date input can't show
+    const ended: EventSettings = { ...current, salesEndSec: Math.floor(NOW / 1000) - 3600 + 30 };
+
+    it("keeps the current sales end, so other settings can change without reopening sales", () => {
+      const form = { ...settingsToForm(ended), royaltyPercent: "5" };
+      expect(salesEndUnchanged(form, ended)).toBe(true);
+      expect(validateSettings(form, ended, NOW)).toEqual({});
+      // The exact end time the contract has, down to the second
+      expect(formToSettings(form, ended)).toEqual({ ...ended, royaltyBps: 500 });
+    });
+
+    it("needs a new sales end to be in the future", () => {
+      const form = settingsToForm(ended);
+      expect(validateSettings({ ...form, salesEnd: localInputFromMs(NOW - 60_000) }, ended, NOW).salesEnd).toBe(
+        "A new sales end must be in the future.",
+      );
+      expect(validateSettings({ ...form, salesEnd: localInputFromMs(NOW) }, ended, NOW).salesEnd).toBeDefined();
+      expect(validateSettings({ ...form, salesEnd: localInputFromMs(NOW + 60_000) }, ended, NOW).salesEnd).toBeUndefined();
+    });
+
+    it("explains what keeping or changing the date does", () => {
+      const form = settingsToForm(ended);
+      expect(salesEndHint(form, ended, NOW, "UTC")).toBe(
+        "Sales ended Mon, Nov 9, 2026 • 11:00 PM. Keep this date to leave them closed, or pick a later one to reopen them.",
+      );
+      expect(salesEndHint({ ...form, salesEnd: localInputFromMs(NOW + 86_400_000) }, ended, NOW)).toBe(
+        "Sales reopen until this date: tickets can be bought again and the resale cap applies.",
+      );
+      // A different date that has also passed doesn't reopen anything
+      expect(salesEndHint({ ...form, salesEnd: localInputFromMs(NOW - 86_400_000) }, ended, NOW)).toBe(
+        "Your local time. A new date must be in the future.",
+      );
+      expect(salesEndHint({ ...form, salesEnd: "" }, ended, NOW)).toBe("Your local time. A new date must be in the future.");
+    });
+  });
+
+  it("still needs a changed sales end in the future while sales are open", () => {
+    const form = settingsToForm(current);
+    expect(salesEndHint(form, current, NOW)).toBe("Your local time. A new date must be in the future.");
+    expect(validateSettings({ ...form, salesEnd: localInputFromMs(NOW - 60_000) }, current, NOW).salesEnd).toBe(
+      "A new sales end must be in the future.",
+    );
+    expect(validateSettings({ ...form, salesEnd: "" }, current, NOW).salesEnd).toBe("Choose when ticket sales end.");
   });
 
   it("offers the usual caps, plus the event's own when it is another value", () => {

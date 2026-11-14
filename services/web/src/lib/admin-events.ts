@@ -10,7 +10,7 @@ import {
   RESALE_CAP_OPTIONS,
   type FieldErrors,
 } from "@/lib/create-event";
-import { formatMultiplier, formatPercent } from "@/lib/event-details";
+import { formatEventDate, formatMultiplier, formatPercent } from "@/lib/event-details";
 import { getTransactionErrorMessage } from "@/lib/transactions/errors";
 
 // ---------------------------------------------------------------------------------------------
@@ -163,9 +163,15 @@ export function resaleCapChoices(currentBps: number): { bps: number; label: stri
   return choices;
 }
 
+// Whether the sales end field still shows the event's current sales end
+export function salesEndUnchanged(form: SettingsForm, current: EventSettings): boolean {
+  return form.salesEnd === settingsToForm(current).salesEnd;
+}
+
 // The contract's own rules: royalty up to 100%, cap of 0 or at least 1× face value, and a sales
-// end in the future (also when only another setting changes).
-export function validateSettings(form: SettingsForm, nowMs: number): FieldErrors<keyof SettingsForm> {
+// end in the future. The event's current sales end can be kept even after it has passed, so other
+// settings can change once sales have ended without reopening them.
+export function validateSettings(form: SettingsForm, current: EventSettings, nowMs: number): FieldErrors<keyof SettingsForm> {
   const errors: FieldErrors<keyof SettingsForm> = {};
   if (parseRoyaltyBps(form.royaltyPercent) === null) errors.royaltyPercent = "Enter a percentage from 0 to 100 (up to 2 decimals).";
   if (form.resaleCapBps !== 0 && form.resaleCapBps < 10_000) errors.resaleCapBps = "Choose a resale cap.";
@@ -176,8 +182,21 @@ export function validateSettings(form: SettingsForm, nowMs: number): FieldErrors
 
   const salesEnd = fromLocalInput(form.salesEnd);
   if (salesEnd === null) errors.salesEnd = "Choose when ticket sales end.";
-  else if (salesEnd <= nowMs) errors.salesEnd = "Sales must end in the future.";
+  else if (salesEnd <= nowMs && !salesEndUnchanged(form, current)) errors.salesEnd = "A new sales end must be in the future.";
   return errors;
+}
+
+// The hint under the sales end field: what keeping or changing it does
+export function salesEndHint(form: SettingsForm, current: EventSettings, nowMs: number, timeZone?: string): string {
+  const ended = current.salesEndSec * 1000 <= nowMs;
+  if (!ended) return "Your local time. A new date must be in the future.";
+  if (salesEndUnchanged(form, current)) {
+    const when = formatEventDate(new Date(current.salesEndSec * 1000).toISOString(), timeZone);
+    return `Sales ended ${when}. Keep this date to leave them closed, or pick a later one to reopen them.`;
+  }
+  const salesEnd = fromLocalInput(form.salesEnd);
+  if (salesEnd === null || salesEnd <= nowMs) return "Your local time. A new date must be in the future.";
+  return "Sales reopen until this date: tickets can be bought again and the resale cap applies.";
 }
 
 // The values to send, or null if the form isn't valid. The date input has no seconds, so an
@@ -187,12 +206,11 @@ export function formToSettings(form: SettingsForm, current: EventSettings): Even
   const perWalletLimit = parseSupply(form.perWalletLimit);
   const salesEndMs = fromLocalInput(form.salesEnd);
   if (royaltyBps === null || perWalletLimit === null || salesEndMs === null) return null;
-  const untouched = form.salesEnd === settingsToForm(current).salesEnd;
   return {
     royaltyBps,
     resaleCapBps: form.resaleCapBps,
     perWalletLimit,
-    salesEndSec: untouched ? current.salesEndSec : Math.floor(salesEndMs / 1000),
+    salesEndSec: salesEndUnchanged(form, current) ? current.salesEndSec : Math.floor(salesEndMs / 1000),
   };
 }
 
@@ -240,7 +258,7 @@ export function hasSettings(event: AdminEvent, settings: EventSettings): boolean
 
 export const SETTINGS_ERRORS = {
   notAdmin: "This wallet doesn't have the platform's admin role, so it can't change event settings. Use the platform's admin wallet.",
-  endTime: "Sales must end in the future. Choose a later date and time, then try again.",
+  endTime: "A new sales end must be in the future. Choose a later date and time, then try again.",
   royalty: "The royalty can't be more than 100%.",
   resaleCap: "The resale cap must be no cap or at least 1× face value.",
   notConfigured: "This event isn't set up on the contract yet, so it has no settings to change.",

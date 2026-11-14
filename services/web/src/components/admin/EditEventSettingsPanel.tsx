@@ -18,6 +18,7 @@ import {
   formToSettings,
   getSettingsErrorMessage,
   resaleCapChoices,
+  salesEndHint,
   sameSettings,
   SETTINGS_ERRORS,
   settingsArgs,
@@ -162,7 +163,6 @@ function SettingsFormBody({ event, current, hasAdminRole, transaction, onClose, 
   const busy = transaction.isBusy;
   const done = transaction.state.phase === "success";
   const locked = busy || done;
-  const salesEnded = current.salesEndSec * 1000 <= openedAt;
   const next = formToSettings(form, current);
   const unchanged = next !== null && sameSettings(next, current);
   const canSave = onContractChain && hasAdminRole === true && !unchanged;
@@ -170,12 +170,12 @@ function SettingsFormBody({ event, current, hasAdminRole, transaction, onClose, 
   function change<K extends keyof SettingsForm>(key: K, value: SettingsForm[K]) {
     const updated = { ...form, [key]: value };
     setForm(updated);
-    if (checked) setErrors(validateSettings(updated, Date.now()));
+    if (checked) setErrors(validateSettings(updated, current, Date.now()));
     if (transaction.state.phase === "error" || transaction.state.phase === "stoppedWaiting") transaction.reset();
   }
 
   async function save() {
-    const found = validateSettings(form, Date.now());
+    const found = validateSettings(form, current, Date.now());
     setChecked(true);
     setErrors(found);
     const settings = formToSettings(form, current);
@@ -205,13 +205,6 @@ function SettingsFormBody({ event, current, hasAdminRole, transaction, onClose, 
       }}
     >
       <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6 py-6 *:shrink-0 sm:px-8">
-        {salesEnded && !done && (
-          <Alert tone="warning" title="Ticket sales have ended">
-            To save any change, the contract needs a sales end in the future. Tickets can be bought again until then,
-            and the resale cap applies again.
-          </Alert>
-        )}
-
         <Field label="Royalty (%)" helper="Paid to the organizer on every resale, max 100%" error={errors.royaltyPercent}>
           {(props) => (
             <WithSuffix suffix="%">
@@ -254,7 +247,7 @@ function SettingsFormBody({ event, current, hasAdminRole, transaction, onClose, 
           )}
         </Field>
 
-        <Field label="Sales end" helper="Your local time. Must be in the future" error={errors.salesEnd}>
+        <Field label="Sales end" helper={salesEndHint(form, current, openedAt)} error={errors.salesEnd}>
           {(props) => (
             <Input
               {...props}
