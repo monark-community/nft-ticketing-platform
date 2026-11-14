@@ -11,9 +11,13 @@ export function getPinataClient(): PinataSDK {
   if (!jwt) {
     throw new Error('PINATA_JWT is not configured');
   }
+  // PINATA_UPLOAD_URL sends uploads to another Pinata-compatible server instead: the end-to-end
+  // tests use a local stand-in, since they can't use a real Pinata key (#337)
+  const uploadUrl = process.env.PINATA_UPLOAD_URL;
   pinata = new PinataSDK({
     pinataJwt: jwt,
     pinataGateway: process.env.PINATA_GATEWAY ?? 'gateway.pinata.cloud',
+    ...(uploadUrl ? { uploadUrl } : {}),
   });
   return pinata;
 }
