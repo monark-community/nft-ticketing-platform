@@ -1,0 +1,24 @@
+# Throwaway Postgres for the end-to-end tests. It runs on port 5434 and keeps its data in memory,
+# so it never touches the dev database. stack/run.mjs starts it when it isn't running, and it keeps
+# running between test runs.
+#
+#   docker compose -f e2e/docker-compose.yml down     stop it
+name: nftokenpass-e2e
+services:
+  e2e-db:
+    image: postgres:15-alpine
+    container_name: nft-ticketing-e2e-db
+    environment:
+      POSTGRES_USER: e2e_user
+      POSTGRES_PASSWORD: e2e_password
+      POSTGRES_DB: postgres
+    ports:
+      - "5434:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      # Over TCP: while the container sets itself up, Postgres only listens on its socket
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U e2e_user -d postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
