@@ -95,7 +95,7 @@ export class TestWallet {
   account: Account;
   chainId = CHAIN_ID;
   connected = false;
-  private rejecting: PromptKind | true | null = null; // a kind of prompt, or true for any
+  private rejecting: { kind: PromptKind | true; skip: number } | null = null; // kind true: any prompt
   private sending: Promise<unknown> = Promise.resolve();
 
   private constructor(
@@ -138,10 +138,11 @@ export class TestWallet {
   /**
    * The next prompt is rejected, as if the person clicked Reject in their wallet. Pass a kind to
    * reject only the next prompt of that kind: rejectNext('sign') lets the connection through and
-   * rejects the sign-in signature right after it.
+   * rejects the sign-in signature right after it. `skip` lets that many prompts through first:
+   * rejectNext('send', 1) confirms the next transaction and rejects the one after it.
    */
-  rejectNext(kind?: PromptKind) {
-    this.rejecting = kind ?? true;
+  rejectNext(kind?: PromptKind, skip = 0) {
+    this.rejecting = { kind: kind ?? true, skip };
   }
 
   /** Disconnects the site from the wallet, as if the person did it in MetaMask */
@@ -168,9 +169,13 @@ export class TestWallet {
     this.requests.push(method);
     try {
       const kind = promptKind(method);
-      if (kind && (this.rejecting === true || this.rejecting === kind)) {
-        this.rejecting = null;
-        return { error: USER_REJECTED };
+      if (kind && this.rejecting && (this.rejecting.kind === true || this.rejecting.kind === kind)) {
+        if (this.rejecting.skip > 0) {
+          this.rejecting.skip -= 1;
+        } else {
+          this.rejecting = null;
+          return { error: USER_REJECTED };
+        }
       }
       return { result: await this.answer(method, Array.isArray(params) ? params : [params]) };
     } catch (err) {
