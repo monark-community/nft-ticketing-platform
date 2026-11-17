@@ -2,7 +2,7 @@
 
 import { AlertCircle, CircleChevronDown, FilterX, RotateCw, SearchX, Ticket } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
 import { EventCard, EventCardSkeleton } from "@/components/events/EventCard";
 import { EventFilters } from "@/components/events/EventFilters";
@@ -80,12 +80,24 @@ function EventsList() {
     setShownQ(q);
     if (search.trim() !== q) setSearch(q);
   }
+  const pendingSearch = useRef<number | undefined>(undefined);
   useEffect(() => {
     const typed = search.trim();
     if (typed === q) return;
-    const timer = setTimeout(() => setFilters({ q: typed, category }), SEARCH_DELAY_MS);
-    return () => clearTimeout(timer);
+    const timer = window.setTimeout(() => setFilters({ q: typed, category }), SEARCH_DELAY_MS);
+    pendingSearch.current = timer;
+    return () => window.clearTimeout(timer);
   }, [search, q, category, setFilters]);
+
+  // A link (an event card) clicked during that pause: the delayed update would land on top of the
+  // page being opened and cancel it. Write the search now instead, so Back returns to it.
+  function saveSearchBeforeLeaving(event: MouseEvent<HTMLDivElement>) {
+    if (!(event.target instanceof Element) || !event.target.closest("a[href]")) return;
+    const typed = search.trim();
+    if (typed === q) return;
+    window.clearTimeout(pendingSearch.current);
+    setFilters({ q: typed, category });
+  }
 
   const { events, total, allTotal, loading, loadingMore, error, loadMoreError, hasMore, reload, loadMore } = useEvents(filters);
   const filtered = hasEventFilters(filters);
@@ -99,7 +111,7 @@ function EventsList() {
   }
 
   return (
-    <>
+    <div className="contents" onClickCapture={saveSearchBeforeLeaving}>
       <EventFilters
         search={search}
         onSearchChange={setSearch}
@@ -201,6 +213,6 @@ function EventsList() {
           </div>
         </>
       )}
-    </>
+    </div>
   );
 }
