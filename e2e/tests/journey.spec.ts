@@ -84,8 +84,7 @@ function localInput(ms: number, timeZone: string): string {
 
 // A link of the main navigation. On a phone it's in the menu, so the menu is opened first.
 async function navLink(page: Page, name: string) {
-  const menu = page.getByRole('button', { name: 'Open menu' });
-  if (await menu.isVisible()) await menu.click();
+  if (test.info().project.name === 'phone') await page.getByRole('button', { name: 'Open menu' }).click();
   return page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name, exact: true });
 }
 
