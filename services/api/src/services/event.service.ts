@@ -82,6 +82,76 @@ export async function listEventsForOrganizer(organizerWallet: string) {
   });
 }
 
+export interface EventTicketFilters {
+  page?: number;
+  limit?: number;
+  status?: 'VALID' | 'USED';
+  kind?: 'sale' | 'issued'; // sale = paid, issued = free tickets from the organizer
+  ticketTypeId?: string;
+}
+
+// The event's tickets with the owner the listener last recorded, so resales and check-ins show
+// up here too (#190). Only the event's organizer may read this.
+export async function listEventTickets(eventId: string, organizerWallet: string, filters: EventTicketFilters = {}) {
+  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  if (!event) return null;
+  if (event.organizer_wallet !== organizerWallet) return 'forbidden';
+  if (event.status !== EventStatus.PUBLISHED) return 'not_published';
+
+  const page = Math.max(1, filters.page ?? 1);
+  const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
+  const where: Prisma.TicketWhereInput = {
+    event_id: eventId,
+    ...(filters.status ? { status: filters.status } : {}),
+    ...(filters.ticketTypeId ? { ticket_type_id: filters.ticketTypeId } : {}),
+    ...(filters.kind === 'sale' ? { purchase_price: { not: null } } : {}),
+    ...(filters.kind === 'issued' ? { purchase_price: null } : {}),
+  };
+
+  const [tickets, total, sold, used] = await Promise.all([
+    prisma.ticket.findMany({
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: [{ minted_at: 'desc' }, { token_id: 'desc' }],
+      include: {
+        ticket_type: { select: { id: true, name: true, contract_type_id: true } },
+        listing: { select: { price: true } },
+      },
+    }),
+    prisma.ticket.count({ where }),
+    prisma.ticket.count({ where: { event_id: eventId, purchase_price: { not: null } } }),
+    prisma.ticket.count({ where: { event_id: eventId, status: 'USED' } }),
+  ]);
+
+  const ticketCount = await prisma.ticket.count({ where: { event_id: eventId } });
+
+  return {
+    tickets: tickets.map(({ ticket_type: ticketType, listing, ...ticket }) => ({
+      token_id: ticket.token_id.toString(),
+      owner_wallet: ticket.owner_wallet,
+      status: ticket.status,
+      used_at: ticket.used_at,
+      minted_at: ticket.minted_at,
+      face_value: ticket.face_value?.toString() ?? null,
+      purchase_price: ticket.purchase_price?.toString() ?? null,
+      listing_price: listing?.price?.toString() ?? null,
+      kind: ticket.purchase_price === null ? 'issued' : 'sale',
+      ticket_type: ticketType,
+    })),
+    summary: {
+      total: ticketCount,
+      sold,
+      issued: ticketCount - sold,
+      valid: ticketCount - used,
+      used,
+    },
+    total,
+    page,
+    limit,
+  };
+}
+
 export async function createEvent(
   organizerWallet: string,
   data: {

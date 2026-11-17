@@ -4,6 +4,7 @@ import {
   getEvents,
   getEvent,
   getMyEvents,
+  getEventTickets,
   postEvent,
   putEvent,
   postFreezeEvent,
@@ -43,6 +44,9 @@ router.post('/', authenticate, requireRole('ORGANIZER'), requireEmail, postEvent
 router.put('/:id', authenticate, requireRole('ORGANIZER'), requireEmail, putEvent);
 router.post('/:id/freeze', authenticate, requireRole('ORGANIZER'), requireEmail, upload.single('image'), postFreezeEvent);
 router.post('/:id/publish', authenticate, requireRole('ORGANIZER'), requireEmail, postPublishEvent);
+
+// Organizer — the event's tickets, owners and check-in state (#190)
+router.get('/:id/tickets', authenticate, requireRole('ORGANIZER'), requireEmail, getEventTickets);
 
 // Public — ticket types
 router.get('/:id/ticket-types', publicRateLimiter, getTicketTypes);
