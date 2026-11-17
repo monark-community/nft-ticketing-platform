@@ -6,20 +6,11 @@
 // order they run in. Tests that only read use the seeded accounts.
 
 import type { Page } from '@playwright/test';
-import { ethers } from 'ethers';
 
-import { accounts, ApiSession, chain, expect, test, waitForSync, WALLET_NAME, type Account, type Role } from '../fixtures/index.js';
+import { accounts, ALEX_EMAIL, ApiSession, chain, expect, JORDAN_EMAIL, newWallet, openMenuIfPhone, test, waitForSync, WALLET_NAME, type Account, type Role } from '../fixtures/index.js';
 import { API_URL } from '../stack/config.mjs';
 
 // --- Helpers -------------------------------------------------------------------------------------
-
-const HARDHAT_MNEMONIC = 'test test test test test test test test test test test junk';
-
-/** Hardhat's account #index (10 and up): never registered by the seeds */
-function newWallet(index: number): Account {
-  const wallet = ethers.HDNodeWallet.fromPhrase(HARDHAT_MNEMONIC, undefined, `m/44'/60'/0'/0/${index}`);
-  return { index, name: null, address: wallet.address as `0x${string}`, privateKey: wallet.privateKey as `0x${string}` };
-}
 
 /** A finished account for Hardhat's account #index, made through the API the way sign-up does */
 async function createAccount(index: number, profile: { first_name: string; last_name: string; email: string; nickname?: string }) {
@@ -29,8 +20,6 @@ async function createAccount(index: number, profile: { first_name: string; last_
   return { account, session };
 }
 
-const ALEX_EMAIL = 'user@nfttickets.local'; // from the database seed
-const JORDAN_EMAIL = 'user2@nfttickets.local';
 const ORGANIZER_REQUEST = '/api/users/me/organizer-request';
 
 interface OrganizerRequestRow {
@@ -63,13 +52,6 @@ async function approveAsAdmin(account: Account) {
 }
 
 const shortAddress = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`;
-
-/** On a phone the navbar's links are in the menu */
-async function openMenuIfPhone(page: Page) {
-  const menu = page.getByRole('button', { name: 'Open menu' });
-  if (await menu.isVisible()) await menu.click();
-}
-
 const saveButton = (page: Page) => page.getByRole('button', { name: 'Save changes' });
 const activeRole = (page: Page) => page.locator('dl', { hasText: 'Active role' }).locator('dd');
 const becomeOrganizerCard = (page: Page) => page.getByRole('heading', { name: 'Become an organizer' });
