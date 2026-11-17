@@ -36,7 +36,8 @@ interface Props {
 
 // Scanner wallets (#194): the people allowed to check tickets in at the door. As with the guest
 // list, the API row is written first so the wallet's account can be checked, then
-// setEventScanner() runs from the organizer's wallet. A failed transaction removes the row again.
+// setEventScanner() runs from the organizer's wallet. If nothing was sent the row is removed
+// again; after Stop waiting it stays Pending for the listener.
 export function ScannersCard({ eventId, contractEventId, entries, loading, onChanged, reloadOperations }: Props) {
   const network = useContractNetwork();
   const tx = useTransaction({ getErrorMessage: getManageTransactionErrorMessage });
@@ -52,6 +53,7 @@ export function ScannersCard({ eventId, contractEventId, entries, loading, onCha
   async function addScanner() {
     setError(null);
     setInfo(null);
+    tx.reset();
 
     const parsed = parseWalletList(text, 1);
     if (parsed.error) {
@@ -77,49 +79,53 @@ export function ScannersCard({ eventId, contractEventId, entries, loading, onCha
     }
 
     setSuccess(`${shortAddress(wallet)} can now check in tickets.`);
-    const ok = await tx.run([
+    const outcome = await tx.run([
       {
         label: "Allow the wallet to check in tickets",
         request: { ...nft, functionName: "setEventScanner", args: [contractEventId, wallet, true] },
       },
     ]);
 
-    if (!ok) {
-      // The chain didn't change, so undo the database row added above
+    if (outcome === "success") {
+      setText("");
+      await Promise.all([reloadOperations(), onChanged()]);
+    } else if (outcome === "stoppedWaiting") {
+      // The transaction was sent and may still confirm; keep the Pending row for the listener
+      setText("");
+      await reloadOperations();
+    } else {
+      // Nothing was sent (rejected in the wallet or the check before sending failed)
       await removeScannerApi(eventId, wallet).catch(() => undefined);
       await reloadOperations();
-      return;
     }
-
-    setText("");
-    setInfo(`${shortAddress(wallet)} is now a scanner for this event.`);
-    await Promise.all([reloadOperations(), onChanged()]);
   }
 
   async function removeScanner(wallet: string) {
     setError(null);
     setInfo(null);
+    tx.reset();
     setRemoving(wallet);
     setSuccess(`${shortAddress(wallet)} can no longer check in tickets.`);
 
-    const ok = await tx.run([
+    const outcome = await tx.run([
       {
         label: "Remove the scanner",
         request: { ...nft, functionName: "setEventScanner", args: [contractEventId, wallet, false] },
       },
     ]);
-    if (!ok) {
-      setRemoving(null);
-      return;
-    }
 
-    // The listener removes the row when it sees the chain event; a 404 here is expected
-    try {
-      await removeScannerApi(eventId, wallet);
-    } catch {
-      // The chain is the source of truth and the row refreshes from the listener
+    if (outcome === "success") {
+      // The listener removes the row when it sees the chain event; a 404 here is expected
+      try {
+        await removeScannerApi(eventId, wallet);
+      } catch {
+        // The chain is the source of truth and the row refreshes from the listener
+      }
+      await Promise.all([reloadOperations(), onChanged()]);
+    } else if (outcome === "stoppedWaiting") {
+      // The removal was sent and may still confirm; the listener will drop the row
+      await reloadOperations();
     }
-    await Promise.all([reloadOperations(), onChanged()]);
     setRemoving(null);
   }
 
@@ -130,7 +136,9 @@ export function ScannersCard({ eventId, contractEventId, entries, loading, onCha
           <CardTitle>Scanners</CardTitle>
           <CardDescription>Choose who can check tickets in at the door. Scanners are saved here and on-chain.</CardDescription>
         </div>
-        <Badge tone="neutral">{entries.length.toLocaleString("en-US")} scanners</Badge>
+        <Badge tone="neutral">
+          {entries.length.toLocaleString("en-US")} {entries.length === 1 ? "scanner" : "scanners"}
+        </Badge>
       </CardHeader>
 
       <Field
@@ -164,7 +172,7 @@ export function ScannersCard({ eventId, contractEventId, entries, loading, onCha
         </Button>
       </div>
 
-      {info && <Alert tone="info" title="Scanners updated">{info}</Alert>}
+      {info && <Alert tone="info" title="Already a scanner">{info}</Alert>}
 
       {loading ? (
         <p className="type-body-sm text-muted-foreground" role="status">

@@ -4,7 +4,6 @@ import { Gift, Ticket } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { TransactionStatus } from "@/components/TransactionStatus";
-import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,6 +29,7 @@ interface Props {
   chainTiers: OnChainTicketType[] | null;
   usdcDecimals: number;
   onChanged: () => void | Promise<void>;
+  onIssued: () => void | Promise<void>;
   refetchChain: () => Promise<unknown>;
 }
 
@@ -42,6 +42,7 @@ export function IssueTicketsCard({
   chainTiers,
   usdcDecimals,
   onChanged,
+  onIssued,
   refetchChain,
 }: Props) {
   const network = useContractNetwork();
@@ -56,7 +57,6 @@ export function IssueTicketsCard({
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [issued, setIssued] = useState<number | null>(null);
 
   const locked = tx.isBusy || !network.onContractChain;
   const parsed = text.trim() === "" ? null : parseWalletList(text);
@@ -65,7 +65,7 @@ export function IssueTicketsCard({
 
   async function issue() {
     setError(null);
-    setIssued(null);
+    tx.reset();
 
     const result = parseWalletList(text);
     if (result.error) {
@@ -84,7 +84,7 @@ export function IssueTicketsCard({
     setSuccess(
       `${result.wallets.length} free ${result.wallets.length === 1 ? "ticket" : "tickets"} of ${selected.name} issued.`,
     );
-    const ok = await tx.run([
+    const outcome = await tx.run([
       {
         label: result.wallets.length === 1 ? "Issue a free ticket" : "Issue free tickets",
         request: {
@@ -94,11 +94,11 @@ export function IssueTicketsCard({
         },
       },
     ]);
-    if (!ok) return;
+    if (outcome !== "success") return;
 
-    setIssued(result.wallets.length);
     setText("");
-    await Promise.all([refetchChain(), onChanged()]);
+    // The listener needs a few seconds to save the minted tickets; ask the table to keep refreshing
+    await Promise.all([refetchChain(), onChanged(), onIssued()]);
   }
 
   return (
@@ -156,7 +156,6 @@ export function IssueTicketsCard({
                 onChange={(event) => {
                   setText(event.target.value);
                   if (error) setError(null);
-                  if (issued !== null) setIssued(null);
                 }}
                 disabled={locked}
                 placeholder={"0x1234…\n0xabcd…"}
@@ -186,11 +185,6 @@ export function IssueTicketsCard({
             </Button>
           </div>
 
-          {issued !== null && (
-            <Alert tone="success" title="Free tickets issued">
-              {issued} {issued === 1 ? "wallet can" : "wallets can"} now find {issued === 1 ? "a ticket" : "their tickets"} in My Tickets.
-            </Alert>
-          )}
         </>
       )}
 

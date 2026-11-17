@@ -2,6 +2,7 @@
 
 import { ArrowLeft, ArrowRight, CalendarDays, ExternalLink, MapPin, RotateCw, TriangleAlert } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { useAccount } from "wagmi";
 
 import { ContractInfoCard } from "@/components/organizer/manage/ContractInfoCard";
@@ -43,6 +44,8 @@ export function OrganizerEventManager({ eventId }: { eventId: string }) {
     wallet.toLowerCase() === event.organizer_wallet.toLowerCase();
   const operations = useEventOperations(eventId, canManage);
   const network = useContractNetwork();
+  // Bumped after free tickets are issued so the table polls until the listener saves them
+  const [ticketsRefreshSignal, setTicketsRefreshSignal] = useState(0);
 
   async function reloadAll() {
     await Promise.all([reload(), chain.refetch()]);
@@ -217,6 +220,7 @@ export function OrganizerEventManager({ eventId }: { eventId: string }) {
         ticketTypes={event.ticket_types}
         usdcDecimals={chain.usdcDecimals}
         explorerUrl={network.explorerUrl}
+        refreshSignal={ticketsRefreshSignal}
       />
 
       {contractEventId !== null && chain.event ? (
@@ -247,6 +251,7 @@ export function OrganizerEventManager({ eventId }: { eventId: string }) {
             chainTiers={chain.tiers}
             usdcDecimals={chain.usdcDecimals}
             onChanged={reloadAll}
+            onIssued={() => setTicketsRefreshSignal((value) => value + 1)}
             refetchChain={chain.refetch}
           />
         </div>

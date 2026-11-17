@@ -4,7 +4,7 @@
 // Pass one step for a single call, or several for a sequence (e.g. approve, then buy).
 
 import { runTransactionSteps, type TransactionClient } from "@/lib/transactions/run-transaction";
-import { IDLE_TX_STATE, type TxState, type TxStep } from "@/lib/transactions/types";
+import { IDLE_TX_STATE, type TxOutcome, type TxState, type TxStep } from "@/lib/transactions/types";
 import { useRef, useState } from "react";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 
@@ -25,9 +25,11 @@ export function useTransaction({ getErrorMessage, timeoutMs }: Options) {
   // Lets the user stop waiting on a still-pending transaction (#252)
   const stopController = useRef<AbortController | null>(null);
 
-  async function run(steps: TxStep[]): Promise<boolean> {
-    if (!address || !publicClient || steps.length === 0) return false;
-    if (inFlight.current) return false;
+  // Resolves to how the run ended. Callers that write API rows first can keep them after
+  // "stoppedWaiting" (the transaction may still confirm) and only undo them after "error".
+  async function run(steps: TxStep[]): Promise<TxOutcome | "idle"> {
+    if (!address || !publicClient || steps.length === 0) return "idle";
+    if (inFlight.current) return "idle";
     inFlight.current = true;
     stopController.current = new AbortController();
 

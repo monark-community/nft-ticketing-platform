@@ -1,7 +1,7 @@
 "use client";
 
 import { ExternalLink, RefreshCw, Ticket } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { useEventTickets } from "@/hooks/useEventTickets";
+import { TICKETS_REFRESH_MS, useEventTickets } from "@/hooks/useEventTickets";
 import type { ApiTicketType } from "@/lib/event-details";
 import { sortTicketTypes } from "@/lib/event-details";
 import { shortAddress } from "@/lib/format";
@@ -20,28 +20,64 @@ import {
   type ManageTicket,
 } from "@/lib/organizer-manage";
 
+// After issuing free tickets the listener needs a few seconds to save them, so the table asks
+// again quickly until the issued count changes instead of waiting for the regular refresh.
+const ISSUE_REFRESH_MS = 2_000;
+const ISSUE_REFRESH_WINDOW_MS = 20_000;
+
 interface Props {
   eventId: string;
   ticketTypes: ApiTicketType[];
   usdcDecimals: number;
   explorerUrl: string | null;
+  refreshSignal: number;
 }
 
 // Every ticket of the event with its current owner and check-in state (#190). Resales and
 // check-ins are written by the listener, so the table refreshes on its own every 15 seconds.
-export function TicketsCard({ eventId, ticketTypes, usdcDecimals, explorerUrl }: Props) {
+export function TicketsCard({ eventId, ticketTypes, usdcDecimals, explorerUrl, refreshSignal }: Props) {
   const [status, setStatus] = useState<"" | "VALID" | "USED">("");
   const [kind, setKind] = useState<"" | "sale" | "issued">("");
   const [typeId, setTypeId] = useState("");
   const [page, setPage] = useState(1);
 
-  const tickets = useEventTickets(eventId, {
-    page,
-    limit: TICKETS_PAGE_SIZE,
-    status: status || undefined,
-    kind: kind || undefined,
-    ticketTypeId: typeId || undefined,
+  const issuedBefore = useRef<number | null>(null);
+  const fastRefreshUntil = useRef(0);
+  const latestIssued = useRef(0);
+  const latestReload = useRef<() => Promise<unknown>>(async () => undefined);
+
+  const tickets = useEventTickets(
+    eventId,
+    {
+      page,
+      limit: TICKETS_PAGE_SIZE,
+      status: status || undefined,
+      kind: kind || undefined,
+      ticketTypeId: typeId || undefined,
+    },
+    // Poll quickly in the short window after issuing until the listener saves the new rows
+    (data) => {
+      if (Date.now() >= fastRefreshUntil.current) return TICKETS_REFRESH_MS;
+      if (issuedBefore.current !== null && data && data.summary.issued !== issuedBefore.current) {
+        return TICKETS_REFRESH_MS;
+      }
+      return ISSUE_REFRESH_MS;
+    },
+  );
+
+  // Keep the signal effect below reading the latest query data and reload function
+  useEffect(() => {
+    latestIssued.current = tickets.summary.issued;
+    latestReload.current = tickets.reload;
   });
+
+  // Triggered by the free-tickets card after a successful issue
+  useEffect(() => {
+    if (refreshSignal === 0) return;
+    issuedBefore.current = latestIssued.current;
+    fastRefreshUntil.current = Date.now() + ISSUE_REFRESH_WINDOW_MS;
+    void latestReload.current();
+  }, [refreshSignal]);
 
   const types = sortTicketTypes(ticketTypes);
   const pages = Math.max(1, Math.ceil(tickets.total / TICKETS_PAGE_SIZE));
@@ -251,7 +287,7 @@ function EmptyState({ title, text }: { title: string; text: string }) {
   return (
     <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border px-6 py-8 text-center">
       <Ticket className="size-7 text-muted-foreground" aria-hidden="true" />
-      <p className="type-title-sm text-foreground">{title}</p>
+      <p className="type-title-md text-foreground">{title}</p>
       <p className="type-body-sm text-secondary-foreground">{text}</p>
     </div>
   );

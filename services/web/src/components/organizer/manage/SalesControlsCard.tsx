@@ -52,7 +52,7 @@ export function SalesControlsCard({ contractEventId, saleActive, usdcDecimals, o
         request: { ...nft, functionName: "setSaleActive", args: [contractEventId, next] },
       },
     ]);
-    if (!ok) return;
+    if (ok !== "success") return;
     await refetchChain();
     await onChanged();
   }
@@ -62,7 +62,7 @@ export function SalesControlsCard({ contractEventId, saleActive, usdcDecimals, o
     const ok = await tx.run([
       { label: "Withdraw event revenue", request: { ...nft, functionName: "withdraw", args: [contractEventId] } },
     ]);
-    if (!ok) return;
+    if (ok !== "success") return;
     await Promise.all([revenue.refetch(), refetchChain()]);
     await onChanged();
   }

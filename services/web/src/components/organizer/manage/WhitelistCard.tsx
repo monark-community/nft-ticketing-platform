@@ -39,8 +39,9 @@ interface Props {
 }
 
 // Guest list and presale (#191): wallets are saved in the API first (it checks they have a
-// platform account), then batchAddToWhitelist() runs from the organizer's wallet. If the wallet
-// transaction fails, the new database rows are removed again.
+// platform account), then batchAddToWhitelist() runs from the organizer's wallet. If nothing was
+// sent, the new database rows are removed again. If the organizer stops waiting, they stay
+// Pending because the transaction may still confirm and the listener will mark them.
 export function WhitelistCard({
   eventId,
   contractEventId,
@@ -66,6 +67,7 @@ export function WhitelistCard({
   async function addWallets() {
     setError(null);
     setInfo(null);
+    tx.reset();
     const parsed = parseWalletList(text);
     if (parsed.error) {
       setError(parsed.error);
@@ -87,70 +89,76 @@ export function WhitelistCard({
       return;
     }
 
-    setSuccess(`${fresh.length} ${fresh.length === 1 ? "wallet" : "wallets"} added to the guest list.`);
-    const ok = await tx.run([
+    const ignored =
+      parsed.duplicates > 0
+        ? ` ${parsed.duplicates} duplicate ${parsed.duplicates === 1 ? "entry was" : "entries were"} ignored.`
+        : "";
+    setSuccess(`${fresh.length} ${fresh.length === 1 ? "wallet" : "wallets"} added to the guest list.${ignored}`);
+
+    const outcome = await tx.run([
       {
         label: fresh.length === 1 ? "Add wallet to the guest list" : "Add wallets to the guest list",
         request: { ...nft, functionName: "batchAddToWhitelist", args: [contractEventId, fresh] },
       },
     ]);
 
-    if (!ok) {
-      // The chain didn't change, so undo the database rows added above
+    if (outcome === "success") {
+      setText("");
+      await Promise.all([reloadOperations(), onChanged()]);
+    } else if (outcome === "stoppedWaiting") {
+      // The transaction was sent and may still confirm; keep the Pending rows for the listener
+      setText("");
+      await reloadOperations();
+    } else {
+      // Nothing was sent (rejected in the wallet or the check before sending failed)
       await Promise.allSettled(fresh.map((wallet) => removeWhitelistApi(eventId, wallet)));
       await reloadOperations();
-      setApiBusy(false);
-      return;
     }
-
-    setText("");
-    setInfo(
-      `${fresh.length === 1 ? "The wallet is" : "The wallets are"} on the guest list on-chain. ` +
-        (parsed.duplicates > 0 ? `${parsed.duplicates} duplicate ${parsed.duplicates === 1 ? "entry was" : "entries were"} ignored.` : ""),
-    );
-    await Promise.all([reloadOperations(), onChanged()]);
     setApiBusy(false);
   }
 
   async function removeWallet(wallet: string) {
     setError(null);
     setInfo(null);
+    tx.reset();
     setRemoving(wallet);
     setSuccess(`${shortAddress(wallet)} removed from the guest list.`);
 
-    const ok = await tx.run([
+    const outcome = await tx.run([
       {
         label: "Remove wallet from the guest list",
         request: { ...nft, functionName: "removeFromWhitelist", args: [contractEventId, wallet] },
       },
     ]);
-    if (!ok) {
-      setRemoving(null);
-      return;
-    }
 
-    // The listener also removes the row when it sees the event; a 404 here is expected
-    try {
-      await removeWhitelistApi(eventId, wallet);
-    } catch {
-      // The chain is the source of truth and the row refreshes from the listener
+    if (outcome === "success") {
+      // The listener also removes the row when it sees the event; a 404 here is expected
+      try {
+        await removeWhitelistApi(eventId, wallet);
+      } catch {
+        // The chain is the source of truth and the row refreshes from the listener
+      }
+      await Promise.all([reloadOperations(), onChanged()]);
+    } else if (outcome === "stoppedWaiting") {
+      // The removal was sent and may still confirm; the listener will drop the row
+      await reloadOperations();
     }
-    await Promise.all([reloadOperations(), onChanged()]);
     setRemoving(null);
   }
 
   async function togglePresale(next: boolean) {
     setError(null);
     setInfo(null);
+    tx.reset();
     setSuccess(next ? "Presale is on. Only guest-list wallets can buy." : "Presale is off. Anyone can buy while sales are open.");
 
-    const ok = await tx.run([
+    const outcome = await tx.run([
       {
         label: next ? "Turn on the presale" : "Turn off the presale",
         request: { ...nft, functionName: "setPresaleActive", args: [contractEventId, next] },
       },
     ]);
-    if (!ok) return;
+    if (outcome !== "success") return;
     await Promise.all([refetchChain(), onChanged()]);
   }
 
@@ -161,7 +169,9 @@ export function WhitelistCard({
           <CardTitle>Guest list & presale</CardTitle>
           <CardDescription>Choose who can buy during the presale. The list is saved here and on-chain.</CardDescription>
         </div>
-        <Badge tone="neutral">{entries.length.toLocaleString("en-US")} wallets</Badge>
+        <Badge tone="neutral">
+          {entries.length.toLocaleString("en-US")} {entries.length === 1 ? "wallet" : "wallets"}
+        </Badge>
       </CardHeader>
 
       <div className="flex items-start justify-between gap-4 rounded-md border border-border bg-background/50 p-4">
@@ -208,7 +218,7 @@ export function WhitelistCard({
         </Button>
       </div>
 
-      {info && <Alert tone="info" title="Guest list updated">{info}</Alert>}
+      {info && <Alert tone="info" title="Already on the guest list">{info}</Alert>}
 
       {loading ? (
         <p className="type-body-sm text-muted-foreground" role="status">

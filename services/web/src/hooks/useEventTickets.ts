@@ -2,13 +2,23 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchEventTickets, TICKETS_PAGE_SIZE, type TicketQuery, type TicketSummary } from "@/lib/organizer-manage";
+import {
+  fetchEventTickets,
+  TICKETS_PAGE_SIZE,
+  type EventTickets,
+  type TicketQuery,
+  type TicketSummary,
+} from "@/lib/organizer-manage";
 
 const EMPTY_SUMMARY: TicketSummary = { total: 0, sold: 0, issued: 0, valid: 0, used: 0 };
+export const TICKETS_REFRESH_MS = 15_000;
+
+type RefetchInterval = number | false | ((data: EventTickets | undefined) => number | false | undefined);
 
 // The event's tickets, owners and check-in state (#190). The listener writes resales and check-ins
-// to the API, so this refreshes on its own while the page is open.
-export function useEventTickets(eventId: string, query: TicketQuery) {
+// to the API, so this refreshes on its own while the page is open. Callers can shorten the interval
+// after issuing free tickets until the listener saves the new rows.
+export function useEventTickets(eventId: string, query: TicketQuery, refetchInterval: RefetchInterval = TICKETS_REFRESH_MS) {
   const page = query.page ?? 1;
   const limit = query.limit ?? TICKETS_PAGE_SIZE;
   const status = query.status ?? "";
@@ -26,7 +36,8 @@ export function useEventTickets(eventId: string, query: TicketQuery) {
         ticketTypeId: query.ticketTypeId,
       }),
     enabled: Boolean(eventId),
-    refetchInterval: 15_000,
+    refetchInterval: (q) =>
+      typeof refetchInterval === "function" ? refetchInterval(q.state.data) : refetchInterval,
   });
 
   return {
