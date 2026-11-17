@@ -112,3 +112,8 @@ export const test = base.extend<{
     for (const scanner of opened) await scanner.close();
   },
 });
+
+/** On a phone the navbar's links and buttons are in the menu: opens it (nothing to do on desktop) */
+export async function openMenuIfPhone(page: Page) {
+  if (test.info().project.name === 'phone') await page.getByRole('button', { name: 'Open menu' }).click();
+}
