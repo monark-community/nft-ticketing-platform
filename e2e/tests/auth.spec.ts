@@ -6,23 +6,11 @@
 
 import { createHmac } from 'node:crypto';
 import type { BrowserContext, Page } from '@playwright/test';
-import { ethers } from 'ethers';
 
-import { accounts, ApiSession, expect, seededEvents, test, WALLET_NAME, type Account, type Role, type TestWallet } from '../fixtures/index.js';
+import { accounts, ALEX_EMAIL, ApiSession, expect, JORDAN_EMAIL, newWallet, openMenuIfPhone, seededEvents, test, WALLET_NAME, type Account, type Role, type TestWallet } from '../fixtures/index.js';
 import { API_URL, JWT_SECRET, SEPOLIA_CHAIN_ID, WEB_URL } from '../stack/config.mjs';
 
 // --- Helpers -------------------------------------------------------------------------------------
-
-const HARDHAT_MNEMONIC = 'test test test test test test test test test test test junk';
-
-/** Hardhat's account #index (10 and up): never registered by the seeds, so it signs up as new */
-function newWallet(index: number): Account {
-  const wallet = ethers.HDNodeWallet.fromPhrase(HARDHAT_MNEMONIC, undefined, `m/44'/60'/0'/0/${index}`);
-  return { index, name: null, address: wallet.address as `0x${string}`, privateKey: wallet.privateKey as `0x${string}` };
-}
-
-const ALEX_EMAIL = 'user@nfttickets.local'; // from the database seed
-const JORDAN_EMAIL = 'user2@nfttickets.local';
 
 const hasSession = async (context: BrowserContext) => (await context.cookies(API_URL)).some((cookie) => cookie.name === 'token');
 const signatureCount = (wallet: TestWallet) => wallet.requests.filter((method) => method === 'personal_sign').length;
@@ -39,7 +27,7 @@ async function connectOnSignUp(page: Page) {
 
 /** The Connect wallet button in the navbar, from any page */
 async function connectFromNavbar(page: Page) {
-  	await page.getByRole('banner').getByRole('button', { name: 'Connect wallet', exact: true }).click();
+  await page.getByRole('banner').getByRole('button', { name: 'Connect wallet', exact: true }).click();
   await chooseTestWallet(page);
 }
 
@@ -55,12 +43,6 @@ async function fillAccountForm(page: Page, { email, firstName = 'Nora', lastName
 }
 
 const submitAccountForm = (page: Page) => page.getByRole('button', { name: 'Create account' }).click();
-
-/** On a phone the navbar's links and buttons are in the menu */
-async function openMenuIfPhone(page: Page) {
-  const menu = page.getByRole('button', { name: 'Open menu' });
-  if (await menu.isVisible()) await menu.click();
-}
 
 async function signOutFromNavbar(page: Page) {
   await openMenuIfPhone(page);
@@ -184,7 +166,7 @@ test.describe('sign-up', () => {
     await expect(page.getByText('Pending review')).toBeVisible();
   });
 
-  // TODO(#XXX): after a refresh, the automatic sign-in starts while wagmi is still reconnecting the
+  // TODO(#382): after a refresh, the automatic sign-in starts while wagmi is still reconnecting the
   // wallet, fails before reaching it and shows "We couldn't sign you in". Turn on once that is fixed.
   test.fixme("refreshing on Confirm it's you asks the wallet to sign again and stays on that step", async ({ page, wallet }) => {
     const person = newWallet(21);
@@ -206,7 +188,6 @@ test.describe('sign-up', () => {
     await page.getByRole('button', { name: 'Sign message' }).click();
     await expect(createAccountStep(page)).toBeVisible();
   });
-  
 
   test('rejecting the signature shows a clear message, and trying again works', async ({ page, wallet }) => {
     const person = newWallet(14);
@@ -298,7 +279,6 @@ test.describe('sign-up', () => {
   });
 
   // TODO(#328): write once "don't send an organizer request for organizers and the admin" is merged
-  test.fixme('wallets that are already organizers or the admin do not send an organizer request', async () => {});
 });
 
 // --- Session -------------------------------------------------------------------------------------
