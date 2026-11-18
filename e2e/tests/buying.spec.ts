@@ -17,6 +17,7 @@ import {
   test,
   TestWallet,
   waitForSync,
+  WALLET_NAME,
   type Account,
   type PublishedEvent,
 } from '../fixtures/index.js';
@@ -132,8 +133,8 @@ test.describe('why a purchase can\'t go ahead', () => {
   test('sales not set up on the contract yet', async ({ page }) => {
     const event = await createPublishedEvent({ title: 'Not Set Up Yet' });
     // The event as the API would have it before the organizer finished the on-chain setup: its
-    // contract ID points at an event the contract doesn't know. (Publishing now checks the setup,
-    // #383, so an event like this can only come from before that check.)
+    // contract ID points at an event the contract doesn't know. (Once #383 is merged, publishing
+    // checks the setup, so an event like this can only come from before that.)
     const unknownId = 9_000_000_000n + BigInt(Date.now() % 1_000_000);
     expect((await chain.ticketNft().eventConfigs(unknownId))[4]).toBe(false);
     await page.route(`${API_URL}/api/events/${event.apiId}`, async (route) => {
@@ -212,7 +213,7 @@ test.describe('why a purchase can\'t go ahead', () => {
 
     await expectBlocked(page, 'Connect your wallet to buy', 'Your tickets are minted as NFTs to the wallet you connect.');
     await summary(page).getByRole('button', { name: 'Connect wallet' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'E2E Test Wallet' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: WALLET_NAME }).click();
 
     // Connecting signs in (Jordan has an account), then the purchase can go ahead
     await expect(buyButton(page)).toBeEnabled({ timeout: 20_000 });
@@ -240,7 +241,7 @@ test.describe('why a purchase can\'t go ahead', () => {
     // The sign-in message is rejected when connecting
     wallet.rejectNext('sign');
     await summary(page).getByRole('button', { name: 'Connect wallet' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'E2E Test Wallet' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: WALLET_NAME }).click();
 
     await expectBlocked(page, 'Sign in to buy', 'Sign a free message in your wallet to log in. Tickets are linked to your account.');
     await summary(page).getByRole('button', { name: 'Sign in to buy' }).click();
@@ -256,7 +257,7 @@ test.describe('why a purchase can\'t go ahead', () => {
     await wallet.use(accounts.new1);
     await openEvent(page, event);
     await summary(page).getByRole('button', { name: 'Connect wallet' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'E2E Test Wallet' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: WALLET_NAME }).click();
 
     await page.waitForURL(`${WEB_URL}/signup?next=${encodeURIComponent(`/events/${event.apiId}`)}`);
     await page.getByLabel('First name').fill('Riley');
@@ -530,7 +531,7 @@ test.describe('buying', () => {
       await expect(summary(page)).toContainText('Transaction sent. Waiting for confirmation.');
 
       await page.clock.fastForward('02:05');
-      const slow = summary(page).getByRole('alert').or(summary(page).getByRole('status')).filter({ hasText: 'This is taking longer than usual' });
+      const slow = summary(page).getByRole('status').filter({ hasText: 'This is taking longer than usual' });
       await expect(slow).toContainText("Your purchase may still confirm, so don't buy again yet.");
       await expect(summary(page).getByRole('button', { name: 'Waiting for confirmation…' })).toBeDisabled();
       await expectSteps(page, 'Done', 'Pending');
@@ -596,7 +597,8 @@ test.describe('buying', () => {
     hold.release();
 
     // The wallet refuses to send for an account that is no longer selected, and the page says
-    // the purchase failed (its wording is generic for now)
+    // the purchase failed. Its wording is generic for now, and it still says USDC is approved for
+    // the new wallet (#396), so only the error itself is checked.
     await expect(errorAlert(page)).toBeVisible();
     await chain.mine();
     expect(await held(accounts.jordan, event)).toBe(0);
