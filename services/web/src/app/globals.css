@@ -68,6 +68,11 @@
   --sidebar-accent-foreground: #e3e2e5;
   --sidebar-border: rgb(77 70 53 / 30%);
   --sidebar-ring: #f97316;
+
+  /* Motion (#316): hover and press use fast, things arriving base to slow. Same values in lib/motion.ts */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 300ms;
 }
 
 @theme inline {
@@ -122,6 +127,9 @@
   --radius-2xl: 20px;
   --radius-3xl: 24px;
   --radius-4xl: 32px;
+  /* Motion easings (#316): "arrive" for things coming in, "snap" (small overshoot) for punches and stamps */
+  --ease-arrive: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-snap: cubic-bezier(0.3, 1.6, 0.5, 1);
 }
 
 @layer base {
@@ -194,12 +202,168 @@
 }
 @utility animate-scan-line { animation: scan-line 2.4s ease-in-out infinite; }
 
-/* Respect reduced motion everywhere */
+/* ---------------------------------------------------------------------------
+   Motion foundation (#361, part of #316). Things move like a ticket: printed, punched, stamped,
+   torn off, and prices flip like a departure board. The pieces that use these are in
+   components/motion. Every keyframe ends on the element's normal look, so with reduced motion
+   (rule at the bottom) the final state shows at once.
+   --------------------------------------------------------------------------- */
+@utility duration-fast { transition-duration: var(--motion-fast); }
+@utility duration-base { transition-duration: var(--motion-base); }
+@utility duration-slow { transition-duration: var(--motion-slow); }
+
+/* Scan line: the bottom edge of a box as tall as its parent, sweeping from the top to the bottom */
+@keyframes scan-sweep {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+
+/* Print-in: content appears from top to bottom behind a bright orange line (PrintIn) */
+@keyframes print-in {
+  from { clip-path: inset(0 0 100% 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+@keyframes print-line {
+  from { transform: translateY(-100%); opacity: 1; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@utility print-in {
+  animation: print-in var(--print-ms, 260ms) linear var(--print-delay, 0ms) both;
+}
+@utility print-in-line {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  border-bottom: 2px solid var(--primary);
+  background: linear-gradient(to top, rgb(249 115 22 / 30%), transparent 16px);
+  opacity: 0;
+  animation: print-line var(--print-ms, 260ms) linear var(--print-delay, 0ms) backwards;
+}
+
+/* Stamp: a rubber stamp landing at a slight angle (Stamp) */
+@keyframes stamp-land {
+  from { transform: scale(2) rotate(-18deg); opacity: 0; }
+  to { transform: rotate(-8deg); opacity: 0.9; }
+}
+@utility stamp {
+  display: inline-block;
+  padding: 6px 9px;
+  border: 2px solid currentColor;
+  border-radius: var(--radius-sm);
+  background: rgb(13 14 16 / 35%);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0.9;
+  transform: rotate(-8deg);
+  animation: stamp-land 220ms var(--ease-snap) both;
+}
+
+/* Punch: something pops in, optionally with a ring bursting around it (punch-ring) */
+@keyframes punch-pop {
+  0% { transform: scale(0.5); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+@keyframes punch-ring {
+  from { transform: scale(0.8); opacity: 0.9; }
+  to { transform: scale(2.1); opacity: 0; }
+}
+@utility punch {
+  animation: punch-pop 220ms ease-out;
+}
+@utility punch-ring {
+  position: relative;
+  animation: punch-pop 220ms ease-out;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border: 2px solid var(--primary);
+    border-radius: 9999px;
+    pointer-events: none;
+    opacity: 0;
+    animation: punch-ring 360ms ease-out;
+  }
+}
+
+/* Marching dashes, for dashed SVG outlines (stroke-dasharray: 6 6) */
+@keyframes march {
+  to { stroke-dashoffset: -12; }
+}
+@utility animate-march { animation: march 0.6s linear infinite; }
+
+/* A dot that breathes slowly while something is waiting */
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.75); opacity: 0.45; }
+}
+@utility animate-breathe { animation: breathe 2.4s ease-in-out infinite; }
+
+/* RollingNumber: the old text rolls out and the new one rolls in, like a counter wheel */
+@keyframes roll-in {
+  from { transform: translateY(calc(70% * var(--roll, 1))); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes roll-out {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(calc(-70% * var(--roll, 1))); opacity: 0; }
+}
+@utility roll-in { animation: roll-in 130ms var(--ease-arrive) 70ms backwards; }
+@utility roll-out { animation: roll-out 70ms ease-in forwards; }
+
+/* FlapText: a character flips over like a departure-board flap */
+@keyframes flap-out {
+  from { transform: perspective(300px) rotateX(0); }
+  to { transform: perspective(300px) rotateX(-90deg); }
+}
+@keyframes flap-in {
+  from { transform: perspective(300px) rotateX(90deg); }
+  to { transform: perspective(300px) rotateX(0); }
+}
+@utility flap-out { animation: flap-out 80ms ease-in var(--flap-delay, 0ms) both; }
+@utility flap-in { animation: flap-in 120ms var(--ease-snap) calc(80ms + var(--flap-delay, 0ms)) both; }
+
+/* DrawnCheck: a tick that draws itself */
+@keyframes draw-check {
+  from { stroke-dashoffset: 24; }
+  to { stroke-dashoffset: 0; }
+}
+@utility draw-check {
+  stroke-dasharray: 24;
+  animation: draw-check 220ms ease-out both;
+}
+
+/* CopyLiftOff: a faint copy of the copied text lifts off and fades */
+@keyframes lift-off {
+  from { transform: translateY(0); opacity: 0.7; }
+  to { transform: translateY(-14px); opacity: 0; }
+}
+@utility lift-off { animation: lift-off 260ms ease-out forwards; }
+
+/* TearOff: the two halves of a torn block, drawn over it while they fall away */
+@utility tear-piece {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  pointer-events: none;
+  z-index: 7;
+}
+
+/* Respect reduced motion everywhere: animations and transitions jump to their end, without delay */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
 }

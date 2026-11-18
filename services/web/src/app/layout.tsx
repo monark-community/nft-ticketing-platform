@@ -1,3 +1,4 @@
+import { MotionProvider } from "@/components/motion/MotionProvider";
 import { NetworkGuard } from "@/components/NetworkWarning";
 import { WalletProvider } from "@/lib/wallet-provider";
 import { AuthProvider } from "@/lib/auth-provider";
@@ -40,8 +41,10 @@ export default function RootLayout({
       <body>
   <WalletProvider>
     <AuthProvider>
-      <NetworkGuard />
-      {children}
+      <MotionProvider>
+        <NetworkGuard />
+        {children}
+      </MotionProvider>
     </AuthProvider>
   </WalletProvider>
 </body>
