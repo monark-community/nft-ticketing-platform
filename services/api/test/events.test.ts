@@ -450,3 +450,81 @@ describe('organizer ownership', () => {
     expect((await freeze(missing, cookie)).status).toBe(404);
   });
 });
+
+describe('reading one event by its ID', () => {
+  const read = (id: string, cookieHeader?: string) => {
+    const req = request(app).get(`/api/events/${id}`);
+    return cookieHeader ? req.set('Cookie', cookieHeader) : req;
+  };
+  const readTypes = (id: string, cookieHeader?: string) => {
+    const req = request(app).get(`/api/events/${id}/ticket-types`);
+    return cookieHeader ? req.set('Cookie', cookieHeader) : req;
+  };
+
+  it('shows a published event to everyone', async () => {
+    const event = await createEvent(organizer.wallet_address, { status: 'PUBLISHED' });
+    await createTicketType(event.id);
+    const stranger = await createUser();
+
+    for (const who of [undefined, authCookie(stranger.wallet_address), cookie]) {
+      const res = await read(event.id, who);
+      expect(res.status).toBe(200);
+      expect(res.body.id).toBe(event.id);
+      expect((await readTypes(event.id, who)).body).toHaveLength(1);
+    }
+  });
+
+  it.each(['DRAFT', 'FROZEN'] as const)('shows a %s event to its organizer, with its ticket types', async (status) => {
+    const event = await createEvent(organizer.wallet_address, { status });
+    await createTicketType(event.id);
+
+    const res = await read(event.id, cookie);
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe(status);
+    expect(res.body.ticket_types).toHaveLength(1);
+    expect((await readTypes(event.id, cookie)).body).toHaveLength(1);
+  });
+
+  it.each(['DRAFT', 'FROZEN'] as const)('answers 404 for a %s event to anyone else', async (status) => {
+    const event = await createEvent(organizer.wallet_address, { status, title: 'Not announced yet' });
+    await createTicketType(event.id);
+    const otherOrganizer = await createUser({ role: 'ORGANIZER' });
+    const attendee = await createUser();
+
+    const callers = {
+      'signed out': undefined,
+      'another organizer': authCookie(otherOrganizer.wallet_address, 'ORGANIZER'),
+      'an attendee': authCookie(attendee.wallet_address),
+      'an invalid cookie': 'token=not-a-real-token',
+    };
+    for (const [who, cookieHeader] of Object.entries(callers)) {
+      const res = await read(event.id, cookieHeader);
+      expect(res.status, who).toBe(404);
+      // The same answer as for an event that doesn't exist, without any of its details
+      expect(res.body, who).toEqual({ error: 'Event not found' });
+      expect((await readTypes(event.id, cookieHeader)).status, who).toBe(404);
+    }
+  });
+
+  it('shows an unpublished event to an admin, going by the role in the database', async () => {
+    const event = await createEvent(organizer.wallet_address, { status: 'DRAFT' });
+    const admin = await createUser({ role: 'ADMIN' });
+    // The session says USER: the database decides
+    expect((await read(event.id, authCookie(admin.wallet_address))).status).toBe(200);
+
+    // A session that still says ADMIN after the role was taken away doesn't count
+    const former = await createUser({ role: 'USER' });
+    expect((await read(event.id, authCookie(former.wallet_address, 'ADMIN'))).status).toBe(404);
+  });
+
+  it('keeps a published event public even with an invalid or expired cookie', async () => {
+    const event = await createEvent(organizer.wallet_address, { status: 'PUBLISHED' });
+    expect((await read(event.id, 'token=not-a-real-token')).status).toBe(200);
+  });
+
+  it('answers 404 for an event that does not exist', async () => {
+    const missing = '00000000-0000-0000-0000-000000000000';
+    expect((await read(missing)).status).toBe(404);
+    expect((await read(missing, cookie)).status).toBe(404);
+  });
+});

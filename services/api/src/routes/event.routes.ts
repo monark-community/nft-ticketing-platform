@@ -13,6 +13,7 @@ import { getTicketTypes, postTicketType } from '../controllers/ticketType.contro
 import { getScanners, postScanner, deleteScanner } from '../controllers/operations.controller';
 import { getWhitelist, postWhitelist, deleteWhitelist } from '../controllers/operations.controller';
 import { authenticate } from '../middlewares/authenticate';
+import { optionalAuthenticate } from '../middlewares/optionalAuthenticate';
 import { requireRole } from '../middlewares/requireRole';
 import { requireEmail } from '../middlewares/requireEmail';
 import { publicRateLimiter } from '../middlewares/rateLimiter';
@@ -36,7 +37,8 @@ router.get('/', publicRateLimiter, getEvents);
 // Organizer — own events, before /:id so "mine" isn't read as an event ID
 router.get('/mine', authenticate, requireRole('ORGANIZER'), requireEmail, getMyEvents);
 
-router.get('/:id', publicRateLimiter, getEvent);
+// Public for published events; a draft or frozen event only for its organizer or an admin
+router.get('/:id', publicRateLimiter, optionalAuthenticate, getEvent);
 
 // Organizer — event lifecycle
 router.post('/', authenticate, requireRole('ORGANIZER'), requireEmail, postEvent);
@@ -44,8 +46,8 @@ router.put('/:id', authenticate, requireRole('ORGANIZER'), requireEmail, putEven
 router.post('/:id/freeze', authenticate, requireRole('ORGANIZER'), requireEmail, upload.single('image'), postFreezeEvent);
 router.post('/:id/publish', authenticate, requireRole('ORGANIZER'), requireEmail, postPublishEvent);
 
-// Public — ticket types
-router.get('/:id/ticket-types', publicRateLimiter, getTicketTypes);
+// Public — ticket types (same rule as the event: unpublished only for its organizer or an admin)
+router.get('/:id/ticket-types', publicRateLimiter, optionalAuthenticate, getTicketTypes);
 
 // Organizer — ticket types
 router.post('/:id/ticket-types', authenticate, requireRole('ORGANIZER'), requireEmail, postTicketType);

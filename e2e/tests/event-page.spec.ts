@@ -1,13 +1,13 @@
 // The event page (#343): the event's details, the cover image and its fallback, "About this
 // event" (#330), availability and resale rules read from the contract, sold-out and ended sales,
-// an ID that doesn't exist, and the phone layout.
+// IDs that don't exist or aren't public, and the phone layout.
 //
 // Each test publishes the event it needs (API, IPFS stand-in and contract, like the app does) and
 // compares the screen with what the contract and the API say.
 
 import type { Page } from '@playwright/test';
 
-import { accounts, apiGet, chain, createPublishedEvent, expect, seededEvents, test, waitForSync, type PublishedEvent } from '../fixtures/index.js';
+import { accounts, ApiSession, apiGet, chain, createPublishedEvent, expect, seededEvents, test, waitForSync, type PublishedEvent } from '../fixtures/index.js';
 import { WEB_URL } from '../stack/config.mjs';
 
 interface ApiEvent {
@@ -423,6 +423,31 @@ test.describe('events that can\'t be shown', () => {
     await main(page).getByRole('link', { name: 'Browse events' }).click();
     await expect(page).toHaveURL(`${WEB_URL}/`);
     await expect(page.getByRole('heading', { name: 'Upcoming events' })).toBeVisible();
+  });
+
+  test('a draft is only visible to its organizer', async ({ page, signIn }) => {
+    const organizer = await ApiSession.signIn(accounts.organizer);
+    const draft = await organizer.post<{ id: string }>('/api/events', {
+      title: 'Secret Draft Show',
+      description: 'Not announced yet.',
+      category: 'Concerts',
+      location: 'National Arts Centre, Ottawa, ON',
+      start_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+
+    // The public: "Event not found", the same as for an ID that doesn't exist
+    await page.goto(`/events/${draft.id}`);
+    await expect(main(page).getByRole('heading', { level: 1, name: 'Event not found' })).toBeVisible();
+    await expect(main(page).getByText('Secret Draft Show')).toHaveCount(0);
+    await expect(apiGet(`/api/events/${draft.id}`)).rejects.toMatchObject({ status: 404 });
+    // Another signed-in user too
+    const jordan = await ApiSession.signIn(accounts.jordan);
+    await expect(jordan.get(`/api/events/${draft.id}`)).rejects.toMatchObject({ status: 404 });
+
+    // Its organizer still reads it (Create event loads drafts this way)
+    expect((await organizer.get<{ title: string }>(`/api/events/${draft.id}`)).title).toBe('Secret Draft Show');
+    await signIn('organizer', { path: `/events/${draft.id}` });
+    await expect(main(page).getByRole('heading', { level: 1, name: 'Secret Draft Show' })).toBeVisible();
   });
 });
 
