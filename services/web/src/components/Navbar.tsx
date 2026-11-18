@@ -1,12 +1,14 @@
 "use client";
 
 import { LogOut, Menu, X } from "lucide-react";
+import { motion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 
 import { Logo } from "@/components/Logo";
+import { CopyLiftOff } from "@/components/motion/CopyLiftOff";
 import { Button } from "@/components/ui/button";
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
 import { useHasMounted } from "@/hooks/useHasMounted";
@@ -18,7 +20,7 @@ import { cn } from "@/lib/utils";
 
 // Top navigation from the Figma Navbar variants (#290).
 // Links depend on the role: Organizer only for organizers, Admin only for admins.
-// On mobile: logo, wallet pill and a menu button that opens a simple drawer (#282).
+// On mobile: logo, wallet pill and a menu button that opens a sheet over the page (#282, #362).
 export function Navbar() {
   const { address, isConnected } = useAccount();
   const { user, signIn, logout, isLoading } = useWalletAuth();
@@ -55,23 +57,39 @@ interface NavbarViewProps {
 
 // Presentational navbar: renders one Figma variant from the role, with no wallet hooks.
 export function NavbarView({ role, ready, address, user, pathname, signingIn = false, onSignIn, onLogout }: NavbarViewProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
+  // The phone menu stays in the page while it slides away ("closing"), then it is removed
+  const [menu, setMenu] = useState<"closed" | "open" | "closing">("closed");
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const menuOpen = menu === "open";
   const links = navLinksFor(role, pathname);
   const signedIn = role !== "signed-out" && role !== "connected";
 
-  const walletPill = address && (
-    <span className="flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1.5">
-      <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" />
-      <span className="type-mono-address text-foreground">{shortAddress(address)}</span>
-    </span>
-  );
+  // Closing from the page (dimmed area, Escape) puts focus back on the menu button
+  function closeMenu() {
+    setMenu((state) => (state === "open" ? "closing" : state));
+    menuButtonRef.current?.focus();
+  }
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMenu("closing");
+      menuButtonRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
+  const walletPill = address && <NavWalletPill address={address} />;
 
   const profileChip = (
     <Link
       href={ROUTES.profile}
-      className="flex items-center gap-2 rounded-full border border-border py-1 pr-3 pl-1 transition-colors hover:border-border-accent"
+      className="group/profile flex items-center gap-2 rounded-full border border-border py-1 pr-3 pl-1 transition-colors hover:border-border-accent"
     >
-      <span className="flex size-7 items-center justify-center rounded-full bg-primary type-label-md text-primary-foreground tracking-normal">
+      {/* A thin orange ring on hover */}
+      <span className="flex size-7 items-center justify-center rounded-full bg-primary type-label-md text-primary-foreground tracking-normal transition-shadow duration-fast group-hover/profile:shadow-[0_0_0_2px_var(--background),0_0_0_3px_var(--primary)]">
         {avatarInitial(user)}
       </span>
       <span className="type-body-md-strong text-secondary-foreground">Profile</span>
@@ -92,11 +110,19 @@ export function NavbarView({ role, ready, address, user, pathname, signingIn = f
                 href={link.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "border-b-2 py-1.5 type-body-md-strong transition-colors",
-                  active ? "border-primary text-primary" : "border-transparent text-secondary-foreground hover:text-foreground"
+                  "relative border-b-2 border-transparent py-1.5 type-body-md-strong transition-colors",
+                  active ? "text-primary" : "text-secondary-foreground hover:text-foreground"
                 )}
               >
                 {link.label}
+                {/* One underline shared by all the links: it glides from the old page's link to the new one */}
+                {active && (
+                  <motion.span
+                    layoutId="navbar-underline"
+                    className="absolute inset-x-0 -bottom-0.5 h-0.5 bg-primary"
+                    transition={{ duration: 0.24, ease: [0.2, 0.8, 0.2, 1] }}
+                  />
+                )}
               </Link>
             );
           })}
@@ -117,7 +143,15 @@ export function NavbarView({ role, ready, address, user, pathname, signingIn = f
               ) : (
                 <span className="hidden items-center gap-2 md:flex">
                   {profileChip}
-                  <Button variant="ghost" size="icon-sm" onClick={onLogout} aria-label="Disconnect wallet" title="Disconnect wallet">
+                  {/* The arrow nudges towards the door on hover */}
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={onLogout}
+                    aria-label="Disconnect wallet"
+                    title="Disconnect wallet"
+                    className="[&_svg]:transition-transform [&_svg]:duration-fast hover:[&_svg]:translate-x-0.5"
+                  >
                     <LogOut />
                   </Button>
                 </span>
@@ -125,10 +159,11 @@ export function NavbarView({ role, ready, address, user, pathname, signingIn = f
             </>
           )}
           <Button
+            ref={menuButtonRef}
             variant="outline"
             size="icon-sm"
             className="md:hidden"
-            onClick={() => setMenuOpen((open) => !open)}
+            onClick={() => setMenu((state) => (state === "open" ? "closing" : "open"))}
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
             aria-controls="mobile-menu"
@@ -138,8 +173,23 @@ export function NavbarView({ role, ready, address, user, pathname, signingIn = f
         </div>
       </div>
 
-      {menuOpen && (
-        <div id="mobile-menu" className="border-t border-border bg-background px-4 pb-6 md:hidden">
+      {menu !== "closed" && (
+        <>
+          {/* The page behind the menu dims; tapping it closes the menu. Nothing on the page moves. */}
+          <div
+            className={cn("absolute inset-x-0 top-full h-dvh bg-black/60 md:hidden", menu === "closing" ? "dim-out" : "dim-in")}
+            onClick={closeMenu}
+            aria-hidden="true"
+          />
+          {/* The sheet drops from under the navbar (220 ms) and slides back up (140 ms) */}
+          <div className="absolute inset-x-0 top-full overflow-hidden md:hidden">
+            <div
+              id="mobile-menu"
+              className={cn("border-t border-border bg-background px-4 pb-6 shadow-[0_12px_24px_rgb(0_0_0/50%)]", menu === "closing" ? "sheet-out" : "sheet-in")}
+              onAnimationEnd={(event) => {
+                if (menu === "closing" && event.target === event.currentTarget) setMenu("closed");
+              }}
+            >
           <nav aria-label="Main" className="flex flex-col py-2">
             {links.map((link) => {
               const active = isActiveLink(pathname, link.href);
@@ -148,7 +198,7 @@ export function NavbarView({ role, ready, address, user, pathname, signingIn = f
                   key={link.href}
                   href={link.href}
                   aria-current={active ? "page" : undefined}
-                  onClick={() => setMenuOpen(false)}
+                  onClick={() => setMenu("closed")}
                   className={cn("border-b border-border py-3 type-title-md", active ? "text-primary" : "text-secondary-foreground")}
                 >
                   {link.label}
@@ -156,7 +206,7 @@ export function NavbarView({ role, ready, address, user, pathname, signingIn = f
               );
             })}
             {signedIn && (
-              <Link href={ROUTES.profile} onClick={() => setMenuOpen(false)} className="border-b border-border py-3 type-title-md text-secondary-foreground">
+              <Link href={ROUTES.profile} onClick={() => setMenu("closed")} className="border-b border-border py-3 type-title-md text-secondary-foreground">
                 Profile
               </Link>
             )}
@@ -173,8 +223,43 @@ export function NavbarView({ role, ready, address, user, pathname, signingIn = f
               </Button>
             )}
           </div>
-        </div>
+            </div>
+          </div>
+        </>
       )}
     </header>
+  );
+}
+
+// The connected wallet in the navbar. Hovering pings its orange dot once; clicking copies the
+// address, and a faint copy of it lifts off (#362).
+function NavWalletPill({ address }: { address: string }) {
+  const [copies, setCopies] = useState(0);
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopies((count) => count + 1);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard blocked: the address is still visible
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={copied ? "Copied" : "Copy wallet address"}
+      aria-label={copied ? "Wallet address copied" : `Copy wallet address ${shortAddress(address)}`}
+      className="group/pill flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1.5 outline-none transition-colors hover:border-border-accent focus-visible:ring-3 focus-visible:ring-ring/50"
+    >
+      <span className="size-1.5 rounded-full bg-primary group-hover/pill:punch-ring" aria-hidden="true" />
+      <CopyLiftOff copies={copies} className="type-mono-address text-foreground">
+        {shortAddress(address)}
+      </CopyLiftOff>
+    </button>
   );
 }

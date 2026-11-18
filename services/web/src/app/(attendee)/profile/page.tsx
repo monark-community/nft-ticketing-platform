@@ -80,7 +80,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col">
       <Navbar />
       <main className="page-glow flex-1">
         <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-10 px-4 pt-10 pb-16 md:px-8 md:pt-14">

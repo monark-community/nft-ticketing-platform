@@ -87,6 +87,27 @@ export function flapCells(from: string, to: string): FlapCell[] {
 }
 
 // ---------------------------------------------------------------------------------------------
+// DotField (the live background, #362). Distances are in grid cells.
+
+/** How much a dot warms up near the pointer: a diamond around it, brightest at its centre (0 to 0.85). */
+export function dotGlow(dx: number, dy: number): number {
+  return Math.max(0, 1 - (Math.abs(dx) + Math.abs(dy)) / 4.5) * 0.85;
+}
+
+/** How long a click's wave lives, in seconds */
+export const DOT_WAVE_SECONDS = 1.3;
+
+/**
+ * How bright a dot is as a click's wave passes: a diamond ring that grows 24 cells a second and fades
+ * out over 1.2 s. `cells` is the dot's distance from the click, counted along the grid.
+ */
+export function dotWave(cells: number, ageSeconds: number): number {
+  const fromRing = Math.abs(cells - ageSeconds * 24);
+  if (ageSeconds < 0 || fromRing >= 1.5) return 0;
+  return (1 - fromRing / 1.5) * Math.max(0, 1 - ageSeconds / 1.2);
+}
+
+// ---------------------------------------------------------------------------------------------
 // Web Animations, for the few pieces that can't be plain CSS
 
 type Keyframes = Keyframe[] | PropertyIndexedKeyframes;

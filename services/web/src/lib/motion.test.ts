@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { countUpValue, firstNumber, flapCells, motionDuration, prefersReducedMotion, rollDirection } from "./motion";
+import { countUpValue, dotGlow, dotWave, firstNumber, flapCells, motionDuration, prefersReducedMotion, rollDirection } from "./motion";
 
 describe("motionDuration", () => {
   it("keeps the duration normally", () => {
@@ -116,5 +116,40 @@ describe("flapCells (FlapText)", () => {
 
   it("flips every cell when the text arrives for the first time", () => {
     expect(changed("", "1,204").join("")).toBe("xxxxx");
+  });
+});
+
+describe("dotGlow (DotField)", () => {
+  it("is brightest under the pointer and fades to nothing 4.5 cells away", () => {
+    expect(dotGlow(0, 0)).toBeCloseTo(0.85);
+    expect(dotGlow(1, 1)).toBeGreaterThan(0);
+    expect(dotGlow(1, 1)).toBeLessThan(dotGlow(0, 1));
+    expect(dotGlow(4.5, 0)).toBe(0);
+    expect(dotGlow(10, 10)).toBe(0);
+  });
+
+  it("is a diamond: the same along the grid in every direction", () => {
+    expect(dotGlow(2, 1)).toBeCloseTo(dotGlow(-1, -2));
+    expect(dotGlow(3, 0)).toBeCloseTo(dotGlow(0, -3));
+    // a corner 3 cells away diagonally is further along the grid (6 cells) than 3 cells straight
+    expect(dotGlow(3, 3)).toBe(0);
+  });
+});
+
+describe("dotWave (DotField)", () => {
+  it("lights the ring where the wave is, and nothing far from it", () => {
+    expect(dotWave(12, 0.5)).toBeCloseTo(1 - 0.5 / 1.2); // the ring is 12 cells out after half a second
+    expect(dotWave(2, 0.5)).toBe(0);
+    expect(dotWave(30, 0.5)).toBe(0);
+  });
+
+  it("fades out as it travels and is gone after 1.2 s", () => {
+    expect(dotWave(2.4, 0.1)).toBeGreaterThan(dotWave(24, 1));
+    expect(dotWave(28.8, 1.2)).toBe(0);
+    expect(dotWave(31.2, 1.3)).toBe(0);
+  });
+
+  it("is nothing before the click", () => {
+    expect(dotWave(0, -0.1)).toBe(0);
   });
 });
