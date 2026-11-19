@@ -113,10 +113,13 @@ function watchProblems(page: Page): string[] {
   const problems: string[] = [];
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
-    const url = message.location().url;
-    const status = Number(/status of (\d{3})/.exec(message.text())?.[1]) || undefined;
+    const text = message.text();
+    // The resource the error is about: the first address in the message (a CORS error names the
+    // blocked one there and reports the page as its source), or else where the error comes from
+    const url = /'(https?:\/\/[^']+)'/.exec(text)?.[1] ?? message.location().url;
+    const status = Number(/status of (\d{3})/.exec(text)?.[1]) || undefined;
     if (url && expected(url, status)) return;
-    problems.push(`console error: ${message.text()} (${url || 'no url'})`);
+    problems.push(`console error: ${text} (${message.location().url || 'no url'})`);
   });
   page.on('requestfailed', (request) => {
     // Requests cut short by going to the next page aren't failures
