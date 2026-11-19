@@ -92,6 +92,8 @@ export class TestWallet {
   readonly provider = new ethers.JsonRpcProvider(RPC_URL, CHAIN_ID, { staticNetwork: true, cacheTimeout: -1 });
   /** Every method the page asked for, in order: handy when a test needs to know what was requested */
   readonly requests: string[] = [];
+  /** Every message signed with personal_sign, as text, with its signature (to check a signed code against) */
+  readonly signed: Array<{ message: string; signature: string }> = [];
   account: Account;
   chainId = CHAIN_ID;
   connected = false;
@@ -222,7 +224,10 @@ export class TestWallet {
       case 'personal_sign': {
         const [data, address] = params as [string, string];
         this.checkAccount(address);
-        return this.signer().signMessage(ethers.isHexString(data) ? ethers.getBytes(data) : data);
+        const bytes = ethers.isHexString(data) ? ethers.getBytes(data) : ethers.toUtf8Bytes(data);
+        const signature = await this.signer().signMessage(bytes);
+        this.signed.push({ message: ethers.toUtf8String(bytes, ethers.Utf8ErrorFuncs.replace), signature });
+        return signature;
       }
       case 'eth_sign': {
         const [address, data] = params as [string, string];
