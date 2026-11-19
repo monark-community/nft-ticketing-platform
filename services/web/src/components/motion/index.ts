@@ -2,6 +2,7 @@
 // CSS-only ones: punch, punch-ring, animate-march, animate-breathe.
 export { CopyLiftOff } from "./CopyLiftOff";
 export { CountUp } from "./CountUp";
+export { DotField } from "./DotField";
 export { DrawnCheck } from "./DrawnCheck";
 export { FlapText } from "./FlapText";
 export { MotionProvider } from "./MotionProvider";

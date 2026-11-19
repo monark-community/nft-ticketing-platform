@@ -173,7 +173,10 @@
 /* Primary button glow: soft at rest, stronger on hover */
 @utility glow-primary {
   box-shadow: 0 0 16px rgb(249 115 22 / 25%);
-  &:hover:not(:disabled) { box-shadow: 0 0 24px rgb(249 115 22 / 45%); }
+  /* Only with a real pointer: on touch screens a hover would stay stuck after a tap */
+  @media (hover: hover) {
+    &:hover:not(:disabled) { box-shadow: 0 0 24px rgb(249 115 22 / 45%); }
+  }
 }
 
 /* Subtle orange glow behind the top of a page (the "Overlay+Blur" layers in Figma) */
@@ -355,6 +358,51 @@
   pointer-events: none;
   z-index: 7;
 }
+
+/* ---------------------------------------------------------------------------
+   Background, navbar, buttons and phone menu (#362)
+   --------------------------------------------------------------------------- */
+/* The still dots of the live background. DotField draws the lit ones on top, on the same 22px grid */
+@utility dot-field {
+  background-image: radial-gradient(rgb(227 226 229 / 7.5%) 1px, transparent 1.5px);
+  background-size: 22px 22px;
+}
+
+/* Buttons: pressing one bites two notches into its sides, like a punched ticket (110 ms) */
+@utility notched {
+  position: relative;
+  &::before, &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    border-radius: 9999px;
+    background: var(--notch-bg, var(--background));
+    pointer-events: none;
+    transform: translateY(-50%) scale(0);
+    transition: transform 110ms var(--ease-snap);
+  }
+  /* Only the half inside the button is painted, so a notch never covers what is next to the button */
+  &::before { left: -6px; clip-path: inset(0 0 0 50%); }
+  &::after { right: -6px; clip-path: inset(0 50% 0 0); }
+  &:active:not(:disabled)::before, &:active:not(:disabled)::after { transform: translateY(-50%) scale(1); }
+}
+
+/* A notch shows the surface the button sits on: cards, popups and muted panels pass their color down */
+.bg-card { --notch-bg: var(--card); }
+.bg-popover { --notch-bg: var(--popover); }
+.bg-muted { --notch-bg: var(--muted); }
+
+/* Phone menu: a sheet that drops over the page from under the navbar while the page dims */
+@keyframes sheet-in { from { transform: translateY(-100%); } }
+@keyframes sheet-out { to { transform: translateY(-100%); } }
+@keyframes dim-in { from { opacity: 0; } }
+@keyframes dim-out { to { opacity: 0; } }
+@utility sheet-in { animation: sheet-in 220ms var(--ease-arrive) both; }
+@utility sheet-out { animation: sheet-out 140ms ease-in both; }
+@utility dim-in { animation: dim-in 200ms ease-out both; }
+@utility dim-out { animation: dim-out 140ms ease-in both; }
 
 /* Respect reduced motion everywhere: animations and transitions jump to their end, without delay */
 @media (prefers-reduced-motion: reduce) {

@@ -792,7 +792,7 @@ function Panel({ className, children }: { className?: string; children: React.Re
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="page-glow flex min-h-screen flex-col bg-background">
+    <div className="page-glow flex min-h-screen flex-col">
       <Navbar />
       <main className="mx-auto flex w-full max-w-[1280px] flex-1 flex-col gap-6 px-4 py-10 sm:px-8 md:px-10">{children}</main>
       <Footer />

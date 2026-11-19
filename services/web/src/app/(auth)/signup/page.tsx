@@ -25,7 +25,7 @@ import { describeAuthError, mapProfileError, safeNextPath, toProfileUpdate, type
 // right one. Signed-in users with a complete profile go on to ?next= (or the events list).
 export default function SignUpPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col">
       <Navbar />
       <main className="page-glow flex flex-1 justify-center px-4 pt-12 pb-16 sm:px-8 sm:pt-20">
         <div className="w-full max-w-[440px]">

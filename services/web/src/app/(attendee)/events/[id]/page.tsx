@@ -137,7 +137,7 @@ export default function EventPage() {
 
   return (
     // Bottom padding on phones keeps the fixed buy bar from covering the footer
-    <div className="flex min-h-screen flex-col bg-background pb-[76px] lg:pb-0">
+    <div className="flex min-h-screen flex-col pb-[76px] lg:pb-0">
       <Navbar />
 
       <main className="page-glow flex-1 pb-12">

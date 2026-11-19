@@ -1,3 +1,4 @@
+import { DotField } from "@/components/motion/DotField";
 import { MotionProvider } from "@/components/motion/MotionProvider";
 import { NetworkGuard } from "@/components/NetworkWarning";
 import { WalletProvider } from "@/lib/wallet-provider";
@@ -39,6 +40,8 @@ export default function RootLayout({
     // The font variables go on <html>: that's where the base font and the type-* styles read them
     <html lang="en" className={`dark ${jakarta.variable} ${playfair.variable} ${jetbrainsMono.variable}`}>
       <body>
+  {/* The live dot grid behind every page (#362) */}
+  <DotField />
   <WalletProvider>
     <AuthProvider>
       <MotionProvider>
