@@ -9,6 +9,7 @@ import { EventFilters } from "@/components/events/EventFilters";
 import { EventsMessage } from "@/components/events/EventsMessage";
 import { HostBanner } from "@/components/events/HostBanner";
 import { Footer } from "@/components/Footer";
+import { PageSwap } from "@/components/motion";
 import { Navbar } from "@/components/Navbar";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,8 @@ const SUGGESTED_EVENTS = 6; // upcoming events shown under "No events found"
 // "Want to host an event?" banner (#320), from the Figma "Events" frames.
 export default function EventsPage() {
   return (
-    <div className="flex min-h-screen flex-col">
+    // Fades out while an event's picture flies into its page, and back in on the way back (#363)
+    <PageSwap className="flex min-h-screen flex-col">
       <Navbar />
 
       <main className="page-glow flex-1">
@@ -42,7 +44,7 @@ export default function EventsPage() {
       </main>
 
       <Footer />
-    </div>
+    </PageSwap>
   );
 }
 
