@@ -60,11 +60,16 @@ export function organizerPhase(event: Pick<ApiEvent, "status" | "start_date" | "
 }
 
 // Drafts reopen the form; frozen events go straight to Review so the organizer can finish
-// publishing. Published events open their public page.
+// publishing. Published events open their management page.
 export function eventEditorHref(event: Pick<OrganizerEvent, "id" | "status">): string {
   const params = new URLSearchParams({ draft: event.id });
   if (event.status === "FROZEN") params.set("step", "review");
   return `${ROUTES.newEvent}?${params.toString()}`;
+}
+
+// The organizer's manage page for a published event (#189-#194), and its public page
+export function organizerEventHref(event: Pick<OrganizerEvent, "id">): string {
+  return `/organizer/events/${encodeURIComponent(event.id)}`;
 }
 
 export function publicEventHref(event: Pick<OrganizerEvent, "id">): string {
@@ -80,14 +85,14 @@ export function organizerEventStatus(event: OrganizerEvent, now = Date.now()): O
     return { phase, label: "Ready to publish", tone: "warning", action: "Publish", href: eventEditorHref(event) };
   }
   if (phase === "live" && event.presale_active) {
-    return { phase, label: "Presale", tone: "highlight", action: "View event", href: publicEventHref(event), dot: true };
+    return { phase, label: "Presale", tone: "highlight", action: "Manage", href: organizerEventHref(event), dot: true };
   }
   return {
     phase,
     label: phase === "live" ? "Live" : "Ended",
     tone: phase === "live" ? "success" : "neutral",
-    action: "View event",
-    href: publicEventHref(event),
+    action: "Manage",
+    href: organizerEventHref(event),
     dot: phase === "live",
   };
 }
