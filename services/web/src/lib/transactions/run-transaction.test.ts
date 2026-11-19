@@ -88,7 +88,7 @@ describe("runTransactionSteps", () => {
     const client = fakeClient();
     const { done, phases, last } = run(client, { steps: [step("approve"), step("buy")] });
 
-    expect(await done).toBe(true);
+    expect(await done).toBe("success");
     expect(phases()).toEqual([
       "preparing", "awaitingWallet", "confirming",
       "preparing", "awaitingWallet", "confirming",
@@ -103,7 +103,7 @@ describe("runTransactionSteps", () => {
     client.simulate.mockRejectedValueOnce(new Error("insufficient funds for gas"));
     const { done, phases, last } = run(client);
 
-    expect(await done).toBe(false);
+    expect(await done).toBe("error");
     expect(client.write).not.toHaveBeenCalled();
     expect(phases()).not.toContain("awaitingWallet");
     expect(last()).toMatchObject({ phase: "error", error: TX_ERRORS.insufficientFunds });
@@ -113,7 +113,7 @@ describe("runTransactionSteps", () => {
     const client = fakeClient(async () => receipt("reverted"));
     const { done, last } = run(client, { steps: [step("approve"), step("buy")] });
 
-    expect(await done).toBe(false);
+    expect(await done).toBe("error");
     expect(client.simulate).toHaveBeenCalledTimes(1);
     expect(last()).toMatchObject({ phase: "error", stepIndex: 0, error: TX_ERRORS.revertedOnChain });
   });
@@ -125,7 +125,7 @@ describe("runTransactionSteps", () => {
     });
     const { done, states, last } = run(client);
 
-    expect(await done).toBe(true);
+    expect(await done).toBe("success");
     expect(states).toContainEqual(
       expect.objectContaining({
         hash: SPED_UP_HASH,
@@ -145,7 +145,7 @@ describe("runTransactionSteps", () => {
     });
     const { done, last } = run(client);
 
-    expect(await done).toBe(false);
+    expect(await done).toBe("error");
     expect(last()).toMatchObject({ phase: "error", error: message });
   });
 
@@ -157,7 +157,7 @@ describe("runTransactionSteps", () => {
       .mockResolvedValueOnce(receipt("success"));
     const { done, phases } = run(client);
 
-    expect(await done).toBe(true);
+    expect(await done).toBe("success");
     expect(phases()).toEqual([
       "preparing", "awaitingWallet", "confirming",
       "stillPending", "confirming",
@@ -179,7 +179,7 @@ describe("runTransactionSteps", () => {
       },
     });
 
-    expect(await done).toBe(false);
+    expect(await done).toBe("stoppedWaiting");
     expect(last()).toMatchObject({ phase: "stoppedWaiting", error: null, note: STOPPED_WAITING_NOTE });
   });
 
@@ -198,7 +198,7 @@ describe("runTransactionSteps", () => {
 
     await vi.waitFor(() => expect(last().phase).toBe("stillPending"));
     stop.abort();
-    expect(await done).toBe(false);
+    expect(await done).toBe("stoppedWaiting");
     const countAfterStop = states.length;
 
     // The wallet speeds it up and it then confirms, after the user already left
