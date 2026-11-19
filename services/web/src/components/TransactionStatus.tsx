@@ -1,19 +1,21 @@
 "use client";
 
-// Shared display of a transaction's progress and outcome (#101), styled with the design system (#290).
+// Shared display of a transaction's progress and outcome (#101), as a small receipt (#364): each
+// step prints one more line. When it's done the bottom edge tears off; a failure prints its line
+// in red and the receipt shakes once. What to do next stays under the receipt, in plain words.
 
-import { Alert } from "@/components/ui/alert";
+import { X } from "lucide-react";
+import { useState } from "react";
+
+import { DrawnCheck } from "@/components/motion/DrawnCheck";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { isReceiptFinished, receiptLines, receiptTitle, type ReceiptLine, type ReceiptTone } from "@/lib/transactions/receipt";
 import type { TxState } from "@/lib/transactions/types";
+import { cn } from "@/lib/utils";
 
-const PENDING_TEXT: Partial<Record<TxState["phase"], string>> = {
-  preparing: "Preparing transaction...",
-  awaitingWallet: "Confirm the transaction in your wallet",
-  confirming: "Transaction sent. Waiting for confirmation...",
-  stillPending:
-    "This is taking longer than usual. The transaction is still pending and may still confirm, so don't send it again.",
-};
+const STILL_PENDING_TEXT =
+  "This is taking longer than usual. The transaction is still pending and may still confirm, so don't send it again.";
 
 interface Props {
   state: TxState;
@@ -23,88 +25,105 @@ interface Props {
   onStopWaiting?: () => void; // shows "Stop waiting" while still pending (#252)
 }
 
-function shortenHash(hash: string) {
-  return `${hash.slice(0, 10)}…${hash.slice(-8)}`;
-}
+// Ink colours on the receipt's paper
+const TONE: Record<ReceiptTone, string> = {
+  plain: "",
+  ok: "font-bold text-[#15803d]",
+  slow: "text-[#a16207]",
+  bad: "font-bold text-[#b91c1c]",
+};
 
-function TxLink({ hash, explorerUrl }: { hash: string; explorerUrl?: string | null }) {
+function Line({ line, explorerUrl }: { line: ReceiptLine; explorerUrl?: string | null }) {
   return (
-    <p className="mt-1 type-mono-address text-muted-foreground">
-      Tx:{" "}
-      {explorerUrl ? (
-        <a href={`${explorerUrl}/tx/${hash}`} target="_blank" rel="noreferrer" className="underline hover:text-foreground">
-          {shortenHash(hash)}
-        </a>
-      ) : (
-        shortenHash(hash)
-      )}
-    </p>
+    // Opens its own height while its text prints from left to right (160 ms)
+    <li className="unfold-in [animation-duration:160ms]">
+      <div className="min-h-0 overflow-hidden">
+        <div className={cn("print-across mt-0.5 flex items-center justify-between gap-2 border-t border-dashed border-[#c9c6be] pt-1", TONE[line.tone])}>
+          {line.hash && explorerUrl ? (
+            <a href={`${explorerUrl}/tx/${line.hash}`} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:opacity-70">
+              {line.text}
+            </a>
+          ) : (
+            <span>{line.text}</span>
+          )}
+          {line.busy && <Spinner className="size-3 text-[#c2410c]" />}
+          {line.tone === "ok" && <DrawnCheck className="size-3.5" />}
+          {line.tone === "bad" && <X className="size-3.5 shrink-0" strokeWidth={2.6} aria-hidden="true" />}
+        </div>
+      </div>
+    </li>
   );
 }
 
 export function TransactionStatus({ state, explorerUrl, successMessage, onRetry, onStopWaiting }: Props) {
+  // Whether the wallet was opened for the current step, so a failure before that doesn't print a
+  // wallet line. Followed during render, from the phases as they arrive.
+  const [walletAsked, setWalletAsked] = useState<number | null>(null);
+  const asked = state.phase === "awaitingWallet" ? state.stepIndex : state.phase === "idle" || state.phase === "preparing" ? null : walletAsked;
+  if (asked !== walletAsked) setWalletAsked(asked);
+
+  if (state.phase === "idle") return null;
+
+  const lines = receiptLines(state, asked === state.stepIndex);
+  const finished = isReceiptFinished(state);
   const multiStep = state.steps.length > 1;
   const stepLabel = `Step ${state.stepIndex + 1} of ${state.steps.length}: ${state.steps[state.stepIndex]}`;
-  const txLink = state.hash && <TxLink hash={state.hash} explorerUrl={explorerUrl} />;
-
-  // Success (#105)
-  if (state.phase === "success") {
-    return (
-      <Alert tone="success" title={successMessage ?? "Transaction confirmed."}>
-        {txLink}
-      </Alert>
-    );
-  }
-
-  // Failure (#105)
-  if (state.phase === "error") {
-    return (
-      <Alert
-        tone="error"
-        title={multiStep ? `Failed at ${stepLabel}` : "Transaction failed"}
-        action={onRetry && <Button size="sm" onClick={onRetry}>Try again</Button>}
-      >
-        {state.error && <p>{state.error}</p>}
-        {txLink}
-      </Alert>
-    );
-  }
-
-  // The user stopped waiting; the transaction may still confirm (#252)
-  if (state.phase === "stoppedWaiting") {
-    return (
-      <Alert tone="warning" title="Stopped waiting for the transaction">
-        {state.note && <p>{state.note}</p>}
-        {txLink}
-      </Alert>
-    );
-  }
-
-  // Pending (#102, #104)
-  const text = PENDING_TEXT[state.phase];
-  if (!text) return null;
 
   return (
-    <Alert
-      tone={state.phase === "stillPending" ? "warning" : "info"}
-      icon={null}
-      title={
-        <span className="flex items-center gap-2">
-          <Spinner className="text-primary" />
-          {multiStep ? stepLabel : text}
-        </span>
-      }
-      action={
-        state.phase === "stillPending" && onStopWaiting && (
-          <Button variant="outline" size="sm" onClick={onStopWaiting}>
-            Stop waiting
-          </Button>
-        )
-      }
-    >
-      {multiStep && <p>{text}</p>}
-      {state.note && <p className="mt-1">{state.note}</p>}
-      {txLink}
-    </Alert>
+    <div data-slot="transaction-status" className="flex flex-col gap-3">
+      {/* Announced politely as lines are added; a failure interrupts (role="alert" below) */}
+      <div
+        role="status"
+        className={cn(
+          "relative w-full max-w-[340px] rounded-t-[4px] bg-[#ecebe6] px-3.5 pt-3 pb-4 font-mono text-[12.5px] leading-normal text-[#1d1d1f]",
+          finished && "mb-2",
+          state.phase === "error" && "shake-once"
+        )}
+      >
+        <p className="text-[#6b6760]">{receiptTitle(state)}</p>
+        <ol className="flex flex-col pt-1.5">
+          {lines.map((line) => (
+            <Line key={line.key} line={line} explorerUrl={explorerUrl} />
+          ))}
+        </ol>
+        {finished && <span className="receipt-tear" aria-hidden="true" />}
+      </div>
+
+      {state.phase === "success" && <p className="fade-in type-body-md-strong text-success">{successMessage ?? "Transaction confirmed."}</p>}
+
+      {state.phase === "error" && (
+        <div role="alert" className="fade-in flex flex-col items-start gap-1">
+          <p className="type-body-md-strong text-destructive">{multiStep ? `Failed at ${stepLabel}` : "Transaction failed"}</p>
+          {state.error && <p className="type-body-sm text-secondary-foreground">{state.error}</p>}
+          {onRetry && (
+            <Button size="sm" onClick={onRetry} className="mt-2">
+              Try again
+            </Button>
+          )}
+        </div>
+      )}
+
+      {state.phase === "stoppedWaiting" && (
+        <div className="fade-in flex flex-col gap-1">
+          <p className="type-body-md-strong text-primary">Stopped waiting for the transaction</p>
+          {state.note && <p className="type-body-sm text-secondary-foreground">{state.note}</p>}
+        </div>
+      )}
+
+      {state.phase === "stillPending" && (
+        <div className="fade-in flex flex-col items-start gap-1">
+          <p className="type-body-sm text-secondary-foreground">{STILL_PENDING_TEXT}</p>
+          {state.note && <p className="type-body-sm text-secondary-foreground">{state.note}</p>}
+          {onStopWaiting && (
+            <Button variant="outline" size="sm" onClick={onStopWaiting} className="mt-2">
+              Stop waiting
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* e.g. the transaction was sped up in the wallet */}
+      {!finished && state.phase !== "stillPending" && state.note && <p className="type-body-sm text-secondary-foreground">{state.note}</p>}
+    </div>
   );
 }

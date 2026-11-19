@@ -21,11 +21,20 @@ function Field({ label, helper, error, className, children }: FieldProps) {
   const hint = error || helper
 
   return (
-    <div data-slot="field" className={cn("flex flex-col gap-2", className)}>
-      <Label htmlFor={id}>{label}</Label>
+    // group/field: the label turns orange while its box has the focus (#364)
+    <div data-slot="field" className={cn("group/field flex flex-col gap-2", className)}>
+      <Label htmlFor={id} className="transition-colors duration-fast group-focus-within/field:text-primary">
+        {label}
+      </Label>
       {children({ id, "aria-invalid": error ? true : undefined, "aria-describedby": hint ? hintId : undefined })}
       {hint && (
-        <p id={hintId} className={cn("type-body-sm", error ? "text-destructive" : "text-muted-foreground")} role={error ? "alert" : undefined}>
+        // The key makes an error fade in when it replaces the hint
+        <p
+          key={error ? "error" : "hint"}
+          id={hintId}
+          className={cn("type-body-sm", error ? "fade-in text-destructive" : "text-muted-foreground")}
+          role={error ? "alert" : undefined}
+        >
           {hint}
         </p>
       )}

@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 
 import { Logo } from "@/components/Logo";
+import { NetworkGuard } from "@/components/NetworkWarning";
 import { CopyLiftOff } from "@/components/motion/CopyLiftOff";
 import { Button } from "@/components/ui/button";
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
@@ -30,6 +31,7 @@ export function Navbar() {
   useProfileCompletionRedirect();
 
   return (
+    <>
     <NavbarView
       // The server can't know the wallet state, so treat the first render as signed out (#220)
       role={getNavRole(hasMounted && isConnected, user?.role)}
@@ -41,6 +43,9 @@ export function Navbar() {
       onSignIn={() => signIn()}
       onLogout={() => logout()}
     />
+    {/* Under the navbar, pushing the page down (#364) */}
+    <NetworkGuard />
+    </>
   );
 }
 

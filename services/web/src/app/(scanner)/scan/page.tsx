@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useAccount, useChains, usePublicClient, useSwitchChain } from "wagmi";
 
+import { NetworkGuard } from "@/components/NetworkWarning";
 import { ScanResult } from "@/components/ScanResult";
 import { CameraFrame, CameraPausedBar, EventPicker, ScannerHeader, ScannerPanel } from "@/components/scanner/ScannerParts";
 import { Alert } from "@/components/ui/alert";
@@ -104,6 +105,7 @@ export default function ScanPage() {
   return (
     <div className="flex min-h-screen flex-col">
       <ScannerHeader address={isConnected ? address : undefined} />
+      <NetworkGuard />
 
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-5 px-4 pt-6 pb-10">
         <h1 className="type-heading-md text-foreground">Ticket scanner</h1>

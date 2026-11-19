@@ -1,6 +1,5 @@
 import { DotField } from "@/components/motion/DotField";
 import { MotionProvider } from "@/components/motion/MotionProvider";
-import { NetworkGuard } from "@/components/NetworkWarning";
 import { WalletProvider } from "@/lib/wallet-provider";
 import { AuthProvider } from "@/lib/auth-provider";
 import "@rainbow-me/rainbowkit/styles.css";
@@ -45,7 +44,6 @@ export default function RootLayout({
   <WalletProvider>
     <AuthProvider>
       <MotionProvider>
-        <NetworkGuard />
         {children}
       </MotionProvider>
     </AuthProvider>
