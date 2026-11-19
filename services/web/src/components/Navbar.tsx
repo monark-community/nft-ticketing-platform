@@ -1,7 +1,7 @@
 "use client";
 
 import { LogOut, Menu, X } from "lucide-react";
-import { motion } from "motion/react";
+import * as m from "motion/react-m";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -97,7 +97,15 @@ export function NavbarView({ role, ready, address, user, pathname, signingIn = f
   );
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
+    <header
+      className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur"
+      // Focus leaving the navbar (Tab past the last menu link) closes the phone menu, so it never
+      // stays open over the page that now has the focus
+      onBlur={(event) => {
+        const next = event.relatedTarget;
+        if (menu === "open" && next instanceof Node && !event.currentTarget.contains(next)) setMenu("closing");
+      }}
+    >
       <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-4 px-4 md:h-[72px] md:px-10">
         <Logo className="md:w-[280px]" />
 
@@ -117,7 +125,7 @@ export function NavbarView({ role, ready, address, user, pathname, signingIn = f
                 {link.label}
                 {/* One underline shared by all the links: it glides from the old page's link to the new one */}
                 {active && (
-                  <motion.span
+                  <m.span
                     layoutId="navbar-underline"
                     className="absolute inset-x-0 -bottom-0.5 h-0.5 bg-primary"
                     transition={{ duration: 0.24, ease: [0.2, 0.8, 0.2, 1] }}

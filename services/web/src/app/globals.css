@@ -378,7 +378,7 @@
     width: 12px;
     height: 12px;
     border-radius: 9999px;
-    background: var(--background);
+    background: var(--notch-bg, var(--background));
     pointer-events: none;
     transform: translateY(-50%) scale(0);
     transition: transform 110ms var(--ease-snap);
@@ -388,6 +388,11 @@
   &::after { right: -6px; clip-path: inset(0 50% 0 0); }
   &:active:not(:disabled)::before, &:active:not(:disabled)::after { transform: translateY(-50%) scale(1); }
 }
+
+/* A notch shows the surface the button sits on: cards, popups and muted panels pass their color down */
+.bg-card { --notch-bg: var(--card); }
+.bg-popover { --notch-bg: var(--popover); }
+.bg-muted { --notch-bg: var(--muted); }
 
 /* Phone menu: a sheet that drops over the page from under the navbar while the page dims */
 @keyframes sheet-in { from { transform: translateY(-100%); } }
