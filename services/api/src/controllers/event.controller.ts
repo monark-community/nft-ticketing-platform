@@ -14,6 +14,7 @@ import { syncEventFromChain, verifyEventSetupOnChain } from '../services/sync.se
 import logger from '../lib/logger';
 import { validateEventInput } from '../lib/validation';
 import { EVENT_CATEGORIES, isEventCategory } from '../lib/categories';
+import { canViewEvent } from '../lib/event-visibility';
 
 const SEARCH_MAX = 100;
 
@@ -54,7 +55,7 @@ export async function getEvents(req: Request, res: Response): Promise<void> {
 export async function getEvent(req: Request, res: Response): Promise<void> {
   try {
     const event = await getEventById(req.params.id);
-    if (!event) {
+    if (!event || !(await canViewEvent(event, req.user))) {
       res.status(404).json({ error: 'Event not found' });
       return;
     }
