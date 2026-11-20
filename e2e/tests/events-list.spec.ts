@@ -6,7 +6,7 @@
 
 import type { Locator, Page } from '@playwright/test';
 
-import { accounts, ApiSession, apiGet, chain, contractEventIdFor, expect, seededEvents, test } from '../fixtures/index.js';
+import { accounts, ApiSession, apiGet, chain, contractEventIdFor, expect, openMenuIfPhone, seededEvents, test } from '../fixtures/index.js';
 import { API_URL, WEB_URL } from '../stack/config.mjs';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -509,6 +509,51 @@ test.describe('filters stay in the link (#320)', () => {
     await page.goForward();
     await expect(page.getByRole('heading', { level: 1, name: 'Rock_n_Roll Revival' })).toBeVisible();
   });
+
+  // The search reaches the link after a short pause. A link clicked during it, in the list or not,
+  // must still open its page, and Back must bring the search back (#387). Both links are on screen
+  // when the page opens, so the click doesn't wait for a scroll.
+  const LINKS: Array<{ name: string; click: (page: Page) => Promise<void>; opens: string; shows: (page: Page) => Locator }> = [
+    {
+      name: 'an event card',
+      click: async (page) => card(page, 'Started Without An End').click(),
+      opens: 'Started Without An End',
+      shows: (page) => page.getByRole('heading', { level: 1, name: 'Started Without An End' }),
+    },
+    {
+      name: "the navbar's Marketplace link",
+      click: async (page) => {
+        await openMenuIfPhone(page);
+        await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Marketplace', exact: true }).click();
+      },
+      opens: '/marketplace',
+      shows: (page) => page.getByRole('heading', { level: 1, name: 'Marketplace' }),
+    },
+  ];
+
+  for (const { name, click, opens, shows } of LINKS) {
+    test(`${name} clicked right after typing opens its page, and Back returns to the search`, async ({ page }) => {
+      // Like on a slow connection: links aren't prefetched and the next page answers slowly, so the
+      // click is still on its way when the search's pause ends
+      await page.route(`${WEB_URL}/**`, async (route) => {
+        const headers = route.request().headers();
+        if (headers['next-router-prefetch']) return route.abort();
+        if (headers['rsc']) await new Promise((resolve) => setTimeout(resolve, 800));
+        await route.continue();
+      });
+      await openEvents(page);
+
+      await search(page, 'ottawa');
+      await click(page);
+      const path = opens.startsWith('/') ? opens : `/events/${await eventId(opens)}`;
+      await expect(page).toHaveURL(`${WEB_URL}${path}`);
+      await expect(shows(page)).toBeVisible();
+
+      await page.goBack();
+      await expect(page).toHaveURL(`${WEB_URL}/?q=ottawa`);
+      await expect(searchBox(page)).toHaveValue('ottawa');
+    });
+  }
 });
 
 test.describe('"Want to host an event?" banner (#320)', () => {

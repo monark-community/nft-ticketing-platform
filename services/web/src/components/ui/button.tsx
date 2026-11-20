@@ -13,8 +13,19 @@ const filledDisabled =
   "disabled:border-transparent disabled:bg-disabled disabled:text-disabled-foreground disabled:shadow-none"
 const textDisabled = "disabled:bg-transparent disabled:text-disabled-foreground"
 
+// Motion (#362). Hover: an arrow icon steps forward 4px (the glow grows through glow-primary).
+// Press: the button shrinks 3% in 110 ms, and text buttons with a body get two notches bitten into
+// their sides ("notched"), like a punched ticket. Disabled buttons don't react.
+const arrowStep =
+  "[&_svg.lucide-arrow-right]:transition-transform [&_svg.lucide-arrow-right]:duration-fast hover:[&_svg.lucide-arrow-right]:translate-x-1"
+const NOTCHED_VARIANTS = ["default", "primary", "secondary", "outline", "destructive"] as const
+const TEXT_SIZES = ["default", "md", "lg", "sm"] as const
+
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center gap-2 rounded-sm border border-transparent bg-clip-padding whitespace-nowrap transition-[color,background-color,border-color,box-shadow] duration-200 outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px disabled:pointer-events-none aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  cn(
+    "group/button inline-flex shrink-0 items-center justify-center gap-2 rounded-sm border border-transparent bg-clip-padding whitespace-nowrap transition-[color,background-color,border-color,box-shadow,scale] duration-200 outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50 active:scale-[0.97] active:duration-[110ms] disabled:pointer-events-none aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+    arrowStep,
+  ),
   {
     variants: {
       variant: {
@@ -35,6 +46,8 @@ const buttonVariants = cva(
         "icon-sm": "size-9",
       },
     },
+    // Notches only where they read as a ticket: buttons with a body and a label, not icon buttons
+    compoundVariants: [{ variant: [...NOTCHED_VARIANTS], size: [...TEXT_SIZES], className: "notched" }],
     defaultVariants: {
       variant: "default",
       size: "default",

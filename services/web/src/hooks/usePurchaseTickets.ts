@@ -50,11 +50,12 @@ export function usePurchaseTickets({ contractEventId, typeId, quantity, unitPric
       },
     });
 
-    const ok = await tx.run(steps);
-    if (ok) setPurchased(quantity);
+    const outcome = await tx.run(steps);
+    const succeeded = outcome === "success";
+    if (succeeded) setPurchased(quantity);
     // Refresh even after a failure: if the approve step went through, "Try again" only runs the buy
     await onSettled?.();
-    return ok;
+    return succeeded;
   }
 
   return {

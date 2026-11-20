@@ -14,7 +14,7 @@ import { ROUTES } from "@/lib/nav";
 // Create event / 1 Details, 2 Ticket types, 3 Sale rules, 4 Review and publish.
 export default function CreateEventPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col">
       <Navbar />
       <main className="page-glow flex-1 pb-16">
         <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-4 py-8 md:px-10 md:py-12">

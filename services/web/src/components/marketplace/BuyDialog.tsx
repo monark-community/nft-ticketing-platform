@@ -136,7 +136,7 @@ function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: ()
     });
     const ok = await tx.run(run);
     await chain.refetch();
-    if (ok) onBought();
+    if (ok === "success") onBought();
   }
 
   // A failed or finished run is cleared if the listing changes under it (another tab, the listener)

@@ -13,6 +13,10 @@ export type TxPhase =
   | "success"
   | "error";
 
+// How a run ended. "stoppedWaiting" means it was sent and may still confirm, while "error" means
+// the chain didn't change (rejected in the wallet, simulation failed, reverted, or replaced).
+export type TxOutcome = "success" | "error" | "stoppedWaiting";
+
 // One contract call. A flow like buying tickets is several steps
 // (approve USDC, then buyTickets), run one after the other.
 export interface TxStep {
