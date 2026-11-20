@@ -32,7 +32,9 @@ const users = [
 	{ wallet_address: wallets.scanner, email: "scanner@nfttickets.local", first_name: "Sam", last_name: "Door", role: Role.SCANNER },
 ];
 
-// contract_event_id must match GALA_EVENT_ID and PRESALE_EVENT_ID in the on-chain seed
+// contract_event_id must match GALA_EVENT_ID and PRESALE_EVENT_ID in the on-chain seed.
+// Their pictures are drawings in services/web/public/seed, served by the web app itself (relative
+// URLs), so the cards and event pages show a real picture without a Pinata upload.
 const events = [
 	{
 		id: "event-1",
@@ -42,6 +44,7 @@ const events = [
 			"The National Symphony Orchestra invites patrons to an unforgettable evening of operatic masterworks at the acoustic crown jewel of Ottawa.",
 		location: "National Arts Centre, Ottawa, ON",
 		category: "Classical & Opera",
+		image_url: "/seed/gala-opera-concert.svg",
 		start_date: inDays(30, 18),
 		end_date: inDays(30, 21),
 		contract_event_id: 1n,
@@ -54,6 +57,7 @@ const events = [
 		description: "An intimate night of modern jazz. Presale is open to the guest list first.",
 		location: "National Arts Centre, Ottawa, ON",
 		category: "Concerts",
+		image_url: "/seed/jazz-at-the-atrium.svg",
 		start_date: inDays(45, 19),
 		end_date: inDays(45, 22),
 		contract_event_id: 2n,

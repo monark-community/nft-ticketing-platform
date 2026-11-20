@@ -69,7 +69,7 @@ On a fresh node, a local deploy leaves git clean: `services/web/src/contracts/ad
 
 ## Local Test Data
 
-One command starts a fresh local environment: a new Hardhat node, the deploy, the database and API in Docker, and test data on both sides.
+One command starts a fresh local environment: a new Hardhat node, the deploy, the database and API in Docker, and test data on both sides: the dev seed, plus mock data so every page looks lived in.
 
 ```bash
 cd packages/contracts && npm run dev:fresh
@@ -81,7 +81,7 @@ Leave it running: the node keeps going in that terminal, and Ctrl+C stops it. Th
 cd services/web && npm run dev
 ```
 
-Every run starts from scratch: a new chain, and the database is reset and seeded again.
+Every run starts from scratch: a new chain, and the database is reset and seeded again. `npm run dev:fresh -- --bare` leaves the mock data out, for only the dev seed the end-to-end tests use.
 
 ### One-time setup
 
@@ -109,6 +109,24 @@ Each run rebuilds the API image when needed and starts a new API container with 
 - **Event 1, Gala Opera Concert:** public sale. General Admission 15 USDC, VIP 28 USDC, Early Bird 10 USDC (sold out). 10% royalty, 2x resale cap, 4 tickets per wallet.
 - **Event 2, Jazz at the Atrium:** same tiers, presale only, so #3 sees "not on the guest list".
 
+That's the dev seed (`--bare`). The mock data (`services/api/prisma/mock-data.ts`) adds, on top of it:
+
+- **14 more events on the chain** with pictures, by Sophie (#1) and Marcus (#5): 10 upcoming (one sold out, one almost, one in presale), one happening now, and 3 past ones with checked-in tickets. Plus a draft, an event waiting to publish and a draft without a picture.
+- **Tickets for #2 and #6 to #9**, bought over the past weeks, some free tickets sent by the organizer, and #2 (Alex) with tickets for 8 events, 2 of them past. #3 (Jordan) still has none, for the empty My Tickets.
+- **The Marketplace:** 7 resale listings, including a used past ticket sold as a collectible, and one ticket already resold to #2.
+- **Admin:** two organizer requests waiting (#7, #8), one turned down (#9), and Marcus approved.
+- #4 (Sam) can check in the event happening now.
+
+| Account | Mock data role |
+|---------|----------------|
+| #5 | Marcus Bell, organizer: 6 events and a draft |
+| #6 | Priya Shah, attendee: tickets, 3 resale listings |
+| #7 | Noah Tremblay, attendee: tickets, 2 resale listings, organizer request waiting |
+| #8 | Chloé Gagnon, attendee: tickets, organizer request waiting |
+| #9 | Ethan Park, attendee: tickets, a resale listing, organizer request turned down |
+
+Dates are relative to the day you run it, so the events stay upcoming. Accounts #10 to #19 have no profile, for trying sign-up. The pictures are drawings in `services/web/public/seed`, served by the web app (no IPFS); events you create yourself still upload their cover to Pinata.
+
 Each run is a new chain, so MetaMask's saved activity no longer matches. For each imported test account: Settings > Advanced > Clear activity tab data, or transactions fail with "nonce too high".
 
 ### Without Docker
@@ -117,6 +135,7 @@ Each run is a new chain, so MetaMask's saved activity no longer matches. For eac
 2. In a second terminal, deploy: `cd packages/contracts && npx hardhat run scripts/deploy.ts --network localhost`
 3. In `services/api/.env`, set `RPC_URL=http://127.0.0.1:8545` and the `CONTRACT_ADDRESS` above. Then in `services/api`: `npx prisma migrate reset --force`, `npm run db:seed`, and `npm run dev`.
 4. Once the API logs "Blockchain listener connected to contract", seed the chain: `cd packages/contracts && npx hardhat run scripts/seed.ts --network localhost`
+5. For the mock data: in `services/api`, `npm run db:seed:mock`; then `cd packages/contracts && npx hardhat run scripts/seed-mock.ts --network localhost`; then in `services/api`, `npm run db:seed:mock -- --finish`.
 
 
 ## Deploy (Sepolia)

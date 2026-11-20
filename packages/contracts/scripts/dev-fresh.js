@@ -1,6 +1,8 @@
 // npm run dev:fresh (#300): a fresh local environment in one command.
 // Starts a new Hardhat node, deploys, starts the database and API in Docker, resets and seeds
-// the database, then seeds the chain. The node keeps running in this terminal; Ctrl+C stops it.
+// the database, seeds the chain, then adds the mock data (services/api/prisma/mock-data.ts).
+// The node keeps running in this terminal; Ctrl+C stops it.
+// `npm run dev:fresh -- --bare` leaves the mock data out: only the dev seed, as in the end-to-end tests.
 // Plain Node, not bash, so it works the same in Git Bash on Windows, macOS and Linux.
 
 const { spawn } = require("child_process");
@@ -31,16 +33,33 @@ const LISTENER_TIMEOUT_MS = 180_000; // the API's start also runs prisma generat
 const hardhatPackage = require.resolve("hardhat/package.json", { paths: [CONTRACTS_DIR] });
 const HARDHAT_CLI = path.join(path.dirname(hardhatPackage), require(hardhatPackage).bin.hardhat);
 
+// Without the mock data: only the dev seed, as in the end-to-end tests
+const BARE = process.argv.includes("--bare");
+
 // Hardhat accounts #0-#4, as the seeds set them up (scripts/seed.ts, services/api/prisma/seed.ts)
-const ROLES = [
+const BARE_ROLES = [
   "Admin",
   "Organizer of both events",
   "Attendee: 950 USDC, 4 tickets for event 1, on the event 2 guest list",
   "Attendee: 1,000 USDC, no tickets, not on the guest list",
   "Scanner for event 1",
 ];
+// With the mock data (services/api/prisma/mock-data.ts)
+const MOCK_ROLES = [
+  "Admin, with organizer requests to review",
+  "Organizer Sophie: 10 events, a draft and one waiting to publish",
+  "Attendee Alex: tickets for 8 events, 2 of them past, a ticket on the Marketplace",
+  "Attendee Jordan: no tickets (empty My Tickets), not on the guest list",
+  "Scanner Sam: checks in the dev seed's event 1 and the open mic happening now",
+  "Organizer Marcus: 6 events and a draft",
+  "Attendee Priya: tickets, 3 resale listings",
+  "Attendee Noah: tickets, 2 resale listings, an organizer request waiting",
+  "Attendee Chloé: tickets, an organizer request waiting",
+  "Attendee Ethan: tickets, a resale listing, an organizer request turned down",
+];
+const ROLES = BARE ? BARE_ROLES : MOCK_ROLES;
 
-const TOTAL_STEPS = 9;
+const TOTAL_STEPS = BARE ? 9 : 10;
 let currentStep = 0;
 
 let node = null; // the Hardhat node
@@ -241,11 +260,26 @@ async function resetDatabase() {
   }
 }
 
-// 9. Chain (last: the listener saves what the seed does into the database)
+// 9. Chain (after the database: the listener saves what the seed does into it)
 async function seedChain() {
   step("Seeding the chain");
   if ((await hardhat(["run", "scripts/seed.ts", "--network", "localhost"])).code !== 0) {
     fail("The chain seed failed (see above).");
+  }
+}
+
+// 10. Mock data: the database side, then the chain's (which the listener saves), then the dates of
+// what the chain did
+async function addMockData() {
+  step("Adding the mock data (more events, past events, resale listings, organizer requests)");
+  if ((await compose(["exec", "-T", "api", "npm", "run", "db:seed:mock"])).code !== 0) {
+    fail("The mock data failed on the database side (see above). Run with --bare to skip it.");
+  }
+  if ((await hardhat(["run", "scripts/seed-mock.ts", "--network", "localhost"])).code !== 0) {
+    fail("The mock data failed on the chain (see above). Run with --bare to skip it.");
+  }
+  if ((await compose(["exec", "-T", "api", "npm", "run", "db:seed:mock", "--", "--finish"])).code !== 0) {
+    fail("The mock data failed while dating the purchases (see above). Run with --bare to skip it.");
   }
 }
 
@@ -282,6 +316,7 @@ async function main() {
   await checkApiReachesNode();
   await resetDatabase();
   await seedChain();
+  if (!BARE) await addMockData();
   printSummary();
   streamNodeOutput = true;
 }
