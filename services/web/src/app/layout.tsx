@@ -5,25 +5,31 @@ import { WalletProvider } from "@/lib/wallet-provider";
 import { AuthProvider } from "@/lib/auth-provider";
 import "@rainbow-me/rainbowkit/styles.css";
 import type { Metadata } from "next";
-import { JetBrains_Mono, Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-// Fonts from the design system (#225): UI text, headings, and prices/addresses/tags
-const jakarta = Plus_Jakarta_Sans({
+// Fonts from the design system (#225): UI text, headings, and prices/addresses/tags.
+// The files are in src/fonts with their OFL licenses (Fontsource 5.3.0, latin, variable weight), so
+// the build never downloads them from Google (#392). Weight ranges match what Google served before.
+const jakarta = localFont({
+  src: "../fonts/plus-jakarta-sans/plus-jakarta-sans-latin-wght-normal.woff2",
+  weight: "200 800",
   variable: "--font-jakarta",
-  subsets: ["latin"],
 });
 
-const playfair = Playfair_Display({
+const playfair = localFont({
+  src: "../fonts/playfair-display/playfair-display-latin-wght-normal.woff2",
+  weight: "500 700",
   variable: "--font-playfair",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  adjustFontFallback: "Times New Roman",
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const jetbrainsMono = localFont({
+  src: "../fonts/jetbrains-mono/jetbrains-mono-latin-wght-normal.woff2",
+  weight: "400 700",
   variable: "--font-jetbrains-mono",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  adjustFontFallback: false,
+  fallback: ["ui-monospace", "Menlo", "Consolas", "monospace"],
 });
 
 export const metadata: Metadata = {
