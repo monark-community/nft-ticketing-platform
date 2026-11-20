@@ -4,6 +4,7 @@ import { sendOrganizerRequest, ORGANIZER_REQUEST_PATH } from "@/lib/organizer-re
 import {
   describeAuthError,
   mapProfileError,
+  needsOrganizerRequest,
   safeNextPath,
   toProfileUpdate,
   validateSignUp,
@@ -47,6 +48,23 @@ describe("toProfileUpdate", () => {
       last_name: "Vance",
       email: "alex@example.com",
     });
+  });
+});
+
+describe("needsOrganizerRequest (#328)", () => {
+  it("sends the request for an attendee who picked Organizer", () => {
+    expect(needsOrganizerRequest("organizer", "USER")).toBe(true);
+  });
+
+  it("doesn't for wallets that already have a role", () => {
+    expect(needsOrganizerRequest("organizer", "ORGANIZER")).toBe(false);
+    expect(needsOrganizerRequest("organizer", "ADMIN")).toBe(false);
+    expect(needsOrganizerRequest("organizer", "SCANNER")).toBe(false);
+  });
+
+  it("doesn't when Attendee was picked", () => {
+    expect(needsOrganizerRequest("attendee", "USER")).toBe(false);
+    expect(needsOrganizerRequest("attendee", "ORGANIZER")).toBe(false);
   });
 });
 
