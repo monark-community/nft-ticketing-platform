@@ -128,7 +128,7 @@ jobs:
   e2e:
     name: End-to-end tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     services:
       # Same settings as e2e/docker-compose.yml. The stack makes its nft_ticketing_e2e database here
       postgres:
