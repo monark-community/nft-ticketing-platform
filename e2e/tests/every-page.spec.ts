@@ -70,6 +70,7 @@ const PAGES: PageRow[] = [
   { path: '/profile', shows: signedIn(heading('Connect your wallet'), heading('Account details')) },
   { path: '/organizer', shows: organizerGate(heading('My events')) },
   { path: '/organizer/events/new', shows: organizerGate(heading('Create event')) },
+  { path: `/organizer/events/${GALA.apiId}`, shows: organizerGate(heading(GALA.title)) },
   { path: '/create-event', lands: landsOn('/organizer/events/new', '/organizer/events/new'), shows: organizerGate(heading('Create event')) },
   {
     path: '/scan',
@@ -164,6 +165,7 @@ const API_ROUTES: ApiRoute[] = [
   { method: 'PUT', path: E, body: { title: '' }, access: 'organizer' },
   { method: 'POST', path: `${E}/freeze`, body: {}, access: 'organizer' },
   { method: 'POST', path: `${E}/publish`, body: {}, access: 'organizer' },
+  { method: 'GET', path: `${E}/tickets`, access: 'organizer' },
   { method: 'POST', path: `${E}/ticket-types`, body: {}, access: 'organizer' },
   { method: 'GET', path: `${E}/scanners`, access: 'organizer' },
   { method: 'POST', path: `${E}/scanners`, body: {}, access: 'organizer' },
