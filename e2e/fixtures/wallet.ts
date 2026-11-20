@@ -98,6 +98,7 @@ export class TestWallet {
   chainId = CHAIN_ID;
   connected = false;
   private rejecting: { kind: PromptKind | true; skip: number } | null = null; // kind true: any prompt
+  private holding: { kind: PromptKind; skip: number; reached: () => void; released: Promise<void> } | null = null;
   private sending: Promise<unknown> = Promise.resolve();
 
   private constructor(
@@ -147,6 +148,23 @@ export class TestWallet {
     this.rejecting = { kind: kind ?? true, skip };
   }
 
+  /**
+   * Keeps the next prompt of this kind open, as if the person hadn't answered it yet, until
+   * release() is called. `reached` resolves once the prompt is showing. Lets a test change
+   * something meanwhile (switch account, pause sales on-chain...) and then answer. When the
+   * prompt is answered the wallet checks again that the site is connected and the account the
+   * request is for is still selected, like MetaMask, so nothing is sent from another wallet.
+   * `skip` lets that many prompts of the kind through first.
+   */
+  holdNext(kind: PromptKind, skip = 0) {
+    let reached!: () => void;
+    let release!: () => void;
+    const reachedPromise = new Promise<void>((resolve) => (reached = resolve));
+    const released = new Promise<void>((resolve) => (release = resolve));
+    this.holding = { kind, skip, reached, released };
+    return { reached: reachedPromise, release };
+  }
+
   /** Disconnects the site from the wallet, as if the person did it in MetaMask */
   async disconnect() {
     this.connected = false;
@@ -177,6 +195,18 @@ export class TestWallet {
         } else {
           this.rejecting = null;
           return { error: USER_REJECTED };
+        }
+      }
+      if (kind && this.holding?.kind === kind) {
+        if (this.holding.skip > 0) {
+          this.holding.skip -= 1;
+        } else {
+          const hold = this.holding;
+          this.holding = null;
+          hold.reached();
+          await hold.released;
+          // MetaMask closes a site's prompts when it is disconnected
+          if (!this.connected && kind !== 'connect') return { error: { code: 4100, message: 'The site is not connected to this wallet.' } };
         }
       }
       return { result: await this.answer(method, Array.isArray(params) ? params : [params]) };
