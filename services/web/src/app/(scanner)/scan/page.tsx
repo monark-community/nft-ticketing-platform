@@ -102,7 +102,7 @@ export default function ScanPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col">
       <ScannerHeader address={isConnected ? address : undefined} />
 
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-5 px-4 pt-6 pb-10">

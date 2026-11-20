@@ -14,10 +14,17 @@ import { Footer } from "@/components/Footer";
 import { Navbar } from "@/components/Navbar";
 import { Spinner } from "@/components/ui/spinner";
 import { useHasMounted } from "@/hooks/useHasMounted";
-import { useWalletAuth } from "@/hooks/useWalletAuth";
+import { useWalletAuth, type UserProfile } from "@/hooks/useWalletAuth";
 import { apiClient } from "@/lib/api";
 import { sendOrganizerRequest, type OrganizerRequestResult } from "@/lib/organizer-request";
-import { describeAuthError, mapProfileError, safeNextPath, toProfileUpdate, type SignUpForm } from "@/lib/sign-up";
+import {
+  describeAuthError,
+  mapProfileError,
+  needsOrganizerRequest,
+  safeNextPath,
+  toProfileUpdate,
+  type SignUpForm,
+} from "@/lib/sign-up";
 
 // Sign in and account creation (#288), from the Figma "Sign In Page":
 //   1. Connect wallet  2. Confirm signature  3. Create account (first time only)  4. Organizer request sent
@@ -25,7 +32,7 @@ import { describeAuthError, mapProfileError, safeNextPath, toProfileUpdate, type
 // right one. Signed-in users with a complete profile go on to ?next= (or the events list).
 export default function SignUpPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col">
       <Navbar />
       <main className="page-glow flex flex-1 justify-center px-4 pt-12 pb-16 sm:px-8 sm:pt-20">
         <div className="w-full max-w-[440px]">
@@ -60,15 +67,17 @@ function SignUpFlow() {
   }, [done, nextPath, router]);
 
   async function createAccount(form: SignUpForm) {
+    let saved: Pick<UserProfile, "role">;
     try {
-      await apiClient("/api/users/me", { method: "PUT", data: toProfileUpdate(form) });
+      saved = await apiClient<UserProfile>("/api/users/me", { method: "PUT", data: toProfileUpdate(form) });
     } catch (err) {
       const { field, message } = mapProfileError(err instanceof Error ? err.message : "");
       return field ? { fieldErrors: { [field]: message } } : { error: message };
     }
 
-    // Before loading the profile, so the completed profile doesn't redirect organizers away
-    if (form.accountType === "organizer") setOrganizerRequest(await sendOrganizerRequest());
+    // Before loading the profile, so the completed profile doesn't redirect organizers away.
+    // Wallets that are already organizers or the admin skip the request and go on (#328).
+    if (needsOrganizerRequest(form.accountType, saved.role)) setOrganizerRequest(await sendOrganizerRequest());
     await loadProfile();
   }
 

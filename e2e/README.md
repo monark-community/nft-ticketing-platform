@@ -57,8 +57,7 @@ One spec file per sub-issue, so people working in parallel only share the helper
 | #340 Profile and organizer requests | `tests/profile.spec.ts` |
 | #341 Admin page | `tests/admin.spec.ts` |
 | #342 Creating and publishing an event | `tests/create-event.spec.ts` |
-| #343 Events page and event page | `tests/events.spec.ts` |
-| Events search: a card clicked while typing | `tests/events-search.spec.ts` |
+| #343 Events page and event page | `tests/events-list.spec.ts`, `tests/event-page.spec.ts` |
 | #344 Buying tickets | `tests/buying.spec.ts` |
 | #345 My Tickets and the entry QR code | `tests/my-tickets.spec.ts` |
 | #346 Scanner and check-in | `tests/scanner.spec.ts` |

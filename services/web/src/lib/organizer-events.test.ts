@@ -8,6 +8,7 @@ import {
   filterOrganizerEvents,
   formatRevenue,
   NO_END_DATE_GRACE_MS,
+  organizerEventHref,
   organizerEventStatus,
   organizerFilterFor,
   organizerPhase,
@@ -87,19 +88,26 @@ describe("organizerEventStatus", () => {
     });
   });
 
-  it("marks published events live until they end", () => {
+  it("marks published events live until they end and opens their manage page", () => {
     const live = event({ id: "event-2", status: "PUBLISHED" });
     expect(organizerEventStatus(live, NOW)).toMatchObject({
       label: "Live",
       tone: "success",
-      action: "View event",
-      href: "/events/event-2",
+      action: "Manage",
+      href: "/organizer/events/event-2",
       dot: true,
     });
 
     const ended = event({ status: "PUBLISHED", start_date: iso(NOW - 3 * HOUR), end_date: iso(NOW - HOUR) });
-    expect(organizerEventStatus(ended, NOW)).toMatchObject({ label: "Ended", tone: "neutral", dot: false });
+    expect(organizerEventStatus(ended, NOW)).toMatchObject({
+      label: "Ended",
+      tone: "neutral",
+      action: "Manage",
+      href: "/organizer/events/event-1",
+      dot: false,
+    });
     expect(publicEventHref(event({ id: "a b" }))).toBe("/events/a%20b");
+    expect(organizerEventHref(event({ id: "a b" }))).toBe("/organizer/events/a%20b");
   });
 
   it("shows a published event in presale as Presale, not Live", () => {
@@ -107,8 +115,8 @@ describe("organizerEventStatus", () => {
     expect(organizerEventStatus(presale, NOW)).toMatchObject({
       label: "Presale",
       tone: "highlight",
-      action: "View event",
-      href: "/events/event-3",
+      action: "Manage",
+      href: "/organizer/events/event-3",
       dot: true,
     });
     expect(organizerFilterFor(presale, NOW)).toBe("live");

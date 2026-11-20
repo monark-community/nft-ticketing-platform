@@ -74,7 +74,7 @@ export default function MarketplacePage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col">
       <Navbar />
 
       <main className="page-glow flex-1">

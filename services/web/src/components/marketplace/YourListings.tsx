@@ -42,7 +42,7 @@ function ListingRow({ listing, onEdit, onChanged }: { listing: Listing; onEdit: 
         request: { address: TICKET_NFT_ADDRESS, abi: ticketNftAbi, functionName: "cancelListing", args: [BigInt(listing.token_id)] },
       },
     ]);
-    if (ok) onChanged();
+    if (ok === "success") onChanged();
   }
 
   const cancelled = tx.state.phase === "success";

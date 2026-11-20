@@ -22,7 +22,7 @@ const SUGGESTED_EVENTS = 6; // upcoming events shown under "No events found"
 // "Want to host an event?" banner (#320), from the Figma "Events" frames.
 export default function EventsPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col">
       <Navbar />
 
       <main className="page-glow flex-1">

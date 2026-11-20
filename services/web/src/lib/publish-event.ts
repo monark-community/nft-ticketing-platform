@@ -171,6 +171,8 @@ export const PUBLISH_ERRORS = {
   endInPast: "The sales end time has passed. Change it in Sale rules, then publish again.",
   rulesLocked: "Tickets have already sold, so the sale rules can't change on-chain anymore.",
   noTypes: "The event has no ticket types on-chain yet.",
+  notConfigured: "The event isn't set up on-chain yet. Go back to the contract steps, finish them, then publish again.",
+  checkFailed: "The server couldn't check the event on-chain. Nothing was published; try again in a moment.",
 } as const;
 
 export function getPublishErrorMessage(err: unknown): string {
@@ -201,6 +203,10 @@ export function getApiStepErrorMessage(stage: "freeze" | "publish", err: unknown
     return "The cover image was rejected. Use a PNG, JPG or WebP image of 10 MB or less.";
   }
   if (/Add at least one ticket type/.test(text)) return "Add at least one ticket type before publishing.";
+  // #251: the API verifies the contract event before linking it
+  if (/not set up on-chain|EVENT_NOT_CONFIGURED/.test(text)) return PUBLISH_ERRORS.notConfigured;
+  if (/belongs to another wallet on-chain|EVENT_NOT_ORGANIZER/.test(text)) return PUBLISH_ERRORS.notEventOrganizer;
+  if (/Could not check the event on-chain/.test(text)) return PUBLISH_ERRORS.checkFailed;
   if (/Forbidden: requires/.test(text)) return "Your account isn't an organizer, or your access changed. Sign in again, then try again.";
   if (/Failed to fetch|NetworkError|network/i.test(text)) return "Could not reach the server. Check your connection and try again.";
   return stage === "freeze" ? "Freezing the event failed. Nothing was locked. Try again." : "Publishing failed on the server. The event is set up on-chain; press Continue publishing to try again.";
