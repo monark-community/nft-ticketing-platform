@@ -74,6 +74,31 @@ async function listed(seller: Account, tokenId: bigint, price: number | string) 
   await waitForSync(block);
 }
 
+// A ticket bought and listed by `seller`, waiting for the API once (each wait can take up to the
+// listener's 4-second poll, so the tests wait as little as they can)
+async function boughtAndListed(seller: Account, event: PublishedEvent, price: number | string) {
+  const { tokenIds } = await chain.buyTickets(seller, { eventId: event.contractId });
+  const { block } = await chain.listTicket(seller, tokenIds[0], price);
+  await waitForSync(block);
+  return tokenIds[0];
+}
+
+// One event shared by the tests of a group, published by the first test that needs it on each
+// project (the stack goes back to the seeded state before each file, on each project). Creating
+// an event takes several transactions, so tests share one unless they need their own settings.
+function sharedEvent(options: Parameters<typeof createPublishedEvent>[0]) {
+  let made: { project: string; event: Promise<PublishedEvent> } | null = null;
+  return () => {
+    const project = test.info().project.name;
+    if (made?.project !== project) made = { project, event: createPublishedEvent(options) };
+    return made.event;
+  };
+}
+// Selling: 20 USDC tickets, a 1.5x cap (30 USDC) and a 7.5% royalty
+const sellingEvent = sharedEvent({ title: 'Resale Selling', resaleCap: 1.5, royaltyPercent: 7.5, perWalletLimit: 0, ticketTypes: [{ name: 'General Admission', price: 20, supply: 500 }] });
+// Buying: 20 USDC tickets, a 2x cap and a 10% royalty
+const marketEvent = sharedEvent({ title: 'Resale Market', perWalletLimit: 0, ticketTypes: [{ name: 'General Admission', price: 20, supply: 500 }] });
+
 // The approval a test leaves behind (a purchase that stopped after the approve step) would change
 // the steps of the next one
 test.beforeEach(async () => {
@@ -165,10 +190,10 @@ test.describe('browsing', () => {
   test('signed out, the cards match the contract: price, face value, cap and bar', async ({ page }) => {
     const capped = await createPublishedEvent({ title: 'Capped Resale Night', resaleCap: 1.5, perWalletLimit: 0, ticketTypes: [{ name: 'Floor', price: 20, supply: 50 }] });
     const open = await createPublishedEvent({ title: 'Open Resale Night', resaleCap: 0, perWalletLimit: 0, ticketTypes: [{ name: 'Floor', price: 20, supply: 50 }] });
-    const [cappedToken] = await ticketsFor(accounts.alex, capped);
-    const [openToken] = await ticketsFor(accounts.alex, open);
-    await listed(accounts.alex, cappedToken, 24);
-    await listed(accounts.alex, openToken, 95);
+    const [cappedToken] = (await chain.buyTickets(accounts.alex, { eventId: capped.contractId })).tokenIds;
+    const [openToken] = (await chain.buyTickets(accounts.alex, { eventId: open.contractId })).tokenIds;
+    await chain.listTicket(accounts.alex, cappedToken, 24);
+    await waitForSync((await chain.listTicket(accounts.alex, openToken, 95)).block);
     expect(await onChainListing(cappedToken)).toMatchObject({ seller: accounts.alex.address, price: chain.usdc(24) });
     expect(await chain.ticketNft().maxResalePriceOf(cappedToken)).toBe(chain.usdc(30));
 
@@ -194,7 +219,7 @@ test.describe('browsing', () => {
 
   test('a used ticket shows "no price cap"', async ({ page }) => {
     const event = await createPublishedEvent({ title: 'Checked In Already', resaleCap: 1.5, perWalletLimit: 0 });
-    const [used] = await ticketsFor(accounts.alex, event);
+    const [used] = (await chain.buyTickets(accounts.alex, { eventId: event.contractId })).tokenIds;
 
     // A used ticket can be listed above the cap: it's a collectible now
     await chain.checkIn(accounts.organizer, used);
@@ -272,12 +297,14 @@ test.describe('search, filters and sorting', () => {
             [gala, accounts.jordan, 79],
           ];
           const listings: Dataset['listings'] = [];
+          let last = 0;
           for (const [event, seller, price] of plan) {
             const { tokenIds } = await chain.buyTickets(seller, { eventId: event.contractId });
-            const { block } = await chain.listTicket(seller, tokenIds[0], price);
+            ({ block: last } = await chain.listTicket(seller, tokenIds[0], price));
             listings.push({ token: tokenIds[0], seller, price, event });
-            await waitForSync(block);
           }
+          // "Newest" sorts by when the API saved each listing: blocks are saved in order
+          await waitForSync(last);
           return { rock, hockey, gala, listings };
         })(),
       };
@@ -364,8 +391,7 @@ test.describe('search, filters and sorting', () => {
     await expect(main(page).getByRole('button', { name: 'Load more listings' })).toHaveCount(0);
 
     // Someone lists a ticket while the page is open: Refresh shows it, cheapest first
-    const [token] = await ticketsFor(accounts.alex, data.rock);
-    await listed(accounts.alex, token, 40);
+    const token = await boughtAndListed(accounts.alex, data.rock, 40);
     await expect(card(page, token)).toHaveCount(0);
     await main(page).getByRole('button', { name: 'Refresh listings' }).click();
     await expect.poll(async () => (await cardTokens(page))[0]).toBe(String(token));
@@ -398,7 +424,7 @@ test.describe('selling', () => {
   });
 
   test('only the wallet\'s own tickets are offered, and listed ones are marked', async ({ page, signIn }) => {
-    const event = await createPublishedEvent({ title: 'Whose Tickets', perWalletLimit: 0 });
+    const event = await sellingEvent();
     const [mine1, mine2] = await ticketsFor(accounts.jordan, event, 2);
     const [alexs] = await ticketsFor(accounts.alex, event);
     await listed(accounts.jordan, mine2, 22);
@@ -417,7 +443,7 @@ test.describe('selling', () => {
   });
 
   test('the price: empty, 0, too many decimals, over the cap; no cap for a collectible', async ({ page, signIn }) => {
-    const event = await createPublishedEvent({ title: 'Pricing Rules', resaleCap: 1.5, perWalletLimit: 0 });
+    const event = await sellingEvent();
     const [token, used] = await ticketsFor(accounts.jordan, event, 2);
     const { block } = await chain.checkIn(accounts.organizer, used);
     await waitForSync(block);
@@ -459,7 +485,7 @@ test.describe('selling', () => {
   });
 
   test('the royalty and "you receive" add up to the price', async ({ page, signIn }) => {
-    const event = await createPublishedEvent({ title: 'Royalty Split', royaltyPercent: 7.5, perWalletLimit: 0 });
+    const event = await sellingEvent();
     const [token] = await ticketsFor(accounts.jordan, event);
     await openSignedIn(page, signIn, accounts.jordan);
     await openSell(page, token);
@@ -476,7 +502,7 @@ test.describe('selling', () => {
   });
 
   test('listing: a wallet transaction, then it shows on the Marketplace and in Your listings', async ({ page, signIn, wallet }) => {
-    const event = await createPublishedEvent({ title: 'Listing It', perWalletLimit: 0 });
+    const event = await sellingEvent();
     const [token] = await ticketsFor(accounts.jordan, event);
     await openSignedIn(page, signIn, accounts.jordan);
     await openSell(page, token);
@@ -486,7 +512,7 @@ test.describe('selling', () => {
     await listButton(page).click();
     await expect(sellDialog(page).getByRole('status')).toContainText('Listed for 25.00 USDC');
     expect(sendsSince(wallet, sent)).toBe(1);
-    expect(await onChainListing(token)).toMatchObject({ seller: accounts.jordan.address, price: chain.usdc(25), royaltyBps: 1000 });
+    expect(await onChainListing(token)).toMatchObject({ seller: accounts.jordan.address, price: chain.usdc(25), royaltyBps: 750 });
 
     await sellDialog(page).getByRole('button', { name: 'Done' }).click();
     // The page reads the listings again as the listener catches up
@@ -497,7 +523,7 @@ test.describe('selling', () => {
   });
 
   test('rejecting in the wallet lists nothing', async ({ page, signIn, wallet }) => {
-    const event = await createPublishedEvent({ title: 'Not Listing After All', perWalletLimit: 0 });
+    const event = await sellingEvent();
     const [token] = await ticketsFor(accounts.jordan, event);
     await openSignedIn(page, signIn, accounts.jordan);
     await openSell(page, token);
@@ -513,7 +539,7 @@ test.describe('selling', () => {
   });
 
   test('changing the price: the new price shows, and the cap still applies', async ({ page, signIn }) => {
-    const event = await createPublishedEvent({ title: 'New Price', resaleCap: 1.5, perWalletLimit: 0 });
+    const event = await sellingEvent();
     const [token] = await ticketsFor(accounts.jordan, event);
     await listed(accounts.jordan, token, 25);
     await openSignedIn(page, signIn, accounts.jordan);
@@ -540,7 +566,7 @@ test.describe('selling', () => {
   });
 
   test('cancelling: a transaction, then the listing leaves the Marketplace', async ({ page, signIn, wallet }) => {
-    const event = await createPublishedEvent({ title: 'Changed My Mind Listing', perWalletLimit: 0 });
+    const event = await sellingEvent();
     const [first, second] = await ticketsFor(accounts.jordan, event, 2);
     await listed(accounts.jordan, first, 25);
     await listed(accounts.jordan, second, 26);
@@ -571,7 +597,7 @@ test.describe('selling', () => {
   });
 
   test('double-clicking List, Update price or Cancel sends one transaction', async ({ page, signIn, wallet }) => {
-    const event = await createPublishedEvent({ title: 'Double Click Selling', perWalletLimit: 0 });
+    const event = await sellingEvent();
     const [token] = await ticketsFor(accounts.jordan, event);
     await openSignedIn(page, signIn, accounts.jordan);
 
@@ -600,7 +626,7 @@ test.describe('selling', () => {
   });
 
   test('switching account or disconnecting mid-listing: nothing is sent', async ({ page, signIn, wallet }) => {
-    const event = await createPublishedEvent({ title: 'Switched While Listing', perWalletLimit: 0 });
+    const event = await sellingEvent();
     const [token] = await ticketsFor(accounts.jordan, event);
     await openSignedIn(page, signIn, accounts.jordan);
     await openSell(page, token);
@@ -632,16 +658,16 @@ test.describe('selling', () => {
 });
 
 test.describe('buying', () => {
-  // A listing by Alex, ready to be bought
-  async function alexListing(title: string, price = 25, options: Parameters<typeof createPublishedEvent>[0] = {}) {
-    const event = await createPublishedEvent({ title, perWalletLimit: 0, ...options });
-    const [token] = await ticketsFor(accounts.alex, event);
-    await listed(accounts.alex, token, price);
+  // A listing by Alex, ready to be bought: on the shared event, or on its own when a test needs
+  // other settings
+  async function alexListing(price = 25, options?: Parameters<typeof createPublishedEvent>[0]) {
+    const event = options ? await createPublishedEvent({ perWalletLimit: 0, ...options }) : await marketEvent();
+    const token = await boughtAndListed(accounts.alex, event, price);
     return { event, token };
   }
 
   test('signed out: connect a wallet; then sign in', async ({ page, wallet }) => {
-    const { token } = await alexListing('Buy Signed Out');
+    const { token } = await alexListing();
     await wallet.use(accounts.jordan);
     await openMarketplace(page);
     await openBuy(page, token);
@@ -657,7 +683,7 @@ test.describe('buying', () => {
   });
 
   test('wrong network, and the switch works', async ({ page, signIn, wallet }) => {
-    const { token } = await alexListing('Buy Wrong Network');
+    const { token } = await alexListing();
     await openSignedIn(page, signIn, accounts.jordan);
     await openBuy(page, token);
     await expect(buyButton(page)).toBeEnabled();
@@ -671,7 +697,7 @@ test.describe('buying', () => {
   // The navbar sends a signed-in account without a name and email to the create account step
   // straight away, so the Buy popup's "Finish your account" only shows for a moment
   test('an account that isn\'t finished is sent to finish it', async ({ page, wallet }) => {
-    const { token } = await alexListing('Buy Unfinished Account');
+    const { token } = await alexListing();
     await wallet.use(accounts.new1);
     await openMarketplace(page);
     await openBuy(page, token);
@@ -681,7 +707,7 @@ test.describe('buying', () => {
   });
 
   test('allow USDC, then buy: each step shows its state; the money splits as the contract says', async ({ page, signIn, wallet }) => {
-    const { event, token } = await alexListing('Buy Two Steps', 25, { royaltyPercent: 10 });
+    const { event, token } = await alexListing(25);
     const before = {
       jordan: await chain.usdcBalance(accounts.jordan.address),
       alex: await chain.usdcBalance(accounts.alex.address),
@@ -732,7 +758,7 @@ test.describe('buying', () => {
   });
 
   test('USDC already allowed: only the buy runs', async ({ page, signIn, wallet }) => {
-    const { token } = await alexListing('Buy Already Allowed');
+    const { token } = await alexListing();
     await (await chain.mockUsdc(accounts.jordan).approve(chain.addresses().TicketNFT, chain.usdc(25))).wait();
     await openSignedIn(page, signIn, accounts.jordan);
     await openBuy(page, token);
@@ -746,7 +772,7 @@ test.describe('buying', () => {
   });
 
   test('rejecting the purchase in the wallet charges nothing', async ({ page, signIn, wallet }) => {
-    const { token } = await alexListing('Buy Rejected');
+    const { token } = await alexListing();
     await openSignedIn(page, signIn, accounts.jordan);
     await openBuy(page, token);
     const before = await chain.usdcBalance(accounts.jordan.address);
@@ -759,7 +785,7 @@ test.describe('buying', () => {
   });
 
   test('not enough USDC, then not enough ETH for gas', async ({ page, signIn }) => {
-    const { token } = await alexListing('Buy Short Of Funds', 25);
+    const { token } = await alexListing(25);
     const usdcBefore = await chain.usdcBalance(accounts.jordan.address);
     const ethBefore = await chain.provider.getBalance(accounts.jordan.address);
     await (await chain.mockUsdc(accounts.jordan).transfer(accounts.admin.address, usdcBefore - chain.usdc(5))).wait();
@@ -782,7 +808,7 @@ test.describe('buying', () => {
   });
 
   test('your own listing can\'t be bought', async ({ page, signIn }) => {
-    const { token } = await alexListing('Buy My Own');
+    const { token } = await alexListing();
     await openSignedIn(page, signIn, accounts.alex);
 
     await expect(card(page, token)).toContainText('You');
@@ -792,7 +818,7 @@ test.describe('buying', () => {
   });
 
   test('the per-wallet limit counts tickets already held', async ({ page, signIn }) => {
-    const { event, token } = await alexListing('Buy Over The Limit', 25, { perWalletLimit: 2 });
+    const { event, token } = await alexListing(25, { title: 'Buy Over The Limit', perWalletLimit: 2 });
     await ticketsFor(accounts.jordan, event, 2);
     await openSignedIn(page, signIn, accounts.jordan);
     await openBuy(page, token);
@@ -803,8 +829,8 @@ test.describe('buying', () => {
     await expect(chain.ticketNft(accounts.jordan).buyResaleTicket.staticCall(token, chain.usdc(25))).rejects.toThrow('Per-wallet limit reached');
   });
 
-  test('switching account or disconnecting mid-purchase: nothing is sent from the wrong wallet', async ({ page, signIn, wallet }) => {
-    const { token } = await alexListing('Buy Switched Wallet');
+  test('switching account mid-purchase: nothing is sent from either wallet', async ({ page, signIn, wallet }) => {
+    const { token } = await alexListing();
     await (await chain.mockUsdc(accounts.jordan).approve(chain.addresses().TicketNFT, chain.usdc(25))).wait();
     const before = { jordan: await chain.usdcBalance(accounts.jordan.address), scanner: await chain.usdcBalance(accounts.scanner.address) };
     await openSignedIn(page, signIn, accounts.jordan);
@@ -820,24 +846,28 @@ test.describe('buying', () => {
     expect(await chain.ownerOf(token)).toBe(accounts.alex.address);
     expect(await chain.usdcBalance(accounts.jordan.address)).toBe(before.jordan);
     expect(await chain.usdcBalance(accounts.scanner.address)).toBe(before.scanner);
+  });
 
-    // Disconnecting while the wallet asks
-    await wallet.switchAccount(accounts.jordan);
-    await page.goto('/marketplace');
+  test('disconnecting mid-purchase: nothing is sent', async ({ page, signIn, wallet }) => {
+    const { token } = await alexListing();
+    await (await chain.mockUsdc(accounts.jordan).approve(chain.addresses().TicketNFT, chain.usdc(25))).wait();
+    const before = await chain.usdcBalance(accounts.jordan.address);
+    await openSignedIn(page, signIn, accounts.jordan);
     await openBuy(page, token);
-    const second = wallet.holdNext('send');
+
+    const hold = wallet.holdNext('send');
     await buyButton(page).click();
-    await second.reached;
+    await hold.reached;
     await wallet.disconnect();
-    second.release();
+    hold.release();
     await expectBlocked(page, 'Connect your wallet to buy');
     await chain.mine();
     expect(await chain.ownerOf(token)).toBe(accounts.alex.address);
-    expect(await chain.usdcBalance(accounts.jordan.address)).toBe(before.jordan);
+    expect(await chain.usdcBalance(accounts.jordan.address)).toBe(before);
   });
 
   test('double-clicking Buy sends one purchase', async ({ page, signIn, wallet }) => {
-    const { token } = await alexListing('Buy Double Click');
+    const { token } = await alexListing();
     await openSignedIn(page, signIn, accounts.jordan);
     await openBuy(page, token);
     const before = await chain.usdcBalance(accounts.jordan.address);
@@ -851,7 +881,7 @@ test.describe('buying', () => {
   });
 
   test('refreshing while the purchase is pending: it goes through once', async ({ page, signIn, wallet }) => {
-    const { token } = await alexListing('Buy Refresh Pending');
+    const { token } = await alexListing();
     await (await chain.mockUsdc(accounts.jordan).approve(chain.addresses().TicketNFT, chain.usdc(25))).wait();
     await openSignedIn(page, signIn, accounts.jordan);
     await openBuy(page, token);
@@ -878,15 +908,15 @@ test.describe('buying', () => {
 });
 
 test.describe('while the Buy popup is open', () => {
-  async function alexListing(title: string, price = 25) {
-    const event = await createPublishedEvent({ title, perWalletLimit: 0 });
-    const [token] = await ticketsFor(accounts.alex, event);
-    await listed(accounts.alex, token, price);
+  // On the shared event, except for the royalty test, which changes its event's settings
+  async function alexListing(price = 25, ownEvent?: string) {
+    const event = ownEvent ? await createPublishedEvent({ title: ownEvent, perWalletLimit: 0 }) : await marketEvent();
+    const token = await boughtAndListed(accounts.alex, event, price);
     return { event, token };
   }
 
   test('the seller changes the price: the first click shows it, the second buys at it', async ({ page, signIn, wallet }) => {
-    const { token } = await alexListing('Price Changed Under Me', 25);
+    const { token } = await alexListing(25);
     await openSignedIn(page, signIn, accounts.jordan);
     await openBuy(page, token);
     const before = await chain.usdcBalance(accounts.jordan.address);
@@ -915,7 +945,7 @@ test.describe('while the Buy popup is open', () => {
 
   for (const { name, happen } of gone) {
     test(`${name}: told it's no longer for sale, nothing charged`, async ({ page, signIn, wallet }) => {
-      const { token } = await alexListing(`Gone: ${name}`);
+      const { token } = await alexListing();
       if (name.startsWith('someone')) await chain.giveUsdc(accounts.scanner.address, 100);
       await openSignedIn(page, signIn, accounts.jordan);
       await openBuy(page, token);
@@ -938,7 +968,7 @@ test.describe('while the Buy popup is open', () => {
   }
 
   test('the admin changes the event\'s royalty: told why it can\'t be bought', async ({ page, signIn }) => {
-    const { event, token } = await alexListing('Royalty Changed Under Me');
+    const { event, token } = await alexListing(25, 'Royalty Changed Under Me');
     await openSignedIn(page, signIn, accounts.jordan);
     await openBuy(page, token);
     const before = await chain.usdcBalance(accounts.jordan.address);
