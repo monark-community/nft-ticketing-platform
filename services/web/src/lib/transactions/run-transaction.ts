@@ -9,7 +9,7 @@ import {
   type TransactionReceipt,
 } from "viem";
 import { TransactionReplacedError, TransactionRevertedError } from "./errors";
-import type { TxState, TxStep } from "./types";
+import type { TxOutcome, TxState, TxStep } from "./types";
 
 export interface TransactionClient {
   simulate: (step: TxStep, account: Address) => Promise<unknown>; // returns the prepared request
@@ -64,7 +64,8 @@ interface RunParams {
   stopSignal?: AbortSignal; // aborting it stops waiting on a still-pending transaction (#252)
 }
 
-// Resolves to true if every step succeeded.
+// Resolves to how the run ended: every step succeeded, nothing changed, or the user stopped
+// waiting on a transaction that was already sent.
 export async function runTransactionSteps({
   steps,
   account,
@@ -73,7 +74,7 @@ export async function runTransactionSteps({
   getErrorMessage,
   timeoutMs = DEFAULT_PENDING_TIMEOUT_MS,
   stopSignal,
-}: RunParams): Promise<boolean> {
+}: RunParams): Promise<TxOutcome> {
   const labels = steps.map((s) => s.label);
   let state: TxState = { phase: "preparing", steps: labels, stepIndex: 0, hash: null, error: null, note: null };
   let finished = false; // after stopping, late updates (e.g. a replacement) must not change the state
@@ -145,17 +146,17 @@ export async function runTransactionSteps({
 
     update({ phase: "success", note: null });
     finished = true;
-    return true;
+    return "success";
   } catch (err) {
     if (err instanceof StoppedWaitingError) {
       // Back to the form: the transaction may still confirm, so warn before a retry (#252)
       update({ phase: "stoppedWaiting", error: null, note: STOPPED_WAITING_NOTE });
       finished = true;
-      return false;
+      return "stoppedWaiting";
     }
     console.error(`Transaction failed at step "${labels[state.stepIndex]}":`, err);
     update({ phase: "error", error: getErrorMessage(err) });
     finished = true;
-    return false;
+    return "error";
   }
 }

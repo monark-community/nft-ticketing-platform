@@ -2,6 +2,7 @@
 // The API checks the same things (services/api user.controller updateMe); checking here first
 // lets the form point at the field to fix instead of showing a server error.
 
+import type { UserProfile } from "@/lib/auth-provider";
 import { ROUTES } from "@/lib/nav";
 
 // Same pattern as the API, so the form never accepts an email the API would reject
@@ -47,6 +48,13 @@ export function toProfileUpdate(form: SignUpForm) {
     last_name: form.lastName.trim(),
     email: form.email.trim(),
   };
+}
+
+// Only attendees can ask to become organizers (the API answers 409 for anyone else). A wallet given
+// the organizer role on-chain before its first sign-in, or ADMIN_WALLET, already has its role, so
+// picking "Organizer" just creates the account (#328).
+export function needsOrganizerRequest(accountType: AccountType, role: UserProfile["role"]): boolean {
+  return accountType === "organizer" && role === "USER";
 }
 
 // The API's error texts (services/api user.controller updateMe), mapped to the field to fix.

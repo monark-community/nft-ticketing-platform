@@ -6,9 +6,19 @@ import {
   deleteTicketType,
 } from '../services/ticket.service';
 import { validateTicketTypeInput } from '../lib/validation';
+import { canViewEvent } from '../lib/event-visibility';
+import { prisma } from '../lib/prisma';
 
 export async function getTicketTypes(req: Request, res: Response): Promise<void> {
   try {
+    const event = await prisma.event.findUnique({
+      where: { id: req.params.id },
+      select: { status: true, organizer_wallet: true },
+    });
+    if (event && !(await canViewEvent(event, req.user))) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
     const types = await listTicketTypesForEvent(req.params.id);
     res.json(types);
   } catch (err) {

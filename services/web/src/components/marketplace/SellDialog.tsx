@@ -226,7 +226,7 @@ function PriceForm({ ticket, wallet, onContractChain, chainName, onSwitchNetwork
       { label: "List ticket", request: { address: TICKET_NFT_ADDRESS, abi: ticketNftAbi, functionName: "listForResale", args: [tokenId, price] } },
     ]);
     await chain.refetch();
-    if (ok) onChanged();
+    if (ok === "success") onChanged();
   }
 
   async function cancel() {
@@ -234,7 +234,7 @@ function PriceForm({ ticket, wallet, onContractChain, chainName, onSwitchNetwork
       { label: "Cancel listing", request: { address: TICKET_NFT_ADDRESS, abi: ticketNftAbi, functionName: "cancelListing", args: [tokenId] } },
     ]);
     await chain.refetch();
-    if (ok) onChanged();
+    if (ok === "success") onChanged();
   }
 
   if (listed || cancelled) {

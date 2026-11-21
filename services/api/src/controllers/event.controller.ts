@@ -7,12 +7,14 @@ import {
   updateEvent,
   freezeEvent,
   publishEvent,
+  listEventTickets,
 } from '../services/event.service';
 import { pinImageToIPFS, pinMetadataToIPFS, buildEventMetadata, buildTicketMetadata } from '../services/ipfs.service';
-import { syncEventFromChain } from '../services/sync.service';
+import { syncEventFromChain, verifyEventSetupOnChain } from '../services/sync.service';
 import logger from '../lib/logger';
 import { validateEventInput } from '../lib/validation';
 import { EVENT_CATEGORIES, isEventCategory } from '../lib/categories';
+import { canViewEvent } from '../lib/event-visibility';
 
 const SEARCH_MAX = 100;
 
@@ -53,7 +55,7 @@ export async function getEvents(req: Request, res: Response): Promise<void> {
 export async function getEvent(req: Request, res: Response): Promise<void> {
   try {
     const event = await getEventById(req.params.id);
-    if (!event) {
+    if (!event || !(await canViewEvent(event, req.user))) {
       res.status(404).json({ error: 'Event not found' });
       return;
     }
@@ -69,6 +71,46 @@ export async function getMyEvents(req: Request, res: Response): Promise<void> {
     res.json(await listEventsForOrganizer(req.user!.wallet_address));
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch your events' });
+  }
+}
+
+// GET /api/events/:id/tickets: the event's sold and issued tickets with their current owner and
+// check-in state, for the organizer's manage page (#190). Organizer-only, paginated and filterable.
+export async function getEventTickets(req: Request, res: Response): Promise<void> {
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+
+  const status = optionalString(req.query.status);
+  if (!status.ok || (status.value !== undefined && status.value !== 'VALID' && status.value !== 'USED')) {
+    res.status(400).json({ error: 'status must be VALID or USED' });
+    return;
+  }
+  const kind = optionalString(req.query.kind);
+  if (!kind.ok || (kind.value !== undefined && kind.value !== 'sale' && kind.value !== 'issued')) {
+    res.status(400).json({ error: 'kind must be sale or issued' });
+    return;
+  }
+  const ticketTypeId = optionalString(req.query.ticket_type_id);
+  if (!ticketTypeId.ok) {
+    res.status(400).json({ error: 'ticket_type_id must be a single value' });
+    return;
+  }
+
+  try {
+    const result = await listEventTickets(req.params.id, req.user!.wallet_address, {
+      page,
+      limit,
+      status: status.value,
+      kind: kind.value,
+      ticketTypeId: ticketTypeId.value,
+    });
+    if (result === null) { res.status(404).json({ error: 'Event not found' }); return; }
+    if (result === 'forbidden') { res.status(403).json({ error: 'Not your event' }); return; }
+    if (result === 'not_published') { res.status(409).json({ error: 'Tickets appear once the event is published' }); return; }
+    res.json(result);
+  } catch (err) {
+    logger.error('Failed to list event tickets', { error: err, eventId: req.params.id });
+    res.status(500).json({ error: 'Failed to fetch event tickets' });
   }
 }
 
@@ -245,6 +287,35 @@ export async function postPublishEvent(req: Request, res: Response): Promise<voi
   }
 
   try {
+    // #251: only link a contract event ID that is configured and owned by this organizer. Check
+    // before changing the API row, so a failed check leaves the event frozen and retryable.
+    const event = await getEventById(req.params.id);
+    if (!event) { res.status(404).json({ error: 'Event not found' }); return; }
+    if (event.organizer_wallet !== req.user!.wallet_address) { res.status(403).json({ error: 'Not your event' }); return; }
+    if (event.status !== 'FROZEN') { res.status(409).json({ error: 'Event must be frozen before publishing' }); return; }
+
+    try {
+      const verification = await verifyEventSetupOnChain(contractEventId, req.user!.wallet_address);
+      if (verification === 'not_configured') {
+        res.status(409).json({
+          error: 'This event is not set up on-chain yet. Finish the on-chain setup, then publish again.',
+          code: 'EVENT_NOT_CONFIGURED',
+        });
+        return;
+      }
+      if (verification === 'not_organizer') {
+        res.status(403).json({
+          error: 'This event ID belongs to another wallet on-chain. Connect the wallet that created it.',
+          code: 'EVENT_NOT_ORGANIZER',
+        });
+        return;
+      }
+    } catch (err) {
+      logger.error('Could not verify the event on-chain before publishing', { error: err, eventId: req.params.id });
+      res.status(502).json({ error: 'Could not check the event on-chain. Try again in a moment.' });
+      return;
+    }
+
     const result = await publishEvent(req.params.id, req.user!.wallet_address, contractEventId);
 
     if (result === null) { res.status(404).json({ error: 'Event not found' }); return; }
