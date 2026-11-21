@@ -404,6 +404,41 @@
 @utility dim-in { animation: dim-in 200ms ease-out both; }
 @utility dim-out { animation: dim-out 140ms ease-in both; }
 
+/* ---------------------------------------------------------------------------
+   Page changes (#363)
+   --------------------------------------------------------------------------- */
+/* Every page's content fades in briefly when the page opens */
+@keyframes page-in { from { opacity: 0; } }
+@layer base {
+  main { animation: page-in 160ms ease-out backwards; }
+}
+
+/* Opening an event from its card, and going back to the card (only these page changes animate):
+   the picture flies from one to the other in 300 ms (SharedPicture moves the real picture, so it
+   is cropped and sharp at every size) while the old page's content fades out in 140 ms and the
+   new page's fades in over 200 ms, from 120 ms (PageMain). Browsers without view transitions just
+   change pages. */
+@keyframes page-out { to { opacity: 0; } }
+::view-transition-old(.page-leave) { animation: page-out 140ms ease-in both; }
+::view-transition-new(.page-arrive) { animation: page-in 200ms linear 120ms both; }
+/* The flying picture is the new page's, drawn above both pages: its frame follows it as it moves,
+   the picture it took off from is hidden, and the page change lasts until it lands */
+@keyframes picture-flight { from { opacity: 1; } }
+::view-transition-group(.event-picture) { z-index: 1; animation: none; }
+::view-transition-old(.event-picture) { animation: none; opacity: 0; }
+::view-transition-new(.event-picture) { width: 100%; height: 100%; animation: picture-flight 300ms; }
+/* The navbar is the same on both pages: it stays in place, above the pages and the picture */
+:root:active-view-transition-type(event-picture) [data-site-header] { view-transition-name: site-header; }
+::view-transition-group(site-header) { z-index: 2; animation: none; }
+::view-transition-old(site-header) { animation: none; opacity: 0; }
+::view-transition-new(site-header) { animation: none; }
+/* Over a picture, what isn't part of it (the hero's title, a card's stock badge) fades in once
+   the picture has landed */
+@utility after-flight { animation: page-in 200ms ease-out backwards; }
+:root:active-view-transition .after-flight { animation-play-state: paused; }
+/* The pages' content doesn't also fade in on its own while they change */
+:root:active-view-transition main { animation-duration: 0s; }
+
 /* Respect reduced motion everywhere: animations and transitions jump to their end, without delay */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -414,4 +449,8 @@
     transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
+}
+/* ...and pages change at once */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }

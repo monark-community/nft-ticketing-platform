@@ -8,6 +8,7 @@ export { FlapText } from "./FlapText";
 export { MotionProvider } from "./MotionProvider";
 export { PrintIn } from "./PrintIn";
 export { RollingNumber } from "./RollingNumber";
+export { PageSwap, SharedPicture, usePictureGrowing, usePictureLink } from "./SharedPicture";
 export { Stamp } from "./Stamp";
 export { TearOff } from "./TearOff";
 export { Unfold } from "./Unfold";

@@ -5,6 +5,7 @@ import {
   EVENT_SEARCH_MAX,
   eventStockStatus,
   eventHref,
+  EVENTS_LIMIT_MAX,
   eventsPath,
   filtersFromParams,
   filtersToQuery,
@@ -12,8 +13,10 @@ import {
   formatPrice,
   hasEventFilters,
   hostBannerLink,
+  joinPages,
   NO_EVENT_FILTERS,
   QUICK_CATEGORIES,
+  reloadPaths,
   startingPrice,
   type EventSummary,
   type TicketTypeSummary,
@@ -92,6 +95,33 @@ describe("eventHref", () => {
 describe("appendEvents", () => {
   it("adds the next page without duplicates", () => {
     expect(appendEvents([ev("a"), ev("b")], [ev("b"), ev("c")]).map((e) => e.id)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("loading a list's pages again (#363)", () => {
+  const page = (ids: string[], total: number) => ({ events: ids.map((id) => ev(id)), total, page: 1, limit: ids.length });
+
+  it("asks for one page as before", () => {
+    expect(reloadPaths(NO_EVENT_FILTERS, 9)).toEqual(["/api/events?page=1&limit=9"]);
+  });
+
+  it("asks for several pages in one request, up to the API's limit", () => {
+    expect(reloadPaths({ q: "jazz", category: "" }, 27)).toEqual(["/api/events?page=1&limit=27&q=jazz"]);
+    expect(reloadPaths(NO_EVENT_FILTERS, EVENTS_LIMIT_MAX)).toEqual([`/api/events?page=1&limit=${EVENTS_LIMIT_MAX}`]);
+  });
+
+  it("splits a longer list into requests of the API's limit", () => {
+    expect(reloadPaths(NO_EVENT_FILTERS, 54)).toEqual(["/api/events?page=1&limit=50", "/api/events?page=2&limit=50"]);
+  });
+
+  it("joins the answers in order, keeps the count asked for and the first total", () => {
+    const joined = joinPages([page(["a", "b", "c"], 5), page(["c", "d", "e"], 5)], 4);
+    expect(joined.events.map((e) => e.id)).toEqual(["a", "b", "c", "d"]);
+    expect(joined.total).toBe(5);
+  });
+
+  it("returns fewer events when the list got shorter", () => {
+    expect(joinPages([page(["a"], 1)], 18)).toEqual({ events: [ev("a")], total: 1 });
   });
 });
 

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import app from '../src/app';
-import { authRateLimitMax } from '../src/middlewares/rateLimiter';
+import { authRateLimitMax, publicRateLimitMax } from '../src/middlewares/rateLimiter';
 import { resetDb, createUser, randomWallet } from './helpers/db';
 import { authCookie } from './helpers/auth';
 
@@ -156,5 +156,18 @@ describe('authRateLimitMax', () => {
     expect(authRateLimitMax('-5')).toBe(10);
     expect(authRateLimitMax('2.5')).toBe(10);
     expect(authRateLimitMax('lots')).toBe(10);
+  });
+});
+
+describe('publicRateLimitMax', () => {
+  it('allows 100 public requests a minute by default', () => {
+    expect(publicRateLimitMax(undefined)).toBe(100);
+    expect(publicRateLimitMax('')).toBe(100);
+  });
+
+  it('uses PUBLIC_RATE_LIMIT_MAX when it is a positive whole number, and ignores anything else', () => {
+    expect(publicRateLimitMax('1000')).toBe(1000);
+    expect(publicRateLimitMax('0')).toBe(100);
+    expect(publicRateLimitMax('lots')).toBe(100);
   });
 });
