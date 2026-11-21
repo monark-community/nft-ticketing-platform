@@ -85,8 +85,21 @@ function EventsList() {
   useEffect(() => {
     const typed = search.trim();
     if (typed === q) return;
-    const timer = setTimeout(() => setFilters({ q: typed, category }), SEARCH_DELAY_MS);
-    return () => clearTimeout(timer);
+    const write = () => setFilters({ q: typed, category });
+    const timer = window.setTimeout(write, SEARCH_DELAY_MS);
+    // A link clicked during that pause (an event card, the navbar, the banner, the footer...): the
+    // delayed update would land on top of the page being opened and cancel it. Write the search now
+    // instead, so Back returns to it.
+    function onClick(event: MouseEvent) {
+      if (!(event.target instanceof Element) || !event.target.closest("a[href]")) return;
+      window.clearTimeout(timer);
+      write();
+    }
+    document.addEventListener("click", onClick, true);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("click", onClick, true);
+    };
   }, [search, q, category, setFilters]);
 
   const { events, total, allTotal, loading, loadingMore, error, loadMoreError, hasMore, reload, loadMore } = useEvents(filters);

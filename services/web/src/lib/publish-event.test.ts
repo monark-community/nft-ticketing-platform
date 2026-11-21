@@ -185,4 +185,17 @@ describe("error messages", () => {
     expect(getApiStepErrorMessage("freeze", new Error("Something else"))).toBe("Freezing the event failed. Nothing was locked. Try again.");
     expect(getApiStepErrorMessage("publish", new Error("Something else"))).toMatch(/set up on-chain/);
   });
+
+  // #251: the API checks the contract event before linking it
+  it("explains a publish refused by the on-chain verification", () => {
+    expect(getApiStepErrorMessage("publish", new Error("This event is not set up on-chain yet. Finish the on-chain setup, then publish again."))).toBe(
+      PUBLISH_ERRORS.notConfigured,
+    );
+    expect(getApiStepErrorMessage("publish", new Error("This event ID belongs to another wallet on-chain. Connect the wallet that created it."))).toBe(
+      PUBLISH_ERRORS.notEventOrganizer,
+    );
+    expect(getApiStepErrorMessage("publish", new Error("Could not check the event on-chain. Try again in a moment."))).toBe(
+      PUBLISH_ERRORS.checkFailed,
+    );
+  });
 });

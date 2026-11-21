@@ -167,7 +167,7 @@ export default function AdminPage() {
       },
     ]);
 
-    if (!granted) {
+    if (granted !== "success") {
       setActiveAction(null);
       return;
     }
@@ -246,7 +246,7 @@ export default function AdminPage() {
       },
     ]);
 
-    if (!revoked) {
+    if (revoked !== "success") {
       setActiveAction(null);
       return;
     }

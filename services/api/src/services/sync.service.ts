@@ -276,6 +276,34 @@ export async function recordResale(tokenId: bigint, to: string): Promise<void> {
 
 export type SyncResult = 'synced' | 'skipped' | 'not_on_chain';
 
+// #251: publishing links the API event to an on-chain event ID, so that event must already be
+// configured and belong to the organizer. Read-only, and skipped when the chain isn't configured
+// (local development without a node), which keeps the API usable without a chain.
+export type SetupVerification = 'verified' | 'not_configured' | 'not_organizer' | 'skipped';
+
+export async function verifyEventSetupOnChain(
+  contractEventId: bigint,
+  organizerWallet: string,
+  provider?: ethers.Provider
+): Promise<SetupVerification> {
+  if (!provider && !isChainConfigured()) return 'skipped';
+
+  const ownProvider = provider ? null : new ethers.JsonRpcProvider(process.env.RPC_URL);
+  try {
+    const contract = readOnlyContract((provider ?? ownProvider)!);
+    const [organizer, config] = await Promise.all([
+      contract.eventOrganizer(contractEventId) as Promise<string>,
+      contract.eventConfigs(contractEventId),
+    ]);
+
+    if (!config.configured) return 'not_configured';
+    if (lower(organizer) !== lower(organizerWallet)) return 'not_organizer';
+    return 'verified';
+  } finally {
+    ownProvider?.destroy();
+  }
+}
+
 // Copies an event's on-chain setup into the database. Organizers configure the event, add its
 // ticket types and open sales before the API knows its contract ID (see the create event flow), so
 // the listener has nothing to attach those events to. This runs once the event is published, reads

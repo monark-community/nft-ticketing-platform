@@ -1,5 +1,8 @@
 import { prisma } from '../lib/prisma';
 
+// TicketNFT's batchAddToWhitelist() rejects more than 100 wallets in one transaction.
+export const MAX_WHITELIST_BATCH = 100;
+
 // A wallet must belong to a platform account before it can be whitelisted or
 // assigned as a scanner (DB design Q&A, Q3). A user row alone isn't enough, since
 // one is created for any wallet that requests a login nonce; the account only
@@ -69,6 +72,7 @@ export async function addToWhitelist(eventId: string, organizerWallet: string, w
   if (event.organizer_wallet !== organizerWallet) return 'forbidden';
 
   const normalized = [...new Set(wallets.map((w) => w.toLowerCase()))];
+  if (normalized.length > MAX_WHITELIST_BATCH) return 'too_many';
 
   // Reject the whole batch so the organizer can fix the list in one go
   const unregistered = await findUnregisteredWallets(normalized);

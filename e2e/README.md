@@ -84,7 +84,7 @@ The rules from #336: find elements by role and label, never by CSS classes; chec
 
 | Fixture | What it gives you |
 |---------|-------------------|
-| `wallet` | The test wallet, in every page. Starts as Alex, not connected. `use(account)`, `switchAccount(account)`, `switchNetwork(chainId)`, `rejectNext()` or `rejectNext('connect' \| 'sign' \| 'send' \| 'switchNetwork')` (a second argument lets that many prompts through first: `rejectNext('send', 1)` rejects the second transaction), `disconnect()`, and `requests` (every method the page asked for) |
+| `wallet` | The test wallet, in every page. Starts as Alex, not connected. `use(account)`, `switchAccount(account)`, `switchNetwork(chainId)`, `rejectNext()` or `rejectNext('connect' \| 'sign' \| 'send' \| 'switchNetwork')` (a second argument lets that many prompts through first: `rejectNext('send', 1)` rejects the second transaction), `holdNext(kind, skip?)` (keeps the next prompt of that kind open until `release()`, with `reached` resolving once it shows, so a test can change something while the person is confirming), `disconnect()`, and `requests` (every method the page asked for) |
 | `signIn(who, { path })` | Signs in through the real Connect button, as an account or a role (`'attendee'`, `'organizer'`, `'admin'`, `'scanner'`), and ends on `path` |
 | `openScanner(scenes, who)` | A second browser on `/scan`, whose camera plays `scenes`, for example `[{ qr: await entryQr(accounts.alex, 0, 1), seconds: 3 }]` |
 
@@ -121,10 +121,10 @@ The seeded events are `seededEvents.gala` (event 1, public sale, Early Bird sold
 Every failed test keeps a trace: a recording of each step, with the page, the console and the network at that moment.
 
 - **Locally:** `npm run report`, open the failed test and click the trace. Or `npx playwright show-trace test-results/<test folder>/trace.zip`.
-- **In CI:** open the failed run, scroll to **Artifacts** at the bottom of its summary page and download `e2e-results`. Unzip it and run `npx playwright show-trace <test folder>/trace.zip` from `e2e/`, or drop the zip on https://trace.playwright.dev. The stack's logs are in the same download.
+- **In CI:** open the failed run, scroll to **Artifacts** at the bottom of its summary page and download `e2e-results-desktop` or `e2e-results-phone` (the job that failed). Unzip it and run `npx playwright show-trace <test folder>/trace.zip` from `e2e/`, or drop the zip on https://trace.playwright.dev. The stack's logs are in the same download.
 
 In the trace, start from the red step on the left, then look at the page before and after it, and at the Console and Network tabs for errors from the app or the API.
 
 ## In CI
 
-The `e2e` job in `.github/workflows/ci.yml` runs on every pull request to `dev` or `main` that changes the app, the API, the contracts or these tests. It uses a standard GitHub-hosted Ubuntu runner (free for public repositories), Postgres as a service container and a cached browser. A new push cancels the run before it. If the job ever takes more than 15 minutes, split it across runners with `npx playwright test --shard=1/2` and `--shard=2/2`.
+The `e2e` job in `.github/workflows/ci.yml` runs on every pull request to `dev` or `main` that changes the app, the API, the contracts or these tests. It uses a standard GitHub-hosted Ubuntu runner (free for public repositories), Postgres as a service container and a cached browser. A new push cancels the run before it. Desktop and phone run as two jobs side by side, so each runs half the tests within its 30 minutes. If one gets close to that, split it further with `--shard`.

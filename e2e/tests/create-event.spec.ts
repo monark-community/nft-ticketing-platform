@@ -12,7 +12,6 @@ import {
   accounts,
   ApiError,
   ApiSession,
-  apiGet,
   chain,
   contractEventIdFor,
   createPublishedEvent,
@@ -91,7 +90,8 @@ interface ApiEvent {
   ticket_types: Array<{ name: string; price: string; supply: number; description: string | null; ipfs_hash: string | null }>;
 }
 
-const apiEvent = (id: string) => apiGet<ApiEvent>(`/api/events/${id}`);
+// A draft or frozen event is only readable by its organizer (or an admin), so read as them
+const apiEvent = async (id: string, as: Account = accounts.organizer) => (await ApiSession.signIn(as)).get<ApiEvent>(`/api/events/${id}`);
 
 let draftCount = 0;
 
@@ -226,7 +226,11 @@ const mined = async (tx: Promise<ethers.ContractTransactionResponse>) => (await 
 // then in the API
 async function revokeOrganizer(account: Account) {
   await mined(chain.ticketNft(accounts.admin).revokeRole(ORGANIZER_ROLE, account.address));
-  await (await ApiSession.signIn(accounts.admin)).delete(`/api/admin/organizers/${account.address}`);
+  // The API's listener can see RoleRevoked first and take the role away itself: the admin call
+  // then answers 409 "User is not an organizer", which the Admin page also treats as done
+  await (await ApiSession.signIn(accounts.admin)).delete(`/api/admin/organizers/${account.address}`).catch((error) => {
+    if (!(error instanceof ApiError && error.status === 409 && error.message.endsWith(': User is not an organizer'))) throw error;
+  });
 }
 
 // The API answering a browser request with an error. The API is on another origin than the web
@@ -828,16 +832,18 @@ test.describe('review and drafts', () => {
       const published = await createPublishedEvent({ title: `Already live ${Date.now().toString(36)}` });
 
       await test.step("another organizer's draft", async () => {
+        // Another organizer can't read the draft at all, so it's "not found" to them
         await signIn('organizer', { path: draftUrl(theirs.id) });
-        await expect(page.getByRole('heading', { name: 'This draft belongs to another wallet' })).toBeVisible();
-        await expect(page.getByText('Connect the wallet that created it to keep editing, or start a new event with this one.')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Draft not found' })).toBeVisible();
+        await expect(page.getByText("This draft doesn't exist, or the link is wrong.")).toBeVisible();
+        await expect(page.getByText("Jordan's draft")).toHaveCount(0);
         await expect(page.getByLabel('Event name')).toHaveCount(0);
 
         // The API refuses the change as well
         const sophie = await ApiSession.signIn(accounts.organizer);
         const refused = await sophie.put(`/api/events/${theirs.id}`, { title: 'Taken over' }).catch((err: unknown) => err);
         expect((refused as ApiError).status).toBe(403);
-        expect((await apiEvent(theirs.id)).title).toBe("Jordan's draft");
+        expect((await apiEvent(theirs.id, accounts.jordan)).title).toBe("Jordan's draft");
 
         await page.getByRole('link', { name: 'Start a new event' }).click();
         await expect(page.getByLabel('Event name')).toHaveValue('');
