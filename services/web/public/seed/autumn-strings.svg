@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Mock data picture for "Autumn Strings Quartet" (services/api/prisma/mock-data.ts) -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#451a03"/><stop offset="1" stop-color="#1c0a02"/></linearGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b45309"/><stop offset="1" stop-color="#78350f"/></linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <path d="M560 -20 C470 200 470 330 560 450 C470 560 450 760 560 920 H1040 C1150 760 1130 560 1040 450 C1130 330 1130 200 1040 -20Z" fill="url(#wood)"/>
+  <path d="M650 330 c-40 40 -40 120 10 150 M950 330 c40 40 40 120 -10 150" stroke="#1c0a02" stroke-width="12" fill="none" stroke-linecap="round"/>
+  <path d="M740 -20 V920" stroke="#fde68a" stroke-width="4.0"/>
+  <path d="M780 -20 V920" stroke="#fde68a" stroke-width="3.4"/>
+  <path d="M820 -20 V920" stroke="#fde68a" stroke-width="2.8"/>
+  <path d="M860 -20 V920" stroke="#fde68a" stroke-width="2.2"/>
+  <rect x="700" y="560" width="200" height="22" rx="6" fill="#1c0a02"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(1544 10) rotate(57) scale(1.54)" fill="#dc2626" opacity="0.61"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(1407 613) rotate(360) scale(1.66)" fill="#dc2626" opacity="0.64"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(746 320) rotate(124) scale(1.19)" fill="#dc2626" opacity="0.91"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(1276 201) rotate(184) scale(1.72)" fill="#dc2626" opacity="0.80"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(1345 441) rotate(288) scale(1.26)" fill="#b91c1c" opacity="0.80"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(1488 581) rotate(311) scale(1.21)" fill="#ea580c" opacity="0.77"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(1512 17) rotate(62) scale(0.94)" fill="#ea580c" opacity="0.70"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(792 798) rotate(42) scale(0.90)" fill="#ea580c" opacity="0.63"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(1161 829) rotate(332) scale(1.10)" fill="#dc2626" opacity="0.66"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(1517 318) rotate(112) scale(1.04)" fill="#f59e0b" opacity="0.74"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(762 783) rotate(273) scale(1.58)" fill="#f59e0b" opacity="0.77"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(185 443) rotate(302) scale(1.18)" fill="#ea580c" opacity="0.70"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(66 805) rotate(57) scale(1.74)" fill="#b91c1c" opacity="0.80"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(1396 449) rotate(171) scale(1.30)" fill="#ea580c" opacity="0.80"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(740 700) rotate(249) scale(1.39)" fill="#f59e0b" opacity="0.84"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(977 51) rotate(301) scale(1.55)" fill="#b91c1c" opacity="0.72"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(990 635) rotate(112) scale(1.40)" fill="#ea580c" opacity="0.88"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(1430 803) rotate(241) scale(0.82)" fill="#f59e0b" opacity="0.82"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(1454 3) rotate(180) scale(1.05)" fill="#f59e0b" opacity="0.71"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(390 528) rotate(1) scale(1.29)" fill="#f59e0b" opacity="0.85"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(544 53) rotate(310) scale(0.97)" fill="#ea580c" opacity="0.95"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(1158 359) rotate(309) scale(1.67)" fill="#f59e0b" opacity="0.63"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(550 664) rotate(174) scale(1.35)" fill="#ea580c" opacity="0.74"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(1261 4) rotate(56) scale(1.58)" fill="#b91c1c" opacity="0.89"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(1049 521) rotate(271) scale(1.35)" fill="#f59e0b" opacity="0.74"/>
+  <path d="M0 -40 L8 -18 L26 -26 L18 -6 L38 0 L16 8 L22 26 L4 16 L0 40 L-4 16 L-22 26 L-16 8 L-38 0 L-18 -6 L-26 -26 L-8 -18Z" transform="translate(1568 582) rotate(358) scale(1.43)" fill="#b91c1c" opacity="0.81"/>
+</svg>
