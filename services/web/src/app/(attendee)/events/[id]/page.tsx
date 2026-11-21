@@ -14,6 +14,7 @@ import { PurchasePanel } from "@/components/event/PurchasePanel";
 import { ResaleRules } from "@/components/event/ResaleRules";
 import { TierCard } from "@/components/event/TierCard";
 import { Footer } from "@/components/Footer";
+import { PageSwap, usePictureGrowing, usePictureLink } from "@/components/motion";
 import { Navbar } from "@/components/Navbar";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -25,9 +26,11 @@ import { usePurchaseTickets } from "@/hooks/usePurchaseTickets";
 import { useWalletAuth } from "@/hooks/useWalletAuth";
 import { TICKET_NFT_ADDRESS, TICKET_NFT_CHAIN_ID } from "@/lib/contracts/ticket-nft";
 import { buildTiers } from "@/lib/event-details";
+import { rememberedEventPicture } from "@/lib/event-picture";
 import { ROUTES } from "@/lib/nav";
 import { estimatePurchaseGas, getBlockMessage, getMaxQuantity, getPurchaseBlock } from "@/lib/purchase-checks";
 import { formatTokenAmount } from "@/lib/token-amount";
+import { cn } from "@/lib/utils";
 
 // Event page (#284) with the ticket purchase flow (#147, #148, #149).
 // Figma: "Event detail / Default", "About open", "Resale rules open" and the purchase status frames.
@@ -36,7 +39,21 @@ export default function EventPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
 
-  const { event, loading, notFound, error, reload } = useEvent(id);
+  const fetched = useEvent(id);
+  // Coming from an event card: its picture, shown in the hero while the event loads (#363).
+  // undefined when the page was opened directly.
+  const loadingPicture = rememberedEventPicture(id);
+  // While that picture grows into the hero, the event waits to show, even once it has loaded:
+  // rendering the page in the middle of the 300 ms makes slower devices skip frames (#363).
+  // An event already loaded when the page opens shows at once, before the growth starts.
+  const [loadedAtStart] = useState(() => !fetched.loading);
+  const growing = usePictureGrowing(loadingPicture !== undefined && !loadedAtStart);
+  const { event, loading, notFound, error, reload } = growing
+    ? { ...fetched, event: null, loading: true, notFound: false, error: null }
+    : fetched;
+  const heroWhileLoading = loading && loadingPicture !== undefined;
+  // Going back to the events, the picture flies back into its card, where the list was left (#363)
+  const backWithPicture = usePictureLink(id, ROUTES.events, "hero");
 
   const hasMounted = useHasMounted();
   const { address, isConnected: walletConnected, chainId } = useAccount();
@@ -136,22 +153,28 @@ export default function EventPage() {
   }
 
   return (
-    // Bottom padding on phones keeps the fixed buy bar from covering the footer
-    <div className="flex min-h-screen flex-col pb-[76px] lg:pb-0">
+    // Bottom padding on phones keeps the fixed buy bar from covering the footer. The page fades in
+    // while the card's picture flies into the hero, and out on the way back (#363).
+    <PageSwap className="flex min-h-screen flex-col pb-[76px] lg:pb-0">
       <Navbar />
 
       <main className="page-glow flex-1 pb-12">
         <div className="mx-auto flex w-full max-w-[1280px] flex-col gap-4 px-4 py-5 md:px-8">
           <Link
             href={ROUTES.events}
+            onClick={backWithPicture}
             className="flex w-fit items-center gap-1 rounded-xs text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <ArrowLeft className="size-3" aria-hidden="true" />
             Back to events
           </Link>
 
+          {/* One hero for the loading page and the loaded one, so the picture that flew out of the
+              card isn't swapped for another element halfway through (#363) */}
+          {(event || heroWhileLoading) && <EventHero event={event} eventId={id} loadingPicture={loadingPicture ?? null} availability={availability} arrivedLate={!loadedAtStart} />}
+
           {loading ? (
-            <EventPageSkeleton />
+            <EventPageSkeleton hero={!heroWhileLoading} />
           ) : notFound || !event ? (
             notFound ? (
               <Card className="items-center py-16 text-center">
@@ -174,9 +197,8 @@ export default function EventPage() {
             )
           ) : (
             <>
-              <EventHero event={event} availability={availability} />
-
-              <div className="grid grid-cols-1 gap-8 pt-4 lg:grid-cols-12">
+              {/* Fades in when the event loads after the page opened */}
+              <div className={cn("grid grid-cols-1 gap-8 pt-4 lg:grid-cols-12", !loadedAtStart && "animate-[page-in_200ms_ease-out_backwards]")}>
                 <section aria-labelledby="tiers-title" className="flex flex-col gap-6 lg:col-span-7">
                   <div className="flex flex-col gap-2">
                     <h2 id="tiers-title" className="type-heading-md tracking-[0.025em] text-foreground">
@@ -275,15 +297,16 @@ export default function EventPage() {
           onReview={() => document.getElementById("order-summary")?.scrollIntoView({ behavior: "smooth", block: "start" })}
         />
       )}
-    </div>
+    </PageSwap>
   );
 }
 
-// Placeholder shapes while the event loads, so the layout doesn't jump
-function EventPageSkeleton() {
+// Placeholder shapes while the event loads, so the layout doesn't jump. Without `hero`, the real
+// hero is already on the page with the picture of the card that was clicked.
+function EventPageSkeleton({ hero }: { hero: boolean }) {
   return (
     <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading event">
-      <div className="h-[340px] animate-pulse rounded-lg bg-card md:h-[450px]" />
+      {hero && <div className="h-[340px] animate-pulse rounded-lg bg-card md:h-[450px]" />}
       <div className="grid grid-cols-1 gap-8 pt-4 lg:grid-cols-12">
         <div className="flex flex-col gap-6 lg:col-span-7">
           <div className="h-8 w-56 animate-pulse rounded-sm bg-card" />

@@ -226,7 +226,11 @@ const mined = async (tx: Promise<ethers.ContractTransactionResponse>) => (await 
 // then in the API
 async function revokeOrganizer(account: Account) {
   await mined(chain.ticketNft(accounts.admin).revokeRole(ORGANIZER_ROLE, account.address));
-  await (await ApiSession.signIn(accounts.admin)).delete(`/api/admin/organizers/${account.address}`);
+  // The API's listener can see RoleRevoked first and take the role away itself: the admin call
+  // then answers 409 "User is not an organizer", which the Admin page also treats as done
+  await (await ApiSession.signIn(accounts.admin)).delete(`/api/admin/organizers/${account.address}`).catch((error) => {
+    if (!(error instanceof ApiError && error.status === 409 && error.message.endsWith(': User is not an organizer'))) throw error;
+  });
 }
 
 // The API answering a browser request with an error. The API is on another origin than the web

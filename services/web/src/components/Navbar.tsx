@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 
 import { Logo } from "@/components/Logo";
+import { NetworkGuard } from "@/components/NetworkWarning";
 import { CopyLiftOff } from "@/components/motion/CopyLiftOff";
 import { Button } from "@/components/ui/button";
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
@@ -30,6 +31,7 @@ export function Navbar() {
   useProfileCompletionRedirect();
 
   return (
+    <>
     <NavbarView
       // The server can't know the wallet state, so treat the first render as signed out (#220)
       role={getNavRole(hasMounted && isConnected, user?.role)}
@@ -41,6 +43,9 @@ export function Navbar() {
       onSignIn={() => signIn()}
       onLogout={() => logout()}
     />
+    {/* Under the navbar, pushing the page down (#364) */}
+    <NetworkGuard />
+    </>
   );
 }
 
@@ -98,6 +103,8 @@ export function NavbarView({ role, ready, address, user, pathname, signingIn = f
 
   return (
     <header
+      // Stays in place while an event's picture flies between two pages that fade (#363)
+      data-site-header
       className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur"
       // Focus leaving the navbar (Tab past the last menu link) closes the phone menu, so it never
       // stays open over the page that now has the focus

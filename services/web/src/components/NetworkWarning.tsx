@@ -1,33 +1,89 @@
 "use client";
 
-import { useHasMounted } from "@/hooks/useHasMounted";
+import { useEffect, useRef, useState } from "react";
 import { useAccount, useSwitchChain } from "wagmi";
 import { sepolia } from "wagmi/chains";
 
- const SUPPORTED_CHAIN_IDS = [sepolia.id, 31337];
+import { DrawnCheck } from "@/components/motion/DrawnCheck";
+import { useFoldAway } from "@/components/motion/useFoldAway";
+import { Spinner } from "@/components/ui/spinner";
+import { useHasMounted } from "@/hooks/useHasMounted";
+import { nextBannerState, SWITCHED_MS, type BannerState } from "@/lib/network-banner";
+import { cn } from "@/lib/utils";
 
+const SUPPORTED_CHAIN_IDS: readonly number[] = [sepolia.id, 31337];
+
+// Whether the banner is down. Each page renders its own navbar, so a page change builds the banner
+// again: once down, it shows on the next page as it was, without coming down a second time.
+let bannerDown = false;
+
+// Wrong network banner, under the navbar (#364). It slides down and pushes the page while hazard
+// stripes sweep across it once, like a barrier coming down. After switching it turns green with
+// "Switched to Sepolia", stays for a second, then folds away.
 export function NetworkGuard() {
   const { isConnected, chainId } = useAccount();
-  const { switchChain } = useSwitchChain();
+  const { switchChain, isPending } = useSwitchChain();
   const hasMounted = useHasMounted();
+  const wrong = hasMounted && isConnected && !!chainId && !SUPPORTED_CHAIN_IDS.includes(chainId);
 
-  if (!hasMounted || !isConnected) return null;
-  if (!chainId) return null;
-  if (SUPPORTED_CHAIN_IDS.includes(chainId as typeof SUPPORTED_CHAIN_IDS[number])) return null;
+  const [state, setState] = useState<BannerState>("hidden");
+  const next = nextBannerState(state, wrong, isConnected);
+  if (next !== state) setState(next); // follows the wallet during render, so the banner never lags a frame
+
+  useEffect(() => {
+    if (state !== "switched") return;
+    const timer = setTimeout(() => setState("hidden"), SWITCHED_MS);
+    return () => clearTimeout(timer);
+  }, [state]);
+
+  // On a supported network (or with no wallet), the next wrong network brings the banner down again
+  useEffect(() => {
+    if (hasMounted && !wrong) bannerDown = false;
+  }, [hasMounted, wrong]);
+
+  if (next === "hidden") return null;
+  return <Banner switched={next === "switched"} switching={isPending} onSwitch={() => switchChain({ chainId: sepolia.id })} />;
+}
+
+function Banner({ switched, switching, onSwitch }: { switched: boolean; switching: boolean; onSwitch: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useFoldAway(ref, 200);
+  // Comes down only the first time; on the next pages it is already there
+  const [comesDown] = useState(() => !bannerDown);
+  useEffect(() => {
+    bannerDown = true;
+  }, []);
 
   return (
-    <div className="w-full bg-primary-tint border-b border-border-accent px-6 py-3 flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <p className="text-sm font-semibold text-primary-soft">
-          Wrong network detected. Please switch to Sepolia testnet.
-        </p>
+    <div ref={ref} role="status" className={comesDown ? "unfold-in [animation-duration:200ms]" : "grid grid-rows-[1fr]"}>
+      <div className="min-h-0 overflow-hidden">
+        <div
+          className={cn(
+            "flex w-full items-center justify-between gap-4 border-b px-6 py-3 transition-colors duration-base",
+            switched ? "border-success/30 bg-success-bg" : cn("border-border-accent bg-primary-tint", comesDown && "hazard-sweep")
+          )}
+        >
+          {switched ? (
+            <p className="flex items-center gap-2 text-sm font-semibold text-success">
+              <DrawnCheck />
+              Switched to Sepolia
+            </p>
+          ) : (
+            <>
+              <p className="text-sm font-semibold text-primary-soft">Wrong network detected. Please switch to Sepolia testnet.</p>
+              <button
+                type="button"
+                onClick={onSwitch}
+                disabled={switching}
+                aria-label={switching ? "Switching to Sepolia" : undefined}
+                className="inline-flex min-w-[124px] shrink-0 items-center justify-center rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-80"
+              >
+                {switching ? <Spinner className="size-3.5" /> : "Switch to Sepolia"}
+              </button>
+            </>
+          )}
+        </div>
       </div>
-      <button
-        onClick={() => switchChain({ chainId: sepolia.id })}
-        className="text-xs font-bold text-primary-foreground bg-primary hover:bg-primary/90 px-3 py-1.5 rounded-lg transition-colors"
-      >
-        Switch to Sepolia
-      </button>
     </div>
   );
 }

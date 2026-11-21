@@ -14,6 +14,7 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "db:push": "prisma db push",
     "db:seed": "npm run prisma:seed",
+    "db:seed:mock": "ts-node prisma/seed-mock.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:db:up": "docker compose -f docker-compose.test.yml up -d --wait",

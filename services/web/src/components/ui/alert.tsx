@@ -1,7 +1,10 @@
+"use client"
+
 import * as React from "react"
 import { AlertCircle, CheckCircle2, Info, TriangleAlert, type LucideIcon } from "lucide-react"
 import { cva } from "class-variance-authority"
 
+import { useFoldAway } from "@/components/motion/useFoldAway"
 import { cn } from "@/lib/utils"
 
 // Alert from the Figma Design System page (#290). Always say what to do next in the message.
@@ -52,15 +55,24 @@ function Alert({ tone = "info", title, icon, action, className, children, ...pro
   const Icon = icon === null ? null : (icon ?? ICON[tone])
   // Errors interrupt (role="alert"); the others are announced politely
   const role = tone === "error" ? "alert" : "status"
+  // Motion (#364): the message opens out when it appears (alert-in), and folds up when it's removed
+  const ref = React.useRef<HTMLDivElement>(null)
+  useFoldAway(ref)
 
   return (
-    <div data-slot="alert" role={role} className={cn(alertVariants({ tone }), className)} {...props}>
-      <span className={cn("absolute inset-y-0 left-0 w-[3px]", ACCENT[tone])} aria-hidden="true" />
-      {Icon && <Icon className={cn("mt-0.5 size-4 shrink-0", TITLE[tone])} aria-hidden="true" />}
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className={cn("type-body-md-strong", TITLE[tone])}>{title}</p>
-        {children && <div className="type-body-sm text-secondary-foreground">{children}</div>}
-        {action && <div className="mt-2">{action}</div>}
+    <div ref={ref} data-slot="alert" data-tone={tone} role={role} className={cn("alert-in", className)} {...props}>
+      <div className="min-h-0 overflow-hidden">
+        <div className={alertVariants({ tone })}>
+          <span data-slot="alert-edge" className={cn("absolute inset-y-0 left-0 w-[3px]", ACCENT[tone])} aria-hidden="true" />
+          <div data-slot="alert-body" className="flex min-w-0 flex-1 gap-3">
+            {Icon && <Icon className={cn("mt-0.5 size-4 shrink-0", TITLE[tone])} aria-hidden="true" />}
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <p className={cn("type-body-md-strong", TITLE[tone])}>{title}</p>
+              {children && <div className="type-body-sm text-secondary-foreground">{children}</div>}
+              {action && <div className="mt-2">{action}</div>}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

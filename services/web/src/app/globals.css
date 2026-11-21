@@ -404,6 +404,110 @@
 @utility dim-in { animation: dim-in 200ms ease-out both; }
 @utility dim-out { animation: dim-out 140ms ease-in both; }
 
+/* ---------------------------------------------------------------------------
+   Messages, text boxes, transaction status and network banner (#364)
+   --------------------------------------------------------------------------- */
+@keyframes unfold-in { from { grid-template-rows: 0fr; } }
+@keyframes edge-draw { from { transform: scaleY(0); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes nudge {
+  35% { transform: translateX(4px); }
+  70% { transform: translateX(-3px); }
+}
+/* Opens a block from nothing to its own height when it appears. Put the content in one child with
+   min-h-0 and overflow-hidden. */
+@utility unfold-in {
+  display: grid;
+  grid-template-rows: 1fr;
+  animation: unfold-in 180ms var(--ease-arrive) backwards;
+}
+@utility fade-in { animation: fade-in 150ms ease-out backwards; }
+
+/* Messages (Alert): the coloured edge draws itself, the message opens out from it and its text
+   fades in. Errors also nudge sideways once, so they get noticed. */
+@utility alert-in {
+  display: grid;
+  grid-template-rows: 1fr;
+  animation: unfold-in 180ms var(--ease-arrive) backwards;
+  &[data-tone="error"] { animation: unfold-in 180ms var(--ease-arrive) backwards, nudge 220ms ease-in-out 260ms; }
+  & [data-slot="alert-edge"] { transform-origin: top; animation: edge-draw 100ms ease-out backwards; }
+  & [data-slot="alert-body"] > * { animation: fade-in 140ms ease-out 110ms backwards; }
+}
+/* The copy of a message that folds away after the message is gone: nothing in it animates again */
+.folding-away, .folding-away * { animation: none !important; }
+
+/* Transaction receipt: each step prints a new line from left to right (160 ms) */
+@keyframes print-across { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@utility print-across { animation: print-across 160ms linear backwards; }
+/* The jagged bottom edge of a finished receipt, torn from left to right */
+@keyframes tear-across { from { transform: scaleX(0); } }
+@utility receipt-tear {
+  position: absolute;
+  inset-inline: 0;
+  top: 100%;
+  height: 8px;
+  background:
+    linear-gradient(-45deg, transparent 5px, var(--receipt, #ecebe6) 0) 0 0 / 10px 8px repeat-x,
+    linear-gradient(45deg, transparent 5px, var(--receipt, #ecebe6) 0) 0 0 / 10px 8px repeat-x;
+  transform-origin: left;
+  animation: tear-across 200ms var(--ease-arrive) 160ms backwards;
+}
+@utility shake-once { animation: nudge 240ms ease-in-out 160ms; }
+
+/* Wrong network banner: hazard stripes sweep across it once as it comes down, like a barrier */
+@keyframes hazard-sweep {
+  from { background-position: 0 0; opacity: 1; }
+  80% { opacity: 1; }
+  to { background-position: 120px 0; opacity: 0; }
+}
+@utility hazard-sweep {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: repeating-linear-gradient(-45deg, rgb(249 115 22 / 26%) 0 12px, transparent 12px 24px);
+    opacity: 0;
+    animation: hazard-sweep 600ms linear;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Page changes (#363)
+   --------------------------------------------------------------------------- */
+/* Every page's content fades in briefly when the page opens */
+@keyframes page-in { from { opacity: 0; } }
+@layer base {
+  main { animation: page-in 160ms ease-out backwards; }
+}
+
+/* Opening an event from its card, and going back to the card (only these page changes animate):
+   the picture flies from one to the other in 300 ms (SharedPicture moves the real picture, so it
+   is cropped and sharp at every size) while the old page's content fades out in 140 ms and the
+   new page's fades in over 200 ms, from 120 ms (PageMain). Browsers without view transitions just
+   change pages. */
+@keyframes page-out { to { opacity: 0; } }
+::view-transition-old(.page-leave) { animation: page-out 140ms ease-in both; }
+::view-transition-new(.page-arrive) { animation: page-in 200ms linear 120ms both; }
+/* The flying picture is the new page's, drawn above both pages: its frame follows it as it moves,
+   the picture it took off from is hidden, and the page change lasts until it lands */
+@keyframes picture-flight { from { opacity: 1; } }
+::view-transition-group(.event-picture) { z-index: 1; animation: none; }
+::view-transition-old(.event-picture) { animation: none; opacity: 0; }
+::view-transition-new(.event-picture) { width: 100%; height: 100%; animation: picture-flight 300ms; }
+/* The navbar is the same on both pages: it stays in place, above the pages and the picture */
+:root:active-view-transition-type(event-picture) [data-site-header] { view-transition-name: site-header; }
+::view-transition-group(site-header) { z-index: 2; animation: none; }
+::view-transition-old(site-header) { animation: none; opacity: 0; }
+::view-transition-new(site-header) { animation: none; }
+/* Over a picture, what isn't part of it (the hero's title, a card's stock badge) fades in once
+   the picture has landed */
+@utility after-flight { animation: page-in 200ms ease-out backwards; }
+:root:active-view-transition .after-flight { animation-play-state: paused; }
+/* The pages' content doesn't also fade in on its own while they change */
+:root:active-view-transition main { animation-duration: 0s; }
+
 /* Respect reduced motion everywhere: animations and transitions jump to their end, without delay */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -414,4 +518,8 @@
     transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
+}
+/* ...and pages change at once */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
