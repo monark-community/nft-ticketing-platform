@@ -13,6 +13,10 @@ import { cn } from "@/lib/utils";
 
 const SUPPORTED_CHAIN_IDS: readonly number[] = [sepolia.id, 31337];
 
+// Whether the banner is down. Each page renders its own navbar, so a page change builds the banner
+// again: once down, it shows on the next page as it was, without coming down a second time.
+let bannerDown = false;
+
 // Wrong network banner, under the navbar (#364). It slides down and pushes the page while hazard
 // stripes sweep across it once, like a barrier coming down. After switching it turns green with
 // "Switched to Sepolia", stays for a second, then folds away.
@@ -32,6 +36,11 @@ export function NetworkGuard() {
     return () => clearTimeout(timer);
   }, [state]);
 
+  // On a supported network (or with no wallet), the next wrong network brings the banner down again
+  useEffect(() => {
+    if (hasMounted && !wrong) bannerDown = false;
+  }, [hasMounted, wrong]);
+
   if (next === "hidden") return null;
   return <Banner switched={next === "switched"} switching={isPending} onSwitch={() => switchChain({ chainId: sepolia.id })} />;
 }
@@ -39,14 +48,19 @@ export function NetworkGuard() {
 function Banner({ switched, switching, onSwitch }: { switched: boolean; switching: boolean; onSwitch: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useFoldAway(ref, 200);
+  // Comes down only the first time; on the next pages it is already there
+  const [comesDown] = useState(() => !bannerDown);
+  useEffect(() => {
+    bannerDown = true;
+  }, []);
 
   return (
-    <div ref={ref} role="status" className="unfold-in [animation-duration:200ms]">
+    <div ref={ref} role="status" className={comesDown ? "unfold-in [animation-duration:200ms]" : "grid grid-rows-[1fr]"}>
       <div className="min-h-0 overflow-hidden">
         <div
           className={cn(
             "flex w-full items-center justify-between gap-4 border-b px-6 py-3 transition-colors duration-base",
-            switched ? "border-success/30 bg-success-bg" : "hazard-sweep border-border-accent bg-primary-tint"
+            switched ? "border-success/30 bg-success-bg" : cn("border-border-accent bg-primary-tint", comesDown && "hazard-sweep")
           )}
         >
           {switched ? (

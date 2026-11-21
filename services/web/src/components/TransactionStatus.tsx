@@ -28,8 +28,9 @@ interface Props {
 // Ink colours on the receipt's paper
 const TONE: Record<ReceiptTone, string> = {
   plain: "",
-  ok: "font-bold text-[#15803d]",
-  slow: "text-[#a16207]",
+  // Dark enough for small text on the paper: 6.0:1 and 5.7:1 (4.5:1 needed)
+  ok: "font-bold text-[#166534]",
+  slow: "text-[#854d0e]",
   bad: "font-bold text-[#b91c1c]",
 };
 
@@ -70,7 +71,7 @@ export function TransactionStatus({ state, explorerUrl, successMessage, onRetry,
   const stepLabel = `Step ${state.stepIndex + 1} of ${state.steps.length}: ${state.steps[state.stepIndex]}`;
 
   return (
-    <div data-slot="transaction-status" className="flex flex-col gap-3">
+    <div data-slot="transaction-status" className="flex flex-col">
       {/* Announced politely as lines are added; a failure interrupts (role="alert" below) */}
       <div
         role="status"
@@ -89,10 +90,8 @@ export function TransactionStatus({ state, explorerUrl, successMessage, onRetry,
         {finished && <span className="receipt-tear" aria-hidden="true" />}
       </div>
 
-      {state.phase === "success" && <p className="fade-in type-body-md-strong text-success">{successMessage ?? "Transaction confirmed."}</p>}
-
       {state.phase === "error" && (
-        <div role="alert" className="fade-in flex flex-col items-start gap-1">
+        <div role="alert" className="fade-in mt-3 flex flex-col items-start gap-1">
           <p className="type-body-md-strong text-destructive">{multiStep ? `Failed at ${stepLabel}` : "Transaction failed"}</p>
           {state.error && <p className="type-body-sm text-secondary-foreground">{state.error}</p>}
           {onRetry && (
@@ -103,27 +102,33 @@ export function TransactionStatus({ state, explorerUrl, successMessage, onRetry,
         </div>
       )}
 
-      {state.phase === "stoppedWaiting" && (
-        <div className="fade-in flex flex-col gap-1">
-          <p className="type-body-md-strong text-primary">Stopped waiting for the transaction</p>
-          {state.note && <p className="type-body-sm text-secondary-foreground">{state.note}</p>}
-        </div>
-      )}
+      {/* The outcome in words, announced politely too. This region is there from the first step,
+          so screen readers notice what is added to it. */}
+      <div role="status" className="flex flex-col">
+        {state.phase === "success" && <p className="fade-in mt-3 type-body-md-strong text-success">{successMessage ?? "Transaction confirmed."}</p>}
 
-      {state.phase === "stillPending" && (
-        <div className="fade-in flex flex-col items-start gap-1">
-          <p className="type-body-sm text-secondary-foreground">{STILL_PENDING_TEXT}</p>
-          {state.note && <p className="type-body-sm text-secondary-foreground">{state.note}</p>}
-          {onStopWaiting && (
-            <Button variant="outline" size="sm" onClick={onStopWaiting} className="mt-2">
-              Stop waiting
-            </Button>
-          )}
-        </div>
-      )}
+        {state.phase === "stoppedWaiting" && (
+          <div className="fade-in mt-3 flex flex-col gap-1">
+            <p className="type-body-md-strong text-primary">Stopped waiting for the transaction</p>
+            {state.note && <p className="type-body-sm text-secondary-foreground">{state.note}</p>}
+          </div>
+        )}
 
-      {/* e.g. the transaction was sped up in the wallet */}
-      {!finished && state.phase !== "stillPending" && state.note && <p className="type-body-sm text-secondary-foreground">{state.note}</p>}
+        {state.phase === "stillPending" && (
+          <div className="fade-in mt-3 flex flex-col items-start gap-1">
+            <p className="type-body-sm text-secondary-foreground">{STILL_PENDING_TEXT}</p>
+            {state.note && <p className="type-body-sm text-secondary-foreground">{state.note}</p>}
+            {onStopWaiting && (
+              <Button variant="outline" size="sm" onClick={onStopWaiting} className="mt-2">
+                Stop waiting
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* e.g. the transaction was sped up in the wallet */}
+        {!finished && state.phase !== "stillPending" && state.note && <p className="mt-3 type-body-sm text-secondary-foreground">{state.note}</p>}
+      </div>
     </div>
   );
 }
