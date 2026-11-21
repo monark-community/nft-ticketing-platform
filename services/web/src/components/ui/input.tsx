@@ -4,9 +4,10 @@ import { Input as InputPrimitive } from "@base-ui/react/input"
 import { cn } from "@/lib/utils"
 
 // Input and Textarea from the Figma Design System page (#290).
-// Focus = orange border, error (aria-invalid) = red border, disabled = 50% opacity.
+// Focus = orange border and a ring that fades in (120 ms, #364), error (aria-invalid) = red border,
+// disabled = 50% opacity.
 const fieldClasses =
-  "w-full min-w-0 rounded-sm border border-input bg-background px-4 type-body-md text-foreground transition-[color,border-color,box-shadow] duration-200 outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
+  "w-full min-w-0 rounded-sm border border-input bg-background px-4 type-body-md text-foreground transition-[color,border-color,box-shadow] duration-fast outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (

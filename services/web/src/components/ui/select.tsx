@@ -11,7 +11,7 @@ function Select({ className, children, ...props }: React.ComponentProps<"select"
       <select
         // The empty "Choose…" option shows as a placeholder
         data-empty={props.value === "" || undefined}
-        className="h-11 w-full min-w-0 appearance-none rounded-sm border border-input bg-background pr-10 pl-4 type-body-md text-foreground transition-[color,border-color,box-shadow] duration-200 outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-[empty]:text-muted-foreground [&>option]:bg-popover [&>option]:text-foreground"
+        className="h-11 w-full min-w-0 appearance-none rounded-sm border border-input bg-background pr-10 pl-4 type-body-md text-foreground transition-[color,border-color,box-shadow] duration-fast outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-[empty]:text-muted-foreground [&>option]:bg-popover [&>option]:text-foreground"
         {...props}
       >
         {children}

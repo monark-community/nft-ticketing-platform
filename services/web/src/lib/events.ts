@@ -67,6 +67,23 @@ export function appendEvents(current: EventSummary[], next: EventSummary[]) {
   return [...current, ...next.filter((e) => !seen.has(e.id))];
 }
 
+// The API sends at most this many events per request (services/api event.controller getEvents)
+export const EVENTS_LIMIT_MAX = 50;
+
+// Loading the first `count` events of a list again, for example every page shown before opening
+// an event (#363): one request up to the API's limit, more after that
+export function reloadPaths(filters: EventFilters, count: number) {
+  const wanted = Math.max(1, count);
+  const limit = Math.min(wanted, EVENTS_LIMIT_MAX);
+  return Array.from({ length: Math.ceil(wanted / limit) }, (_, i) => eventsPath(filters, i + 1, limit));
+}
+
+// Their answers as one list of at most `count` events, and the total from the first answer
+export function joinPages(pages: EventsPage[], count: number) {
+  const events = pages.reduce<EventSummary[]>((all, page) => appendEvents(all, page.events), []).slice(0, count);
+  return { events, total: pages[0]?.total ?? 0 };
+}
+
 // Search and category filter on the home page (#320). Empty strings mean "no filter".
 export interface EventFilters {
   q: string;
