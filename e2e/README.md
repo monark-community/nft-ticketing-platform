@@ -84,7 +84,7 @@ The rules from #336: find elements by role and label, never by CSS classes; chec
 
 | Fixture | What it gives you |
 |---------|-------------------|
-| `wallet` | The test wallet, in every page. Starts as Alex, not connected. `use(account)`, `switchAccount(account)`, `switchNetwork(chainId)`, `rejectNext()` or `rejectNext('connect' \| 'sign' \| 'send' \| 'switchNetwork')` (a second argument lets that many prompts through first: `rejectNext('send', 1)` rejects the second transaction), `disconnect()`, and `requests` (every method the page asked for) |
+| `wallet` | The test wallet, in every page. Starts as Alex, not connected. `use(account)`, `switchAccount(account)`, `switchNetwork(chainId)`, `rejectNext()` or `rejectNext('connect' \| 'sign' \| 'send' \| 'switchNetwork')` (a second argument lets that many prompts through first: `rejectNext('send', 1)` rejects the second transaction), `holdNext(kind, skip?)` (keeps the next prompt of that kind open until `release()`, with `reached` resolving once it shows, so a test can change something while the person is confirming), `disconnect()`, and `requests` (every method the page asked for) |
 | `signIn(who, { path })` | Signs in through the real Connect button, as an account or a role (`'attendee'`, `'organizer'`, `'admin'`, `'scanner'`), and ends on `path` |
 | `openScanner(scenes, who)` | A second browser on `/scan`, whose camera plays `scenes`, for example `[{ qr: await entryQr(accounts.alex, 0, 1), seconds: 3 }]` |
 

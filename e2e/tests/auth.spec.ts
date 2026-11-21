@@ -6,8 +6,9 @@
 
 import { createHmac } from 'node:crypto';
 import type { BrowserContext, Page } from '@playwright/test';
+import { ethers } from 'ethers';
 
-import { accounts, ALEX_EMAIL, ApiSession, expect, JORDAN_EMAIL, newWallet, openMenuIfPhone, seededEvents, test, WALLET_NAME, type Account, type Role, type TestWallet } from '../fixtures/index.js';
+import { accounts, ALEX_EMAIL, ApiSession, chain, expect, JORDAN_EMAIL, newWallet, openMenuIfPhone, seededEvents, test, waitForSync, WALLET_NAME, type Account, type Role, type TestWallet } from '../fixtures/index.js';
 import { API_URL, JWT_SECRET, SEPOLIA_CHAIN_ID, WEB_URL } from '../stack/config.mjs';
 
 // --- Helpers -------------------------------------------------------------------------------------
@@ -278,7 +279,31 @@ test.describe('sign-up', () => {
     await expect(connectStep(page)).toBeVisible();
   });
 
-  // TODO(#328): write once "don't send an organizer request for organizers and the admin" is merged
+  // #328: a wallet the admin made an organizer on-chain before it ever signed in
+  test('a wallet that already has the organizer role creates its account without sending a request', async ({ page, wallet }) => {
+    const person = newWallet(22);
+    const receipt = await (await chain.ticketNft(accounts.admin).grantRole(ethers.id('ORGANIZER_ROLE'), person.address)).wait();
+    await waitForSync(receipt!.blockNumber);
+
+    const requests: string[] = [];
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === '/api/users/me/organizer-request') requests.push(request.method());
+    });
+
+    await wallet.use(person);
+    await page.goto(`/signup?next=${encodeURIComponent('/organizer')}`);
+    await connectOnSignUp(page);
+    await fillAccountForm(page, { email: 'nora.22@example.com', organizer: true });
+    await expect(page.getByRole('radio', { name: /Organizer/ })).toBeChecked();
+    await submitAccountForm(page);
+
+    // Straight on to the page it came for: no request, so no "Request sent" and no retry card
+    await page.waitForURL((url) => url.pathname === '/organizer');
+    await expect(page.getByText(/your organizer request didn't go through/)).toHaveCount(0);
+    expect(requests.filter((method) => method === 'POST')).toEqual([]);
+    const session = await ApiSession.signIn(person);
+    expect(await session.get('/api/users/me')).toMatchObject({ role: 'ORGANIZER', profile_complete: true });
+  });
 });
 
 // --- Session -------------------------------------------------------------------------------------

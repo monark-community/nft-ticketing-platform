@@ -192,7 +192,7 @@ function SettingsFormBody({ event, current, hasAdminRole, transaction, onClose, 
         },
       },
     ]);
-    if (confirmed) onSaved(settings);
+    if (confirmed === "success") onSaved(settings);
   }
 
   return (

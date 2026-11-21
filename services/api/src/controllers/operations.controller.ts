@@ -6,6 +6,7 @@ import {
   listWhitelist,
   addToWhitelist,
   removeFromWhitelist,
+  MAX_WHITELIST_BATCH,
 } from '../services/operations.service';
 import { isWalletAddress } from '../lib/validation';
 
@@ -71,11 +72,19 @@ export async function postWhitelist(req: Request, res: Response): Promise<void> 
     res.status(400).json({ error: 'wallets must be a non-empty array of valid wallet addresses' });
     return;
   }
+  if (wallets.length > MAX_WHITELIST_BATCH) {
+    res.status(400).json({ error: `Add at most ${MAX_WHITELIST_BATCH} wallets at a time` });
+    return;
+  }
 
   try {
     const result = await addToWhitelist(req.params.id, req.user!.wallet_address, wallets);
     if (result === null) { res.status(404).json({ error: 'Event not found' }); return; }
     if (result === 'forbidden') { res.status(403).json({ error: 'Not your event' }); return; }
+    if (result === 'too_many') {
+      res.status(400).json({ error: `Add at most ${MAX_WHITELIST_BATCH} wallets at a time` });
+      return;
+    }
     if ('unregistered' in result) {
       res.status(422).json({
         error: 'Some wallets do not belong to a platform account',

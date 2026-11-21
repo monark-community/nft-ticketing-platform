@@ -112,24 +112,42 @@ describe('publishing copies the event setup from the contract', () => {
     expect(res.body.ticket_types).toHaveLength(2);
   });
 
-  it('still publishes when the event is not set up on-chain', async () => {
+  // #251: publishing is what links the API event to an on-chain event, so the contract must
+  // already have that event configured for this organizer.
+  it('refuses to publish an event that is not set up on-chain', async () => {
     chain.config = null;
     await createTicketType(event.id, { ipfs_hash: 'bafy-ga' });
 
     const res = await publish(42);
-    expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ status: 'PUBLISHED', sale_active: false, royalty_bps: null });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('EVENT_NOT_CONFIGURED');
+
+    const saved = await prisma.event.findUnique({ where: { id: event.id } });
+    expect(saved).toMatchObject({ status: 'FROZEN', contract_event_id: null });
   });
 
-  it('still publishes when the chain cannot be reached', async () => {
+  it('refuses to publish an event ID that belongs to another wallet on-chain', async () => {
+    chain.organizer = ethers.getAddress('0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC');
+
+    const res = await publish(42);
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('EVENT_NOT_ORGANIZER');
+
+    const saved = await prisma.event.findUnique({ where: { id: event.id } });
+    expect(saved?.status).toBe('FROZEN');
+  });
+
+  it('refuses to publish when the chain cannot be reached, so it can be retried', async () => {
     chain.fail = true;
 
     const res = await publish(42);
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe('PUBLISHED');
+    expect(res.status).toBe(502);
+
+    const saved = await prisma.event.findUnique({ where: { id: event.id } });
+    expect(saved?.status).toBe('FROZEN');
   });
 
-  it('skips the chain when RPC_URL is not set', async () => {
+  it('skips the chain check when RPC_URL is not set', async () => {
     vi.stubEnv('RPC_URL', '');
 
     const res = await publish(42);

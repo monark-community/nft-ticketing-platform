@@ -208,7 +208,7 @@ export function usePublishEvent({ event, image, onEventChange }: Options) {
       if (steps.length > 0) {
         const ok = await tx.run(steps);
         await chain.refetch();
-        if (!ok) return false;
+        if (ok !== "success") return false;
       }
 
       // 3. Publish: the event becomes public in the API, linked to its on-chain ID
