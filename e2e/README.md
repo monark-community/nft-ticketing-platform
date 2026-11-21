@@ -41,7 +41,7 @@ Starting the stack takes one to three minutes (longer on Windows), most of it th
 
 Before each test file, on each screen size, everything goes back to the seeded state: the chain is reverted to a snapshot, the database is copied again and the API restarts. That takes about 5 seconds. Tests in the same file share the state, in order.
 
-Only two settings differ from production, both for the tests: the API allows more sign-ins per minute (`AUTH_RATE_LIMIT_MAX`), and uploads go to the local stand-in for Pinata (`PINATA_UPLOAD_URL`), because the tests can't use a real Pinata key. The API code that uploads is the same.
+Only three settings differ from production, all for the tests: the API allows more sign-ins and more page loads per minute (`AUTH_RATE_LIMIT_MAX`, `PUBLIC_RATE_LIMIT_MAX`), because one machine plays every visitor, and uploads go to the local stand-in for Pinata (`PINATA_UPLOAD_URL`), because the tests can't use a real Pinata key. The API code that uploads is the same.
 
 If the stack doesn't start, its logs are in `e2e/.stack/logs/`. To use another Postgres than the tests' one, set `E2E_DATABASE_ADMIN_URL` to a user that can create databases (for example `postgresql://user:password@localhost:5432/postgres`).
 
