@@ -98,6 +98,8 @@ export function NavbarView({ role, ready, address, user, pathname, signingIn = f
 
   return (
     <header
+      // Stays in place while an event's picture flies between two pages that fade (#363)
+      data-site-header
       className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur"
       // Focus leaving the navbar (Tab past the last menu link) closes the phone menu, so it never
       // stays open over the page that now has the focus
