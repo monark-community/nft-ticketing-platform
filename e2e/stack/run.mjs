@@ -306,8 +306,9 @@ function apiEnv() {
     CHAIN_ID: String(CHAIN_ID),
     ADMIN_WALLET: ACCOUNTS.admin.address,
     FRONTEND_URL: WEB_URL,
-    // Test-only settings: many sign-ins from one machine, and the stand-in for Pinata
+    // Test-only settings: many sign-ins and page loads from one machine, and the stand-in for Pinata
     AUTH_RATE_LIMIT_MAX: '1000',
+    PUBLIC_RATE_LIMIT_MAX: '1000',
     PINATA_JWT: 'e2e-fake-pinata-jwt',
     PINATA_UPLOAD_URL: IPFS_URL,
     PINATA_GATEWAY: `localhost:${PORTS.ipfs}`,

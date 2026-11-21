@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiClient } from "@/lib/api";
-import { appendEvents, eventsPath, NO_EVENT_FILTERS, type EventFilters, type EventSummary, type EventsPage } from "@/lib/events";
+import { appendEvents, eventsPath, joinPages, NO_EVENT_FILTERS, reloadPaths, type EventFilters, type EventSummary, type EventsPage } from "@/lib/events";
 
 // Three cards per row on desktop, so load three rows at a time
 export const EVENTS_PAGE_SIZE = 9;
 
 // The last list shown for each set of filters, kept while the app stays open. Coming back from an
 // event page shows it at once instead of placeholders, so the event's picture can shrink back
-// into its card (#363); it is then refreshed quietly.
+// into its card (#363); every page it had loaded is then refreshed quietly, so the cards show
+// the stock as it is now.
 interface RememberedList {
   events: EventSummary[];
   total: number;
@@ -42,19 +43,24 @@ export function useEvents(filters: EventFilters = NO_EVENT_FILTERS, options: { e
 
   const fetchPage = useCallback((n: number) => apiClient<EventsPage>(eventsPath(filters, n, pageSize)), [filters, pageSize]);
 
-  const load = useCallback(async (quiet: boolean) => {
+  // Loads the first `pages` pages: one, or every page a remembered list had loaded
+  const load = useCallback(async (quiet: boolean, pages = 1) => {
     const id = ++request.current;
     if (!quiet) setLoading(true);
     setError(null);
     setLoadMoreError(null);
     try {
-      const result = await fetchPage(1);
+      const count = pages * pageSize;
+      const answers = await Promise.all(reloadPaths(filters, count).map((path) => apiClient<EventsPage>(path)));
       if (id !== request.current) return;
+      const result = joinPages(answers, count);
+      // Fewer pages if the list got shorter meanwhile, so "Load more" goes on from the right place
+      const loadedPages = Math.max(1, Math.ceil(result.events.length / pageSize));
       setEvents(result.events);
       setTotal(result.total);
-      setPage(1);
+      setPage(loadedPages);
       const all = filters.category ? null : { q: filters.q, total: result.total };
-      remembered.set(listKey, { events: result.events, total: result.total, page: 1, allCount: all });
+      remembered.set(listKey, { events: result.events, total: result.total, page: loadedPages, allCount: all });
       if (all) setAllCount(all);
     } catch (err) {
       if (id !== request.current) return;
@@ -63,7 +69,7 @@ export function useEvents(filters: EventFilters = NO_EVENT_FILTERS, options: { e
     } finally {
       if (id === request.current) setLoading(false);
     }
-  }, [fetchPage, filters, listKey]);
+  }, [filters, pageSize, listKey]);
 
   const reload = useCallback(() => load(false), [load]);
 
@@ -114,9 +120,8 @@ export function useEvents(filters: EventFilters = NO_EVENT_FILTERS, options: { e
     // Load the first page on mount, and again whenever a filter changes
     if (quietKey.current !== listKey) quietKey.current = null; // a filter changed: no longer the remembered list
     const cameBack = quietKey.current === listKey;
-    // Came back to a list with more pages loaded: it stays as it was (Refresh reloads it)
-    if (cameBack && (start?.page ?? 1) > 1) return;
-    void load(cameBack);
+    // Came back to a remembered list: every page it had loaded, refreshed in place
+    void load(cameBack, cameBack ? (start?.page ?? 1) : 1);
   }, [load, enabled, listKey, start]);
 
   const hasMore = events.length < total;
