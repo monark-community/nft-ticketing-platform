@@ -47,8 +47,17 @@ export function HostBanner() {
   return (
     <aside
       aria-labelledby="host-banner-title"
-      className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
+      className="group relative flex flex-col gap-4 rounded-lg border border-transparent bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
     >
+      {/* Its border is dashed, and starts marching (and turns orange) while hovered (#366) */}
+      <svg className="pointer-events-none absolute -inset-px size-[calc(100%+2px)] overflow-visible" aria-hidden="true">
+        <rect
+          x="0.5"
+          y="0.5"
+          rx="11.5"
+          className="fill-none stroke-border-accent [height:calc(100%-1px)] [width:calc(100%-1px)] [stroke-dasharray:6_6] transition-[stroke] duration-200 group-hover:animate-march group-hover:stroke-primary group-focus-within:animate-march group-focus-within:stroke-primary"
+        />
+      </svg>
       <div className="flex items-center gap-4">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-sm bg-background text-primary">
           <Armchair className="size-5" aria-hidden="true" />
@@ -62,7 +71,10 @@ export function HostBanner() {
           </p>
         </div>
       </div>
-      <Link href={link === "signup" ? ROUTES.signUp : ROUTES.profile} className={cn(buttonVariants({ size: "md" }), "shrink-0")}>
+      <Link
+        href={link === "signup" ? ROUTES.signUp : ROUTES.profile}
+        className={cn(buttonVariants({ size: "md" }), "shrink-0 group-hover:[&_svg.lucide-arrow-right]:translate-x-1")}
+      >
         Request access
         <ArrowRight aria-hidden="true" />
       </Link>

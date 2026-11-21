@@ -6,14 +6,17 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { EventCard, EventCardSkeleton } from "@/components/events/EventCard";
 import { EventFilters } from "@/components/events/EventFilters";
+import { EventGrid } from "@/components/events/EventGrid";
 import { EventsMessage } from "@/components/events/EventsMessage";
 import { HostBanner } from "@/components/events/HostBanner";
 import { Footer } from "@/components/Footer";
-import { PageSwap } from "@/components/motion";
+import { PageSwap, RollingNumber } from "@/components/motion";
 import { Navbar } from "@/components/Navbar";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { EVENTS_PAGE_SIZE, useEvents } from "@/hooks/useEvents";
+import { useHeldLoading } from "@/hooks/useHeldLoading";
+import { useSawLoading } from "@/hooks/useSawLoading";
 import { filtersFromParams, filtersToQuery, hasEventFilters, NO_EVENT_FILTERS, type EventFilters as Filters } from "@/lib/events";
 
 const SEARCH_DELAY_MS = 300;
@@ -50,7 +53,7 @@ export default function EventsPage() {
 
 function LoadingGrid() {
   return (
-    <div role="status" aria-label="Loading events" className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    <div role="status" aria-label="Loading events" className="placeholder-in grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: Math.min(6, EVENTS_PAGE_SIZE) }, (_, i) => (
         <EventCardSkeleton key={i} />
       ))}
@@ -102,9 +105,13 @@ function EventsList() {
     };
   }, [search, q, category, setFilters]);
 
-  const { events, total, allTotal, loading, loadingMore, error, loadMoreError, hasMore, reload, loadMore } = useEvents(filters);
+  const { events, total, allTotal, loading, updating, batch, loadingMore, error, loadMoreError, hasMore, reload, loadMore } = useEvents(filters);
+  // Cards that replace the placeholders print in (#366)
+  const sawLoading = useSawLoading(loading);
+  // Placeholders never flash for a fast answer, and never blink when they do show (#365)
+  const showPlaceholders = useHeldLoading(loading);
   const filtered = hasEventFilters(filters);
-  const noResults = !loading && !error && events.length === 0 && filtered;
+  const noResults = !showPlaceholders && !error && events.length === 0 && filtered;
   // Something to browse under "No events found"
   const suggested = useEvents(NO_EVENT_FILTERS, { enabled: noResults, pageSize: SUGGESTED_EVENTS });
 
@@ -125,7 +132,7 @@ function EventsList() {
         refreshing={loading}
       />
 
-      {loading ? (
+      {showPlaceholders ? (
         <LoadingGrid />
       ) : error ? (
         <EventsMessage
@@ -145,6 +152,7 @@ function EventsList() {
           <div role="status">
             <EventsMessage
               icon={<SearchX aria-hidden="true" />}
+              iconArrives="stamp"
               title="No events found"
               action={
                 <Button onClick={clearFilters}>
@@ -190,13 +198,7 @@ function EventsList() {
         </EventsMessage>
       ) : (
         <>
-          <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {events.map((event) => (
-              <li key={event.id} className="flex">
-                <EventCard event={event} />
-              </li>
-            ))}
-          </ul>
+          <EventGrid events={events} batch={batch} print={sawLoading} updating={updating} />
 
           <div className="flex flex-col items-center gap-3">
             {loadMoreError && (
@@ -210,8 +212,10 @@ function EventsList() {
                 {loadMoreError ? "Try again" : "Load more events"}
               </Button>
             )}
+            {/* The counts roll like a counter when the results change (#366) */}
             <p className="type-body-sm text-muted-foreground" aria-live="polite">
-              Showing {events.length} of {total} {filtered ? "matching" : "upcoming"} {total === 1 ? "event" : "events"}
+              Showing <RollingNumber value={events.length} /> of <RollingNumber value={total} /> {filtered ? "matching" : "upcoming"}{" "}
+              {total === 1 ? "event" : "events"}
             </p>
           </div>
         </>

@@ -31,8 +31,16 @@ export function useEvents(filters: EventFilters = NO_EVENT_FILTERS, options: { e
   const [total, setTotal] = useState(start?.total ?? 0);
   const [page, setPage] = useState(start?.page ?? 0);
   const [loading, setLoading] = useState(enabled && !start);
-  // The remembered list stays up while its first refresh runs. Any other load shows placeholders.
+  // A search or category change keeps the cards on screen until the new ones arrive, so they can
+  // move to their new places (#366): true while that runs
+  const [updating, setUpdating] = useState(false);
+  // Which list is on screen: `load` counts finished first-page loads, `page` the pages loaded. The
+  // grid tells a new list (cards rise in) from "Load more" (new cards print in) with it.
+  const [batch, setBatch] = useState({ load: 0, page: start?.page ?? 0 });
+  // The remembered list stays up while its first refresh runs (quiet)
   const quietKey = useRef(start ? listKey : null);
+  // Cards are on screen to swap from: a filter change then loads without placeholders
+  const hasCards = useRef(Boolean(start?.events.length));
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
@@ -43,10 +51,14 @@ export function useEvents(filters: EventFilters = NO_EVENT_FILTERS, options: { e
 
   const fetchPage = useCallback((n: number) => apiClient<EventsPage>(eventsPath(filters, n, pageSize)), [filters, pageSize]);
 
-  // Loads the first `pages` pages: one, or every page a remembered list had loaded
-  const load = useCallback(async (quiet: boolean, pages = 1) => {
+  // Loads the first `pages` pages: one, or every page a remembered list had loaded.
+  // "show": placeholders until it arrives (first load, Refresh, Try again). "swap": the cards on
+  // screen stay until the new ones arrive (a filter changed). "quiet": refresh what's shown.
+  const load = useCallback(async (mode: "show" | "swap" | "quiet", pages = 1) => {
     const id = ++request.current;
-    if (!quiet) setLoading(true);
+    const quiet = mode === "quiet";
+    if (mode === "show") setLoading(true);
+    setUpdating(mode === "swap");
     setError(null);
     setLoadMoreError(null);
     try {
@@ -59,19 +71,27 @@ export function useEvents(filters: EventFilters = NO_EVENT_FILTERS, options: { e
       setEvents(result.events);
       setTotal(result.total);
       setPage(loadedPages);
+      setBatch((b) => ({ load: b.load + 1, page: loadedPages }));
+      hasCards.current = result.events.length > 0;
       const all = filters.category ? null : { q: filters.q, total: result.total };
       remembered.set(listKey, { events: result.events, total: result.total, page: loadedPages, allCount: all });
       if (all) setAllCount(all);
     } catch (err) {
       if (id !== request.current) return;
       // A quiet refresh that fails keeps the remembered list on screen
-      if (!quiet) setError(err instanceof Error ? err.message : "Failed to fetch events");
+      if (!quiet) {
+        setError(err instanceof Error ? err.message : "Failed to fetch events");
+        hasCards.current = false;
+      }
     } finally {
-      if (id === request.current) setLoading(false);
+      if (id === request.current) {
+        setLoading(false);
+        setUpdating(false);
+      }
     }
   }, [filters, pageSize, listKey]);
 
-  const reload = useCallback(() => load(false), [load]);
+  const reload = useCallback(() => load("show"), [load]);
 
   const loadMore = useCallback(async () => {
     const id = request.current;
@@ -84,6 +104,7 @@ export function useEvents(filters: EventFilters = NO_EVENT_FILTERS, options: { e
       setEvents(all);
       setTotal(result.total);
       setPage(page + 1);
+      setBatch((b) => ({ ...b, page: page + 1 }));
       remembered.set(listKey, { events: all, total: result.total, page: page + 1, allCount: remembered.get(listKey)?.allCount ?? null });
     } catch (err) {
       if (id !== request.current) return;
@@ -121,11 +142,11 @@ export function useEvents(filters: EventFilters = NO_EVENT_FILTERS, options: { e
     if (quietKey.current !== listKey) quietKey.current = null; // a filter changed: no longer the remembered list
     const cameBack = quietKey.current === listKey;
     // Came back to a remembered list: every page it had loaded, refreshed in place
-    void load(cameBack, cameBack ? (start?.page ?? 1) : 1);
+    void load(cameBack ? "quiet" : hasCards.current ? "swap" : "show", cameBack ? (start?.page ?? 1) : 1);
   }, [load, enabled, listKey, start]);
 
   const hasMore = events.length < total;
   const allTotal = allCount && allCount.q === filters.q ? allCount.total : null;
 
-  return { events, total, allTotal, loading, loadingMore, error, loadMoreError, hasMore, reload, loadMore };
+  return { events, total, allTotal, loading, updating, batch, loadingMore, error, loadMoreError, hasMore, reload, loadMore };
 }
