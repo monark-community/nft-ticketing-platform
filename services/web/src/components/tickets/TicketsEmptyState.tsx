@@ -5,14 +5,15 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { ROUTES } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
-// Figma "My Tickets / Empty" and "My Tickets / Not connected".
+// Figma "My Tickets / Empty" and "My Tickets / Not connected". Both arrive like the other empty
+// states (#365): the icon drops in, an orange outline draws around the card.
 // The "Upcoming events" row from those frames is added once the events list cards exist (#283).
 
 const CTA = "h-10 px-6 text-sm font-semibold tracking-normal normal-case";
 
 export function NoTicketsCard() {
   return (
-    <div className="mx-auto flex w-full max-w-[448px] flex-col items-center rounded-lg border border-border bg-card p-8 text-center shadow-[0_4px_12px_rgb(0_0_0/40%)]">
+    <div className="empty-arrive mx-auto flex w-full max-w-[448px] flex-col items-center rounded-lg border border-border bg-card p-8 text-center shadow-[0_4px_12px_rgb(0_0_0/40%)]">
       <IconCircle icon={Ticket} size="md" />
       <h2 className="font-serif text-2xl leading-8 font-medium text-foreground">No tickets yet</h2>
       <p className="pt-2 text-sm leading-5 text-muted-foreground">Tickets you buy show up here.</p>
@@ -25,7 +26,7 @@ export function NoTicketsCard() {
 
 export function ConnectWalletPrompt({ onConnect }: { onConnect: () => void }) {
   return (
-    <div className="mx-auto flex w-full max-w-[512px] flex-col items-center rounded-lg border border-border bg-card px-6 py-12 text-center shadow-[0_4px_12px_rgb(0_0_0/40%)] sm:px-12">
+    <div className="empty-arrive mx-auto flex w-full max-w-[512px] flex-col items-center rounded-lg border border-border bg-card px-6 py-12 text-center shadow-[0_4px_12px_rgb(0_0_0/40%)] sm:px-12">
       <IconCircle icon={Wallet} size="lg" />
       <h2 className="pb-3 font-serif text-2xl leading-8 font-semibold text-foreground">Connect your wallet</h2>
       <p className="max-w-[384px] pb-8 text-sm leading-5 text-muted-foreground">

@@ -31,9 +31,10 @@ interface EmptyStateProps {
   action?: React.ReactNode; // e.g. a "Clear search" button
 }
 
+// Arrives like the other empty states (#365): the icon drops in, an orange outline draws around it
 export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
   return (
-    <div className="dot-grid flex flex-col items-center gap-2 rounded-lg border border-border bg-card px-6 py-10 text-center">
+    <div className="empty-arrive dot-grid flex flex-col items-center gap-2 rounded-lg border border-border bg-card px-6 py-10 text-center">
       <span className="text-muted-foreground">{icon}</span>
       <h3 className="type-heading-sm text-foreground">{title}</h3>
       <p className="type-body-md text-muted-foreground">{description}</p>

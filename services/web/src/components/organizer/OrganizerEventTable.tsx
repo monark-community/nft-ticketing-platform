@@ -2,17 +2,31 @@
 
 import { CalendarDays, MapPin } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState, type CSSProperties } from "react";
 
 import { EventImage } from "@/components/event/EventImage";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatEventDate } from "@/lib/event-details";
+import { PRINT_MS, printDelay } from "@/lib/motion";
 import { eventSales, formatRevenue, organizerEventStatus, type OrganizerEvent } from "@/lib/organizer-events";
 import { cn } from "@/lib/utils";
 
 // The "My events" table from Figma (#187): Event / Date / Status / Sold / Revenue / action.
 // On phones each row becomes a two-column card so the page never scrolls sideways.
-export function OrganizerEventTable({ events, now }: { events: OrganizerEvent[]; now: number }) {
+// With `print`, the rows print in one after another as the table replaces its placeholders (#365),
+// starting after `printFrom` steps. Rows that appear later (a filter changed) just show.
+export function OrganizerEventTable({ events, now, print = false, printFrom = 0 }: { events: OrganizerEvent[]; now: number; print?: boolean; printFrom?: number }) {
+  // Only the rows of the first render print: once they're done, the class goes
+  const [printing, setPrinting] = useState(print);
+  const [printFor] = useState(() => printDelay(printFrom + events.length) + PRINT_MS);
+  useEffect(() => {
+    if (!printing) return;
+    const timer = setTimeout(() => setPrinting(false), printFor);
+    return () => clearTimeout(timer);
+  }, [printing, printFor]);
+
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
       <table className="block w-full table-fixed text-left lg:table">
@@ -34,8 +48,8 @@ export function OrganizerEventTable({ events, now }: { events: OrganizerEvent[];
           </tr>
         </thead>
         <tbody className="block lg:table-row-group">
-          {events.map((event) => (
-            <OrganizerEventRow key={event.id} event={event} now={now} />
+          {events.map((event, index) => (
+            <OrganizerEventRow key={event.id} event={event} now={now} printDelay={printing ? printDelay(printFrom + index) : null} />
           ))}
         </tbody>
       </table>
@@ -43,12 +57,17 @@ export function OrganizerEventTable({ events, now }: { events: OrganizerEvent[];
   );
 }
 
-function OrganizerEventRow({ event, now }: { event: OrganizerEvent; now: number }) {
+function OrganizerEventRow({ event, now, printDelay }: { event: OrganizerEvent; now: number; printDelay: number | null }) {
   const status = organizerEventStatus(event, now);
   const sales = eventSales(event);
+  // Read once: a row that was already there doesn't print again when the class goes
+  const [print] = useState(printDelay);
 
   return (
-    <tr className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border p-4 last:border-0 lg:table-row lg:p-0">
+    <tr
+      className={cn("grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border p-4 last:border-0 lg:table-row lg:p-0", print !== null && "print-row")}
+      style={print !== null ? ({ "--print-ms": `${PRINT_MS}ms`, "--print-delay": `${print}ms` } as CSSProperties) : undefined}
+    >
       <td className="col-span-2 block min-w-0 lg:table-cell lg:px-5 lg:py-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="relative size-12 shrink-0 overflow-hidden rounded-sm border border-border bg-muted">
@@ -122,11 +141,12 @@ function OrganizerEventRow({ event, now }: { event: OrganizerEvent; now: number 
   );
 }
 
-// Placeholder rows while the organizer's events load
+// Placeholder rows while the organizer's events load: the orange band sweeps down them, and they
+// show only when loading takes a moment (#365)
 export function OrganizerEventTableSkeleton({ rows = 4 }: { rows?: number }) {
   return (
     <div
-      className="overflow-hidden rounded-lg border border-border bg-card"
+      className="placeholder-in skeleton-sweep rounded-lg border border-border bg-card"
       role="status"
       aria-label="Loading your events"
     >
@@ -148,17 +168,17 @@ export function OrganizerEventTableSkeleton({ rows = 4 }: { rows?: number }) {
           className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border p-4 last:border-0 lg:grid-cols-[minmax(0,1fr)_15%_13%_10%_15%_12rem] lg:items-center lg:px-5 lg:py-4"
         >
           <div className="col-span-2 flex items-center gap-3 lg:col-span-1">
-            <div className="size-12 shrink-0 animate-pulse rounded-sm bg-muted motion-reduce:animate-none" />
+            <Skeleton className="size-12 shrink-0 rounded-sm" />
             <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <div className="h-4 w-3/4 animate-pulse rounded-xs bg-muted motion-reduce:animate-none" />
-              <div className="h-3 w-1/2 animate-pulse rounded-xs bg-muted motion-reduce:animate-none" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
             </div>
           </div>
-          <div className="h-4 w-28 animate-pulse rounded-xs bg-muted motion-reduce:animate-none" />
-          <div className="h-5 w-20 animate-pulse rounded-xs bg-muted motion-reduce:animate-none" />
-          <div className="h-4 w-16 animate-pulse rounded-xs bg-muted motion-reduce:animate-none lg:justify-self-end" />
-          <div className="h-4 w-24 animate-pulse rounded-xs bg-muted motion-reduce:animate-none lg:justify-self-end" />
-          <div className="col-span-2 h-9 w-full animate-pulse rounded-sm bg-muted motion-reduce:animate-none lg:col-span-1 lg:w-28 lg:justify-self-end" />
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-5 w-20" />
+          <Skeleton className="h-4 w-16 lg:justify-self-end" />
+          <Skeleton className="h-4 w-24 lg:justify-self-end" />
+          <Skeleton className="col-span-2 h-9 w-full rounded-sm lg:col-span-1 lg:w-28 lg:justify-self-end" />
         </div>
       ))}
     </div>

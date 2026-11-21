@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import type { TicketView } from "@/lib/my-tickets";
 import { cn } from "@/lib/utils";
 
@@ -47,14 +48,15 @@ export function TicketSection({
   );
 }
 
-// Same footprint as the cards, so the page doesn't jump when the tickets arrive
+// Same footprint as the cards, so the page doesn't jump when the tickets arrive. The orange band
+// sweeps down each card, and it shows only when loading takes a moment (#365).
 export function TicketsSkeleton() {
   return (
-    <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading your tickets">
-      <div className="h-4 w-28 animate-pulse rounded-xs bg-card" />
+    <div className="placeholder-in flex flex-col gap-4" aria-busy="true" aria-label="Loading your tickets">
+      <Skeleton className="h-4 w-28 bg-card" />
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="h-[400px] animate-pulse rounded-lg border border-border bg-card" />
+          <Skeleton key={i} sweep className="h-[400px] rounded-lg border border-border bg-card" />
         ))}
       </div>
     </div>

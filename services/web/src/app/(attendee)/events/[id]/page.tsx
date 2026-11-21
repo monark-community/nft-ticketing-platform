@@ -19,6 +19,7 @@ import { Navbar } from "@/components/Navbar";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useEvent } from "@/hooks/useEvent";
 import { useEventOnChain } from "@/hooks/useEventOnChain";
 import { useHasMounted } from "@/hooks/useHasMounted";
@@ -302,18 +303,19 @@ export default function EventPage() {
 }
 
 // Placeholder shapes while the event loads, so the layout doesn't jump. Without `hero`, the real
-// hero is already on the page with the picture of the card that was clicked.
+// hero is already on the page with the picture of the card that was clicked. The orange band
+// sweeps down each block (#365); the page's arrival is the event page sub-issue's (#367).
 function EventPageSkeleton({ hero }: { hero: boolean }) {
   return (
     <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading event">
-      {hero && <div className="h-[340px] animate-pulse rounded-lg bg-card md:h-[450px]" />}
+      {hero && <Skeleton sweep className="h-[340px] rounded-lg bg-card md:h-[450px]" />}
       <div className="grid grid-cols-1 gap-8 pt-4 lg:grid-cols-12">
         <div className="flex flex-col gap-6 lg:col-span-7">
-          <div className="h-8 w-56 animate-pulse rounded-sm bg-card" />
-          <div className="h-40 animate-pulse rounded-lg bg-card" />
-          <div className="h-40 animate-pulse rounded-lg bg-card" />
+          <Skeleton sweep className="h-8 w-56 rounded-sm bg-card" />
+          <Skeleton sweep className="h-40 rounded-lg bg-card" />
+          <Skeleton sweep className="h-40 rounded-lg bg-card" />
         </div>
-        <div className="h-[520px] animate-pulse rounded-lg bg-card lg:col-span-5" />
+        <Skeleton sweep className="h-[520px] rounded-lg bg-card lg:col-span-5" />
       </div>
     </div>
   );

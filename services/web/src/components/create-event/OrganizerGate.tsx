@@ -8,6 +8,7 @@ import { useAccount } from "wagmi";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { useWalletAuth } from "@/hooks/useWalletAuth";
@@ -115,5 +116,5 @@ function GateCard({ icon, title, children }: { icon: ReactNode; title: string; c
 }
 
 function GateSkeleton() {
-  return <div className="h-[420px] w-full animate-pulse rounded-lg bg-card" aria-busy="true" aria-label="Loading" />;
+  return <Skeleton sweep className="placeholder-in h-[420px] w-full rounded-lg bg-card" aria-busy="true" aria-label="Loading" />;
 }
