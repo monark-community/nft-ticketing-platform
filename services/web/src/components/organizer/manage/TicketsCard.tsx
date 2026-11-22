@@ -164,7 +164,7 @@ export function TicketsCard({ eventId, ticketTypes, usdcDecimals, explorerUrl, r
           text="Tickets appear here after a sale or after you issue free tickets."
         />
       ) : tickets.tickets.length === 0 ? (
-        <EmptyState title="No tickets match these filters" text="Clear a filter to see the event's other tickets." />
+        <EmptyState title="No tickets match these filters" text="Clear a filter to see the event's other tickets." stamp />
       ) : (
         <>
           <div className="overflow-x-auto rounded-md border border-border">
@@ -283,9 +283,14 @@ function Filter({ label, children }: { label: string; children: React.ReactNode 
   );
 }
 
-function EmptyState({ title, text }: { title: string; text: string }) {
+// Arrives like the other empty states (#365). With no match for the filters the icon is stamped on
+// instead, like the Events page's "No events found" (#366).
+function EmptyState({ title, text, stamp = false }: { title: string; text: string; stamp?: boolean }) {
   return (
-    <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border px-6 py-8 text-center">
+    <div
+      className="empty-arrive flex flex-col items-center gap-2 rounded-md border border-dashed border-border px-6 py-8 text-center"
+      data-arrive={stamp ? "stamp" : undefined}
+    >
       <Ticket className="size-7 text-muted-foreground" aria-hidden="true" />
       <p className="type-title-md text-foreground">{title}</p>
       <p className="type-body-sm text-secondary-foreground">{text}</p>
