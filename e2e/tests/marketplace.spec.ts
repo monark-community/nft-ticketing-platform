@@ -967,19 +967,37 @@ test.describe('while the Buy popup is open', () => {
     });
   }
 
-  test('the admin changes the event\'s royalty: told why it can\'t be bought', async ({ page, signIn }) => {
-    const { event, token } = await alexListing(25, 'Royalty Changed Under Me');
+  // The admin changes the royalty while the popup is open
+  async function royaltyChangedUnderBuyer(page: Page, signIn: SignIn, title: string) {
+    const { event, token } = await alexListing(25, title);
     await openSignedIn(page, signIn, accounts.jordan);
     await openBuy(page, token);
-    const before = await chain.usdcBalance(accounts.jordan.address);
-
     const [endTime, resaleCapBps, , , , , perWalletLimit] = (await chain.ticketNft().eventConfigs(event.contractId)) as [bigint, bigint, bigint, bigint, boolean, boolean, bigint];
     await (await chain.ticketNft(accounts.admin).adminUpdateEventSettings(event.contractId, endTime, 500, resaleCapBps, perWalletLimit)).wait();
+    return token;
+  }
+
+  test('the admin changes the event\'s royalty: told why it can\'t be bought', async ({ page, signIn }) => {
+    const token = await royaltyChangedUnderBuyer(page, signIn, 'Royalty Changed Under Me');
+    const before = await chain.usdcBalance(accounts.jordan.address);
 
     await buyButton(page).click();
-    await expect(buyDialog(page).getByText(/royalty.*after this ticket was listed/i).first()).toBeVisible();
+    await expectBlocked(page, 'The royalty changed after this ticket was listed', "It can't be bought until the seller lists it again with the new terms. Pick another listing.");
+    await expect(buyButton(page)).toBeDisabled();
     expect(await chain.ownerOf(token)).toBe(accounts.alex.address);
     expect(await chain.usdcBalance(accounts.jordan.address)).toBe(before);
     await expect(chain.ticketNft(accounts.jordan).buyResaleTicket.staticCall(token, chain.usdc(25))).rejects.toThrow('Royalty changed since listing');
+  });
+
+  // TODO(418): the popup's last check before the wallet opens compares the price and the seller,
+  // not the royalty, so Buy first sends the USDC approval and only then says the royalty changed.
+  // Turn on once that check includes the royalty.
+  test.fixme('the admin changes the event\'s royalty: nothing is sent', async ({ page, signIn, wallet }) => {
+    await royaltyChangedUnderBuyer(page, signIn, 'Royalty Changed Nothing Sent');
+    const sent = wallet.requests.length;
+
+    await buyButton(page).click();
+    await expectBlocked(page, 'The royalty changed after this ticket was listed');
+    expect(sendsSince(wallet, sent)).toBe(0);
   });
 });
