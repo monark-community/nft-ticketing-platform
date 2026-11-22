@@ -10,7 +10,7 @@
 
 import type { Locator, Page } from '@playwright/test';
 
-import { accounts, ApiSession, chain, createPublishedEvent, entryQr, expect, newWallet, seededEvents, test, waitForSync, type Account } from '../fixtures/index.js';
+import { accounts, ApiSession, chain, createPublishedEvent, entryQr, expect, newWallet, seededEvents, test, waitForSync, type Account, type TestWallet, WALLET_NAME } from '../fixtures/index.js';
 import { API_URL, CHAIN_ID, SEPOLIA_CHAIN_ID } from '../stack/config.mjs';
 
 // --- Helpers -------------------------------------------------------------------------------------
@@ -56,22 +56,31 @@ async function createBuyer(index: number): Promise<Account> {
   return buyer;
 }
 
+/** A wallet that has never signed in, connected on the sign-up page: it gets to Create your account */
+async function connectNewWallet(page: Page, wallet: TestWallet) {
+  await wallet.use(newWallet(32));
+  await page.goto('/signup');
+  await main(page).getByRole('button', { name: 'Connect wallet' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: WALLET_NAME }).click();
+}
+
 /**
- * Watches the page for `text` coming back once it has gone, like the previous wallet's data showing
- * again after a switch because its slower request finished late. Returns the check for the end.
+ * Watches the page for `text`: whether it went, and whether it came back afterwards, like the
+ * previous wallet's data showing again because its slower request finished late. Returns the check
+ * for the end.
  */
-async function watchComesBack(page: Page, text: string): Promise<() => Promise<boolean>> {
+async function watchComesBack(page: Page, text: string): Promise<() => Promise<{ gone: boolean; cameBack: boolean }>> {
   await page.evaluate((watched) => {
-    const w = window as unknown as { __cameBack?: boolean };
-    w.__cameBack = false;
-    let gone = false;
+    const seen = { gone: false, cameBack: false };
+    (window as unknown as { __watched?: typeof seen }).__watched = seen;
     new MutationObserver(() => {
       const shown = document.body.innerText.includes(watched);
-      if (!shown) gone = true;
-      else if (gone) w.__cameBack = true;
+      if (!shown) seen.gone = true;
+      else if (seen.gone) seen.cameBack = true;
     }).observe(document.body, { childList: true, subtree: true, characterData: true });
   }, text);
-  return () => page.evaluate(() => (window as unknown as { __cameBack?: boolean }).__cameBack === true);
+  // A reload drops the observer: then nothing was watched, and `gone` stays false
+  return () => page.evaluate(() => (window as unknown as { __watched?: { gone: boolean; cameBack: boolean } }).__watched ?? { gone: false, cameBack: false });
 }
 
 /**
@@ -128,25 +137,25 @@ test.describe('wrong network', () => {
     expect(wallet.chainId).toBe(SEPOLIA_CHAIN_ID);
   });
 
-  // Pages that send a transaction. Publishing an event is checked in create-event.spec.ts and
-  // buying a resale ticket in marketplace.spec.ts.
+  // Pages that send a transaction: the action stays off until the wallet is back on the contract's
+  // network. Publishing is checked in create-event.spec.ts, resale buying in marketplace.spec.ts and
+  // Admin's actions in admin.spec.ts.
   interface TxPage {
     name: string;
     who: Account;
     path: string;
     open?: (page: Page) => Promise<void>; // to where the transaction is sent from
-    ready: (page: Page) => Locator; // shown on the right network
+    action: (page: Page) => Locator; // the button that sends it, while it can be pressed
     prompt: (page: Page) => Locator; // the page's own prompt to switch
     switchButton: (page: Page) => Locator;
   }
   const manageNotice = (page: Page) => page.locator('[data-slot="alert"]').filter({ hasText: /Switch to .+ to make changes/ });
-  const adminNotice = (page: Page) => page.locator('[data-slot="alert"]').filter({ hasText: 'Switch network to make changes' });
   const TX_PAGES: TxPage[] = [
     {
       name: 'the event page (buying tickets)',
       who: accounts.jordan,
       path: `/events/${GALA.apiId}`,
-      ready: (page) => buyButton(page),
+      action: (page) => summary(page).getByRole('button', { name: /^Buy tickets/, disabled: false }),
       prompt: (page) => summary(page).getByText(/^Switch your wallet to .+ to buy tickets\.$/),
       switchButton: (page) => summary(page).getByRole('button', { name: 'Switch network' }),
     },
@@ -154,8 +163,11 @@ test.describe('wrong network', () => {
       name: 'the Sell popup',
       who: accounts.alex,
       path: '/marketplace',
-      open: (page) => openSell(page, 0),
-      ready: (page) => sellDialog(page).getByRole('button', { name: 'List ticket' }),
+      open: async (page) => {
+        await openSell(page, 0);
+        await sellDialog(page).getByLabel('Set your price').fill('20'); // under the cap (30)
+      },
+      action: (page) => sellDialog(page).getByRole('button', { name: 'List ticket', disabled: false }),
       prompt: (page) => sellDialog(page).getByRole('button', { name: /^Switch to / }),
       switchButton: (page) => sellDialog(page).getByRole('button', { name: /^Switch to / }),
     },
@@ -163,37 +175,29 @@ test.describe('wrong network', () => {
       name: "the organizer's event page",
       who: accounts.organizer,
       path: `/organizer/events/${GALA.apiId}`,
-      ready: (page) => heading(page, GALA.title),
+      action: (page) => main(page).getByRole('button', { name: 'Pause sales', disabled: false }),
       prompt: manageNotice,
       switchButton: (page) => manageNotice(page).getByRole('button', { name: 'Switch network' }),
-    },
-    {
-      name: 'Admin',
-      who: accounts.admin,
-      path: '/admin',
-      ready: (page) => page.getByText(ADMIN_INTRO),
-      prompt: adminNotice,
-      switchButton: (page) => adminNotice(page).getByRole('button', { name: 'Switch network', exact: true }),
     },
   ];
 
   for (const row of TX_PAGES) {
-    test(`${row.name} asks to switch before anything is sent, and the switch works`, async ({ page, signIn, wallet }) => {
+    test(`${row.name} keeps its action off and asks to switch, and the switch works`, async ({ page, signIn, wallet }) => {
       await signIn(row.who, { path: row.path });
       await row.open?.(page);
-      await expect(row.ready(page)).toBeVisible();
+      await expect(row.action(page)).toBeVisible();
       const requests = wallet.requests.length;
 
       await wallet.switchNetwork(MAINNET);
       await expect(banner(page)).toBeVisible();
       await expect(row.prompt(page)).toBeVisible();
+      await expect(row.action(page)).toHaveCount(0);
       await row.switchButton(page).click();
 
       await expect(row.prompt(page)).toHaveCount(0);
-      await expect(row.ready(page)).toBeVisible();
+      await expect(row.action(page)).toBeVisible();
       expect(wallet.chainId).toBe(CHAIN_ID);
       expect(wallet.requests.slice(requests)).toContain('wallet_switchEthereumChain');
-      expect(wallet.requests.slice(requests)).not.toContain('eth_sendTransaction');
     });
   }
 
@@ -290,7 +294,7 @@ test.describe('switching account, then disconnecting', () => {
       await row.setup?.();
       await signIn(row.first, { path: row.path });
       await expect(row.firstData(page)).toBeVisible();
-      const cameBack = await watchComesBack(page, row.marker);
+      const watched = await watchComesBack(page, row.marker);
 
       await wallet.switchAccount(row.second);
       await expect(row.secondData(page)).toBeVisible();
@@ -299,7 +303,7 @@ test.describe('switching account, then disconnecting', () => {
       await wallet.disconnect();
       await expect(row.signedOut(page)).toBeVisible();
       await expect(row.firstData(page)).toHaveCount(0);
-      expect(await cameBack(), `"${row.marker}" came back after the switch`).toBe(false);
+      expect(await watched(), `"${row.marker}" after the switch`).toEqual({ gone: true, cameBack: false });
     });
   }
 });
@@ -308,7 +312,7 @@ test.describe('switching account, then disconnecting', () => {
 
 interface ApiDownRow {
   path: string;
-  who?: Account; // signed in as, or a signed-out visitor
+  who?: Account | 'new wallet'; // signed in as, a wallet that never signed in, or a signed-out visitor
   error: string; // what the page says
   retry: string; // the button (or link) that tries again
   shows: (page: Page) => Locator; // the page, loaded
@@ -323,17 +327,20 @@ const API_DOWN: ApiDownRow[] = [
   { path: '/my-tickets', who: accounts.alex, error: "Couldn't load your tickets", retry: 'Try again', shows: (page) => heading(page, /^Upcoming · \d+$/) },
   // The session can't be checked either, so the page asks to sign in again
   { path: '/profile', who: accounts.alex, error: SIGN_IN_ERROR, retry: 'Sign in', shows: (page) => heading(page, 'Account details') },
+  { path: '/signup', who: 'new wallet', error: SIGN_IN_ERROR, retry: 'Sign message', shows: (page) => main(page).getByText('Create your account', { exact: true }) },
   { path: '/scan', who: accounts.scanner, error: "Couldn't load your events", retry: 'Try again', shows: (page) => main(page).getByText(CAMERA) },
   { path: '/organizer', who: accounts.organizer, error: SIGN_IN_ERROR, retry: 'Sign in', shows: (page) => heading(page, 'My events'), bug: '#413' },
+  { path: '/organizer/events/new', who: accounts.organizer, error: SIGN_IN_ERROR, retry: 'Sign in', shows: (page) => heading(page, 'Create event'), bug: '#413' },
   { path: `/organizer/events/${GALA.apiId}`, who: accounts.organizer, error: SIGN_IN_ERROR, retry: 'Sign in', shows: (page) => heading(page, GALA.title), bug: '#413' },
   { path: '/admin', who: accounts.admin, error: SIGN_IN_ERROR, retry: 'Sign in', shows: (page) => page.getByText(ADMIN_INTRO), bug: '#413' },
 ];
 
 test.describe('outages', () => {
   for (const row of API_DOWN) {
-    test(`API down: ${row.path} shows an error with a retry, and the retry works once the API is back`, async ({ page, signIn }) => {
+    test(`API down: ${row.path} shows an error with a retry, and the retry works once the API is back`, async ({ page, signIn, wallet }) => {
       test.fixme(row.bug !== undefined, `It shows "Sign in to continue" without an error (${row.bug})`);
-      if (row.who) await signIn(row.who, { path: row.path });
+      if (row.who === 'new wallet') await connectNewWallet(page, wallet);
+      else if (row.who) await signIn(row.who, { path: row.path });
       else await page.goto(row.path);
       await expect(row.shows(page)).toBeVisible();
 
@@ -397,6 +404,68 @@ test.describe('outages', () => {
     await chainError.getByRole('button', { name: 'Try again' }).click();
     await expect(sales).toBeVisible();
   });
+
+  // Popups that read the chain when they open
+  interface ChainPopup {
+    name: string;
+    who: Account;
+    path: string;
+    setup?: () => Promise<void>;
+    before?: (page: Page) => Promise<void>; // with the chain still there
+    open: (page: Page) => Promise<void>;
+    error: string;
+    shows: (page: Page) => Locator; // once it can read the chain
+  }
+  const CHAIN_POPUPS: ChainPopup[] = [
+    {
+      name: 'the Sell popup',
+      who: accounts.alex,
+      path: '/marketplace',
+      open: async (page) => {
+        await main(page).getByRole('button', { name: 'Sell a ticket' }).first().click();
+        await sellDialog(page).getByRole('radio', { name: /Ticket #0(?!\d)/ }).click();
+      },
+      error: "Couldn't read this ticket from the blockchain.",
+      shows: (page) => sellDialog(page).getByLabel('Set your price'),
+    },
+    {
+      name: 'the Buy popup',
+      who: accounts.jordan,
+      path: '/marketplace',
+      // Alex lists his Early Bird ticket #2 (10 USDC face value)
+      setup: async () => waitForSync((await chain.listTicket(accounts.alex, 2, 15)).block),
+      open: (page) => main(page).getByRole('button', { name: /^Buy ticket #2 to / }).click(),
+      error: "Couldn't read this ticket from the blockchain.",
+      shows: (page) => page.getByRole('dialog', { name: 'Buy resale ticket' }).getByRole('button', { name: /^Buy ticket · / }),
+    },
+    {
+      name: "Admin's Edit settings",
+      who: accounts.admin,
+      path: '/admin',
+      before: (page) => page.getByRole('tab', { name: /^Events\s*\d+$/ }).click(),
+      open: (page) => page.getByRole('button', { name: `Edit settings of ${GALA.title}`, exact: true }).click(),
+      error: "Couldn't read the event's settings",
+      shows: (page) => page.getByRole('dialog', { name: 'Edit event settings' }).getByLabel('Royalty (%)'),
+    },
+  ];
+
+  for (const row of CHAIN_POPUPS) {
+    test(`chain unreachable: ${row.name} says it can't read the chain, shows nothing it can't check, and Try again works`, async ({ page, signIn }) => {
+      await row.setup?.();
+      await signIn(row.who, { path: row.path });
+      await row.before?.(page);
+
+      await page.route(CHAIN, (route) => route.abort());
+      await row.open(page);
+      const chainError = page.getByRole('dialog').getByRole('alert').filter({ hasText: row.error });
+      await expect(chainError).toBeVisible({ timeout: 30_000 });
+      await expect(row.shows(page)).toHaveCount(0);
+
+      await page.unroute(CHAIN);
+      await chainError.getByRole('button', { name: 'Try again' }).click();
+      await expect(row.shows(page)).toBeVisible();
+    });
+  }
 
   test('listener behind: a purchase shows on the event page at once, and My Tickets catches up on its own', async ({ page, signIn }) => {
     const buyer = await createBuyer(30);
