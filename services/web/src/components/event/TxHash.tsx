@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
+import { Copy } from "lucide-react";
 import { useState } from "react";
 
+import { DrawnCheck } from "@/components/motion/DrawnCheck";
 import { cn } from "@/lib/utils";
 
 // "Tx 0x7b21…e04d" with a copy button, under pending and finished purchases (Figma status frames).
@@ -37,7 +38,8 @@ export function TxHash({ hash, explorerUrl, className }: { hash: string; explore
         className="rounded-xs p-0.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
         aria-label={copied ? "Transaction hash copied" : "Copy transaction hash"}
       >
-        {copied ? <Check className="size-3.5 text-success" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}
+        {/* After copying, a tick draws itself for 1.5 s (#367) */}
+        {copied ? <DrawnCheck className="size-3.5 text-success" /> : <Copy className="size-3.5" aria-hidden="true" />}
       </button>
     </p>
   );

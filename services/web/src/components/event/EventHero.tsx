@@ -1,7 +1,9 @@
 import { CalendarDays, MapPin } from "lucide-react";
+import { Fragment, type CSSProperties } from "react";
 
 import { AboutEvent } from "@/components/event/AboutEvent";
 import { EventImage } from "@/components/event/EventImage";
+import { CountUp } from "@/components/motion/CountUp";
 import { SharedPicture } from "@/components/motion/SharedPicture";
 import type { ApiEvent } from "@/lib/event-details";
 import { formatEventDate } from "@/lib/event-details";
@@ -18,19 +20,29 @@ interface EventHeroProps {
   availability: { remaining: number; supply: number } | null;
   // The event loaded after the page opened: what it adds fades in
   arrivedLate?: boolean;
+  // Opened directly, without a card's picture to fly from: the picture develops (#367)
+  develop?: boolean;
 }
 
 // Hero card from Figma (Event detail / Default): cover image with a dark vignette, category tag,
 // title, date and venue, then the ticket availability bar and the "About this event" row, which
 // opens in place (a dropdown at Monark's request, where the Figma has a pill that opens a popup).
-export function EventHero({ event, eventId, loadingPicture = null, availability, arrivedLate = false }: EventHeroProps) {
+// Arriving (#367): the picture develops like a photo when there's no card to fly from, the tag
+// slides in, the title rises word by word, then the date and venue fade in (about 0.7 s), and the
+// availability bar grows to its width while its number counts. Coming from a card, all of it waits
+// until the picture has landed (data-hero-arrival, see globals.css).
+export function EventHero({ event, eventId, loadingPicture = null, availability, arrivedLate = false, develop = false }: EventHeroProps) {
   return (
-    <section className="overflow-hidden rounded-lg bg-card shadow-[0_25px_50px_-12px_rgb(0_0_0/25%)]" aria-busy={event ? undefined : true}>
+    <section
+      data-hero-arrival
+      className="overflow-hidden rounded-lg bg-card shadow-[0_25px_50px_-12px_rgb(0_0_0/25%)]"
+      aria-busy={event ? undefined : true}
+    >
       <div className="relative h-[280px] rounded-t-lg md:h-[390px]">
         {/* The same picture as on the event's card, under the hero's dark vignette: it flies from
             the card when the page opens (#363) */}
         <SharedPicture eventId={eventId} role="hero">
-          <EventImage src={event ? event.image_url : loadingPicture} />
+          <EventImage src={event ? event.image_url : loadingPicture} className={develop ? "photo-develop" : undefined} />
         </SharedPicture>
         {event && <HeroText event={event} />}
       </div>
@@ -49,21 +61,41 @@ export function EventHero({ event, eventId, loadingPicture = null, availability,
   );
 }
 
-// Category tag, title, date and venue over the picture. They fade in once the picture has landed.
+// Category tag, title, date and venue over the picture
 function HeroText({ event }: { event: ApiEvent }) {
+  const words = event.title.split(/\s+/).filter(Boolean);
+  // The date and venue fade in once the title's last word is rising: about 0.7 s in all
+  const metaDelay = Math.min(100 + words.length * 60 + 120, 520);
   return (
     <>
       {event.category && (
-        <span className="after-flight absolute top-5 left-5 rounded-sm border border-primary/70 bg-black/60 px-[11px] py-[5px] font-mono text-[10px] leading-[15px] font-medium tracking-[0.025em] text-primary backdrop-blur-md">
+        <span className="absolute top-5 left-5 animate-[slide-in-left_220ms_var(--ease-arrive)_backwards] rounded-sm border border-primary/70 bg-black/60 px-[11px] py-[5px] font-mono text-[10px] leading-[15px] font-medium tracking-[0.025em] text-primary backdrop-blur-md">
           {event.category}
         </span>
       )}
 
-      <div className="after-flight absolute inset-x-4 bottom-6 flex flex-col gap-1 md:right-4 md:left-6">
+      <div className="absolute inset-x-4 bottom-6 flex flex-col gap-1 md:right-4 md:left-6">
         <h1 className="font-serif text-[32px] leading-[1.1] font-semibold tracking-[-0.025em] text-foreground drop-shadow-md md:text-5xl md:leading-[48px]">
-          {event.title}
+          {/* Each word rises through its own mask, 60 ms after the one before; the spaces stay
+              plain text, so the heading reads as one title */}
+          {words.map((word, index) => (
+            <Fragment key={index}>
+              {index > 0 && " "}
+              <span className="-mb-[0.15em] inline-block overflow-hidden pb-[0.15em] align-bottom">
+                <span
+                  className="inline-block animate-[word-rise_320ms_var(--ease-arrive)_backwards] [animation-delay:var(--word-delay)]"
+                  style={{ "--word-delay": `${100 + index * 60}ms` } as CSSProperties}
+                >
+                  {word}
+                </span>
+              </span>
+            </Fragment>
+          ))}
         </h1>
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-2">
+        <div
+          className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-2 animate-[fade-in_200ms_ease-out_backwards] [animation-delay:var(--meta-delay)]"
+          style={{ "--meta-delay": `${metaDelay}ms` } as CSSProperties}
+        >
           <span className="flex items-center gap-1.5 text-xs text-secondary-foreground">
             <CalendarDays className="size-4 text-primary" aria-hidden="true" />
             {formatEventDate(event.start_date)}
@@ -108,11 +140,22 @@ function AvailabilityBar({ availability }: Pick<EventHeroProps, "availability">)
             aria-valuemax={100}
             aria-valuenow={percent}
           >
-            <div className="h-full rounded-full bg-gradient-to-r from-primary to-primary-soft" style={{ width: `${percent}%` }} />
+            {/* Grows to its width when it appears (420 ms), and slides when tickets sell (#367) */}
+            <div
+              className="h-full origin-left animate-[bar-grow_420ms_var(--ease-arrive)_backwards] rounded-full bg-gradient-to-r from-primary to-primary-soft transition-[width] duration-[420ms]"
+              style={{ width: `${percent}%` }}
+            />
           </div>
-          <span className="shrink-0 text-xs font-bold text-primary">{remaining === 0 ? "Sold out" : `${percent}% remaining`}</span>
+          <span className="shrink-0 text-xs font-bold text-primary">
+            {remaining === 0 ? "Sold out" : <CountUp value={percent} from={0} ms={420} format={formatPercentLeft} />}
+          </span>
         </div>
       )}
     </div>
   );
+}
+
+// "66.8% remaining", as percentRemaining rounds it (one decimal at most)
+function formatPercentLeft(value: number) {
+  return `${Math.round(value * 10) / 10}% remaining`;
 }

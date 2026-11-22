@@ -631,6 +631,37 @@
 @keyframes turn-once { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @utility turn-once { animation: turn-once 520ms cubic-bezier(0.4, 0, 0.2, 1); }
 
+/* ---------------------------------------------------------------------------
+   Event page and buying (#367)
+   --------------------------------------------------------------------------- */
+/* Opened without a card to fly from, the picture comes into focus like a photo developing */
+@keyframes photo-develop { from { filter: blur(14px) brightness(0.45) saturate(0.5); } }
+@utility photo-develop { animation: photo-develop 480ms ease-out backwards; }
+/* Hero text: the tag slides in, the title's words rise through a mask, the date and venue fade in */
+@keyframes slide-in-left { from { transform: translateX(-12px); opacity: 0; } }
+@keyframes word-rise { from { transform: translateY(105%); } }
+/* While the picture flies in from the card (#363), the hero's own arrival waits for it */
+:root:active-view-transition [data-hero-arrival] * { animation-play-state: paused; }
+/* The availability bar grows to its width */
+@keyframes bar-grow { from { transform: scaleX(0); } }
+/* Phones: the buy bar slides up from the bottom */
+@keyframes slide-up { from { transform: translateY(100%); } }
+
+/* Success: the ticket prints out of a slot in steps (0.5 s), then its stub tears off along the
+   perforation, scattering a few paper bits. The final state is the torn ticket. */
+@keyframes ticket-print {
+  from { clip-path: inset(0 -24px 100% -24px); transform: translateY(-6px); }
+  to { clip-path: inset(0 -24px -40px -24px); transform: none; }
+}
+@keyframes stub-tear { to { transform: translate(9px, 3px) rotate(5deg); } }
+@keyframes paper-bit {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translate(var(--bit-x), var(--bit-y)) scale(0.4); }
+}
+@utility ticket-print { animation: ticket-print 520ms steps(9, end) both; }
+@utility stub-tear { animation: stub-tear 220ms var(--ease-snap) 580ms both; }
+@utility paper-bit { opacity: 0; animation: paper-bit 360ms ease-out 580ms; }
+
 /* Respect reduced motion everywhere: animations and transitions jump to their end, without delay */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

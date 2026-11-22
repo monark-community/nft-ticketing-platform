@@ -26,7 +26,7 @@ import { useHasMounted } from "@/hooks/useHasMounted";
 import { usePurchaseTickets } from "@/hooks/usePurchaseTickets";
 import { useWalletAuth } from "@/hooks/useWalletAuth";
 import { TICKET_NFT_ADDRESS, TICKET_NFT_CHAIN_ID } from "@/lib/contracts/ticket-nft";
-import { buildTiers } from "@/lib/event-details";
+import { buildTiers, formatEventDate } from "@/lib/event-details";
 import { rememberedEventPicture } from "@/lib/event-picture";
 import { ROUTES } from "@/lib/nav";
 import { estimatePurchaseGas, getBlockMessage, getMaxQuantity, getPurchaseBlock } from "@/lib/purchase-checks";
@@ -164,15 +164,25 @@ export default function EventPage() {
           <Link
             href={ROUTES.events}
             onClick={backWithPicture}
-            className="flex w-fit items-center gap-1 rounded-xs text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="group flex w-fit items-center gap-1 rounded-xs text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <ArrowLeft className="size-3" aria-hidden="true" />
+            {/* Steps back 4 px on hover (#367) */}
+            <ArrowLeft className="size-3 transition-transform duration-fast group-hover:-translate-x-1" aria-hidden="true" />
             Back to events
           </Link>
 
           {/* One hero for the loading page and the loaded one, so the picture that flew out of the
               card isn't swapped for another element halfway through (#363) */}
-          {(event || heroWhileLoading) && <EventHero event={event} eventId={id} loadingPicture={loadingPicture ?? null} availability={availability} arrivedLate={!loadedAtStart} />}
+          {(event || heroWhileLoading) && (
+            <EventHero
+              event={event}
+              eventId={id}
+              loadingPicture={loadingPicture ?? null}
+              availability={availability}
+              develop={loadingPicture === undefined}
+              arrivedLate={!loadedAtStart}
+            />
+          )}
 
           {loading ? (
             <EventPageSkeleton hero={!heroWhileLoading} />
@@ -223,6 +233,7 @@ export default function EventPage() {
                         tier={tier}
                         usdcDecimals={decimals}
                         selected={tier.key === selected?.key}
+                        chosen={tier.key === selectedKey}
                         onSelect={() => {
                           setSelectedKey(tier.key);
                           setQuantity(1);
@@ -254,6 +265,7 @@ export default function EventPage() {
                     walletAddress={wallet}
                   >
                     <PurchasePanel
+                      ticket={selected ? { title: event.title, tierName: selected.name, date: formatEventDate(event.start_date) } : null}
                       steps={purchase.steps}
                       state={purchase.state}
                       explorerUrl={purchase.explorerUrl}

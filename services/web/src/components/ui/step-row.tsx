@@ -17,7 +17,8 @@ const STATUS: Record<StepStatus, { text: string; color: string }> = {
 }
 
 function StepIcon({ status }: { status: StepStatus }) {
-  if (status === "done") return <Check className="size-4 text-success" aria-hidden="true" />
+  // Stamped on when the step finishes (#367)
+  if (status === "done") return <Check className="size-4 animate-[stamp-on_200ms_var(--ease-snap)_backwards] text-success" aria-hidden="true" />
   if (status === "failed") return <XCircle className="size-4 text-destructive" aria-hidden="true" />
   if (status === "inProgress" || status === "pending") return <Spinner className="text-primary" />
   return <span className="size-4 rounded-full border border-muted-foreground" aria-hidden="true" />
@@ -27,15 +28,28 @@ interface StepRowProps {
   step: number // 1-based
   label: string
   status: StepStatus
+  // A dashed line down to the next step, under the icon; it draws itself in orange once this
+  // step is done (#367). For lists whose rows are spaced apart (gap-4).
+  linkToNext?: boolean
   className?: string
 }
 
-function StepRow({ step, label, status, className }: StepRowProps) {
+function StepRow({ step, label, status, linkToNext = false, className }: StepRowProps) {
   const { text, color } = STATUS[status]
   const muted = status === "waiting" || status === "notStarted"
 
   return (
-    <li data-slot="step-row" className={cn("flex items-center justify-between gap-3", className)}>
+    <li data-slot="step-row" className={cn("relative flex items-center justify-between gap-3", className)}>
+      {linkToNext && (
+        <span
+          className={cn(
+            "absolute top-full left-[7px] mt-0.5 h-3 border-l-2 border-dashed border-border",
+            "after:absolute after:-left-[2px] after:top-0 after:h-full after:origin-top after:scale-y-0 after:border-l-2 after:border-dashed after:border-success after:transition-transform after:duration-[220ms] after:ease-out",
+            status === "done" && "after:scale-y-100",
+          )}
+          aria-hidden="true"
+        />
+      )}
       <span className="flex items-center gap-2">
         <StepIcon status={status} />
         <span className={cn("type-mono-address", muted ? "text-muted-foreground" : "text-foreground")}>

@@ -1,5 +1,6 @@
 import { Layers, Ticket } from "lucide-react";
 
+import { RollingNumber } from "@/components/motion/RollingNumber";
 import type { EventTier } from "@/lib/event-details";
 import { shortAddress } from "@/lib/format";
 import type { PurchaseBlock } from "@/lib/purchase-checks";
@@ -73,7 +74,10 @@ export function OrderSummary({
       <div className="flex items-start justify-between border-t border-border pt-4 pb-4">
         <span className="pt-2 text-xs font-semibold text-foreground">Total Cost</span>
         <span className="flex flex-col items-end">
-          <span className="font-mono text-3xl leading-[37.5px] font-bold text-primary">{soldOut ? "—" : formatTokenAmount(total, usdcDecimals)}</span>
+          {/* Rolls like a counter when the quantity or the type changes (#367) */}
+          <span className="font-mono text-3xl leading-[37.5px] font-bold text-primary">
+            <RollingNumber value={soldOut ? "—" : formatTokenAmount(total, usdcDecimals)} align="end" />
+          </span>
           <span className="font-mono text-[10px] leading-[15px] tracking-[0.05em] text-muted-foreground uppercase">USDC</span>
         </span>
       </div>
