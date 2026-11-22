@@ -26,16 +26,22 @@ interface EventGridProps {
 // The events grid (#366). Cards that replace the loading placeholders, and the ones "Load more"
 // adds, print in from top to bottom behind a bright edge (400 ms, 80 ms apart) while their price
 // counts up. When a search or category changes the list, cards that no longer match shrink away
-// (200 ms), the ones that stay slide to their new place (300 ms) and new ones rise in (300 ms),
-// 80 ms apart like the print.
+// (200 ms); then the ones that stay slide to their new place (300 ms) and new ones rise in (300 ms),
+// 80 ms apart like the print. Cards that stay wait for the others to leave, so none slides over them.
 export function EventGrid({ events, batch, print, updating = false }: EventGridProps) {
   const reduced = useReducedMotion();
   // How the cards appearing now arrived, and the index the newest batch starts at
-  const [arrival, setArrival] = useState(() => ({ ...batch, count: events.length, kind: (print ? "print" : "none") as Arrival, from: 0 }));
+  const ids = events.map((event) => event.id);
+  const [arrival, setArrival] = useState(() => ({ ...batch, count: events.length, kind: (print ? "print" : "none") as Arrival, from: 0, ids, leaving: false }));
   if (arrival.load !== batch.load || arrival.page !== batch.page) {
     const more = arrival.load === batch.load && batch.page > arrival.page;
-    setArrival({ ...batch, count: events.length, kind: more ? "print" : "rise", from: more ? arrival.count : 0 });
+    // Some cards on screen don't match any more: the rest wait while they leave
+    const leaving = !more && arrival.ids.some((id) => !ids.includes(id));
+    setArrival({ ...batch, count: events.length, kind: more ? "print" : "rise", from: more ? arrival.count : 0, ids, leaving });
+  } else if (arrival.ids.join() !== ids.join()) {
+    setArrival({ ...arrival, ids });
   }
+  const wait = arrival.leaving ? MOTION.base : 0;
 
   return (
     <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3" aria-busy={updating || undefined}>
@@ -53,9 +59,9 @@ export function EventGrid({ events, batch, print, updating = false }: EventGridP
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={reduced ? undefined : { opacity: 0, scale: 0.95, transition: { duration: MOTION.base / 1000, ease: "easeIn" } }}
               transition={{
-                layout: { duration: MOTION.slow / 1000, ease: ARRIVE },
-                // New cards start as the ones leaving fade, then one after another
-                default: { duration: MOTION.slow / 1000, delay: rise ? (MOTION.fast + printDelay(order)) / 1000 : 0, ease: ARRIVE },
+                layout: { duration: MOTION.slow / 1000, delay: wait / 1000, ease: ARRIVE },
+                // New cards come once the ones leaving are gone, one after another
+                default: { duration: MOTION.slow / 1000, delay: rise ? (wait + printDelay(order)) / 1000 : 0, ease: ARRIVE },
               }}
             >
               <PrintedCard event={event} print={arrival.kind === "print"} order={order} />

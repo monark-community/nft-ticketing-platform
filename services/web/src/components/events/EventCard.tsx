@@ -24,7 +24,7 @@ const NOTCH =
 // The whole card is one link to the event page, so the "View tickets" button is only a visual cue.
 // On hover or keyboard focus it becomes a ticket with a stub (#366): two notches bite into its
 // sides at the divider, which turns into a dashed tear line; the picture zooms 3% and the arrow
-// steps forward. `countFrom` counts the price up from that number when the card first appears
+// steps forward. Pressing it sinks it 1%. `countFrom` counts the price up from that number when the card first appears
 // (after `countDelay` ms), while it prints in.
 export function EventCard({ event, countFrom, countDelay = 0 }: { event: EventSummary; countFrom?: number; countDelay?: number }) {
   const [imageFailed, setImageFailed] = useState(false);
@@ -52,7 +52,7 @@ export function EventCard({ event, countFrom, countDelay = 0 }: { event: EventSu
       onPointerDown={prefetch}
       onFocus={prefetch}
       // Not overflow-hidden: the notches reach over the card's edge (the picture clips itself)
-      className="group flex h-full w-full flex-col rounded-lg border border-border bg-card transition-[border-color,box-shadow] duration-200 hover:border-primary/55 hover:shadow-[0_0_0_2px_rgb(249_115_22/55%),0_0_24px_rgb(249_115_22/22%)] focus-visible:border-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/30"
+      className="group flex h-full w-full flex-col rounded-lg border border-border bg-card [transition:border-color_200ms,box-shadow_200ms,scale_90ms_ease-out] hover:border-primary/55 hover:shadow-[0_0_0_2px_rgb(249_115_22/55%),0_0_24px_rgb(249_115_22/22%)] focus-visible:border-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/30 active:scale-[0.99]"
     >
       <div className="relative aspect-[16/9] overflow-hidden rounded-t-[calc(var(--radius-lg)-1px)] bg-muted">
         {/* The picture flies into the event page's hero, and back from it (#363) */}
@@ -66,7 +66,7 @@ export function EventCard({ event, countFrom, countDelay = 0 }: { event: EventSu
               loading="lazy"
               onError={() => setImageFailed(true)}
               className={cn(
-                "size-full object-cover transition-transform duration-300 group-hover:scale-[1.03] group-focus-visible:scale-[1.03] motion-reduce:transition-none",
+                "size-full object-cover transition-transform duration-300 ease-[var(--ease-arrive)] group-hover:scale-[1.03] group-focus-visible:scale-[1.03] motion-reduce:transition-none",
                 soldOut && "opacity-60 grayscale-[40%]"
               )}
             />

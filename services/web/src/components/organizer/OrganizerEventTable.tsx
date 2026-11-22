@@ -18,8 +18,10 @@ import { cn } from "@/lib/utils";
 // With `print`, the rows print in one after another as the table replaces its placeholders (#365),
 // starting after `printFrom` steps. Rows that appear later (a filter changed) just show.
 export function OrganizerEventTable({ events, now, print = false, printFrom = 0 }: { events: OrganizerEvent[]; now: number; print?: boolean; printFrom?: number }) {
-  // Only the rows of the first render print: once they're done, the class goes
+  // Only the rows of the first render print: once they're done, the class goes, so switching
+  // between the phone card and the table row (resizing, turning a tablet) doesn't print them again
   const [printing, setPrinting] = useState(print);
+  const [firstRows] = useState(() => events.map((event) => event.id));
   const [printFor] = useState(() => printDelay(printFrom + events.length) + PRINT_MS);
   useEffect(() => {
     if (!printing) return;
@@ -48,9 +50,10 @@ export function OrganizerEventTable({ events, now, print = false, printFrom = 0 
           </tr>
         </thead>
         <tbody className="block lg:table-row-group">
-          {events.map((event, index) => (
-            <OrganizerEventRow key={event.id} event={event} now={now} printDelay={printing ? printDelay(printFrom + index) : null} />
-          ))}
+          {events.map((event) => {
+            const first = printing ? firstRows.indexOf(event.id) : -1;
+            return <OrganizerEventRow key={event.id} event={event} now={now} printDelay={first >= 0 ? printDelay(printFrom + first) : null} />;
+          })}
         </tbody>
       </table>
     </div>
@@ -60,8 +63,7 @@ export function OrganizerEventTable({ events, now, print = false, printFrom = 0 
 function OrganizerEventRow({ event, now, printDelay }: { event: OrganizerEvent; now: number; printDelay: number | null }) {
   const status = organizerEventStatus(event, now);
   const sales = eventSales(event);
-  // Read once: a row that was already there doesn't print again when the class goes
-  const [print] = useState(printDelay);
+  const print = printDelay;
 
   return (
     <tr
