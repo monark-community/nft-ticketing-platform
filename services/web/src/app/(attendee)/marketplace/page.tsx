@@ -10,6 +10,7 @@ import { Footer } from "@/components/Footer";
 import { BuyDialog } from "@/components/marketplace/BuyDialog";
 import { ListingCard, ListingCardSkeleton } from "@/components/marketplace/ListingCard";
 import { MarketplaceFilters } from "@/components/marketplace/MarketplaceFilters";
+import { PrintIn } from "@/components/motion";
 import { SellDialog } from "@/components/marketplace/SellDialog";
 import { YourListings } from "@/components/marketplace/YourListings";
 import { Navbar } from "@/components/Navbar";
@@ -17,8 +18,11 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { useListingEvents } from "@/hooks/useListingEvents";
+import { useHeldLoading } from "@/hooks/useHeldLoading";
+import { useSawLoading } from "@/hooks/useSawLoading";
 import { LISTINGS_PAGE_SIZE, useListings } from "@/hooks/useListings";
 import { DEFAULT_FILTERS, hasActiveFilters, type Listing, type ListingFilters } from "@/lib/marketplace";
+import { printDelay } from "@/lib/motion";
 
 const SEARCH_DELAY_MS = 300;
 // The listener saves a new listing or sale within a few seconds of its block (it polls every 4 s),
@@ -43,6 +47,9 @@ export default function MarketplacePage() {
   }, [search]);
 
   const market = useListings(filters);
+  const sawListingsLoading = useSawLoading(market.loading);
+  // Placeholders never flash for a fast answer, and never blink when they do show (#365)
+  const showPlaceholders = useHeldLoading(market.loading);
   const mine = useListings(MY_LISTINGS, { seller: wallet, enabled: Boolean(wallet), pageSize: 50 });
   const events = useListingEvents();
 
@@ -113,8 +120,8 @@ export default function MarketplacePage() {
             refreshing={market.loading}
           />
 
-          {market.loading ? (
-            <div role="status" aria-label="Loading listings" className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {showPlaceholders ? (
+            <div role="status" aria-label="Loading listings" className="placeholder-in grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: Math.min(6, LISTINGS_PAGE_SIZE) }, (_, i) => (
                 <ListingCardSkeleton key={i} />
               ))}
@@ -157,14 +164,18 @@ export default function MarketplacePage() {
           ) : (
             <>
               <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {market.listings.map((listing) => (
+                {market.listings.map((listing, index) => (
                   <li key={listing.token_id} className="flex">
-                    <ListingCard
-                      listing={listing}
-                      mine={isMine(listing)}
-                      onBuy={() => setBuying(listing)}
-                      onEdit={() => setSelling({ tokenId: listing.token_id })}
-                    />
+                    {/* Each card prints in under its own scan line, one after another, when the cards
+                        replace the placeholders; "Load more" prints its new page the same way (#365) */}
+                    <PrintIn play={sawListingsLoading} delay={printDelay(index % LISTINGS_PAGE_SIZE)} className="flex w-full">
+                      <ListingCard
+                        listing={listing}
+                        mine={isMine(listing)}
+                        onBuy={() => setBuying(listing)}
+                        onEdit={() => setSelling({ tokenId: listing.token_id })}
+                      />
+                    </PrintIn>
                   </li>
                 ))}
               </ul>

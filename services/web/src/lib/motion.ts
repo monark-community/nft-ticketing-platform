@@ -26,6 +26,49 @@ export function motionDuration(ms: number, reduced: boolean): number {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Loading placeholders and content arriving (#365)
+
+/** Placeholders wait this long before they show (`placeholder-in`), so a page that answers faster never flashes them */
+export const PLACEHOLDER_DELAY_MS = 250;
+/** Once on screen, placeholders stay at least this long, so they never blink */
+export const PLACEHOLDER_MIN_MS = 500;
+
+/** How long a card or a table row takes to print in, and the step between one and the next */
+export const PRINT_MS = 400;
+export const PRINT_STEP_MS = 80;
+/** Only the first cards wait their turn; the rest print with the last of them, so a long list isn't slow */
+export const PRINT_MAX_STEPS = 6;
+
+/** When the card at `index` (from 0) starts printing, in ms */
+export function printDelay(index: number): number {
+  return Math.min(Math.max(0, Math.floor(index)), PRINT_MAX_STEPS) * PRINT_STEP_MS;
+}
+
+/**
+ * Where a page's placeholders are (useHeldLoading):
+ * - "waiting": loading, placeholders not on screen yet (their PLACEHOLDER_DELAY_MS runs)
+ * - "shown": placeholders on screen, their PLACEHOLDER_MIN_MS not over yet
+ * - "done": they have been on screen long enough
+ * - "idle": not loading
+ */
+export type PlaceholderPhase = "idle" | "waiting" | "shown" | "done";
+export type PlaceholderEvent = "load-start" | "load-end" | "delay-over" | "minimum-over";
+
+export function placeholderStep(phase: PlaceholderPhase, event: PlaceholderEvent): PlaceholderPhase {
+  switch (event) {
+    case "load-start":
+      return phase === "idle" || phase === "done" ? "waiting" : phase;
+    case "load-end":
+      // Placeholders on screen stay until their minimum is over; ones that never showed don't
+      return phase === "shown" ? "shown" : "idle";
+    case "delay-over":
+      return phase === "waiting" ? "shown" : phase;
+    case "minimum-over":
+      return phase === "shown" ? "done" : phase;
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
 // CountUp
 
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);

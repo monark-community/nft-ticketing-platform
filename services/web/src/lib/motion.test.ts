@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { countUpValue, dotGlow, dotWave, firstNumber, flapCells, motionDuration, prefersReducedMotion, rollDirection } from "./motion";
+import {
+  countUpValue,
+  dotGlow,
+  dotWave,
+  firstNumber,
+  flapCells,
+  motionDuration,
+  placeholderStep,
+  prefersReducedMotion,
+  PRINT_MAX_STEPS,
+  PRINT_STEP_MS,
+  printDelay,
+  rollDirection,
+  type PlaceholderPhase,
+} from "./motion";
 
 describe("motionDuration", () => {
   it("keeps the duration normally", () => {
@@ -13,6 +27,50 @@ describe("motionDuration", () => {
 
   it("never goes below zero", () => {
     expect(motionDuration(-5, false)).toBe(0);
+  });
+});
+
+describe("printDelay (cards printing one after another, #365)", () => {
+  it("starts the first card at once and each next one a step later", () => {
+    expect(printDelay(0)).toBe(0);
+    expect(printDelay(1)).toBe(PRINT_STEP_MS);
+    expect(printDelay(3)).toBe(3 * PRINT_STEP_MS);
+  });
+
+  it("stops adding steps after the first cards, so a long list isn't slow", () => {
+    expect(printDelay(PRINT_MAX_STEPS + 5)).toBe(PRINT_MAX_STEPS * PRINT_STEP_MS);
+  });
+
+  it("never waits a negative or fractional step", () => {
+    expect(printDelay(-2)).toBe(0);
+    expect(printDelay(1.7)).toBe(PRINT_STEP_MS);
+  });
+});
+
+describe("placeholderStep (placeholders never flash or blink, #365)", () => {
+  const run = (...events: Parameters<typeof placeholderStep>[1][]) =>
+    events.reduce<PlaceholderPhase>((phase, event) => placeholderStep(phase, event), "idle");
+
+  it("goes straight to the content when it arrives before the placeholders show", () => {
+    expect(run("load-start", "load-end")).toBe("idle");
+  });
+
+  it("keeps placeholders that came on screen until their minimum is over", () => {
+    expect(run("load-start", "delay-over", "load-end")).toBe("shown");
+    expect(run("load-start", "delay-over", "load-end", "minimum-over")).toBe("done");
+  });
+
+  it("lets content that arrives after the minimum show at once", () => {
+    expect(run("load-start", "delay-over", "minimum-over", "load-end")).toBe("idle");
+  });
+
+  it("starts over for the next load", () => {
+    expect(run("load-start", "delay-over", "load-end", "minimum-over", "load-start")).toBe("waiting");
+  });
+
+  it("ignores a timer that ends after the load it was for", () => {
+    expect(run("load-start", "load-end", "delay-over")).toBe("idle");
+    expect(run("minimum-over")).toBe("idle");
   });
 });
 

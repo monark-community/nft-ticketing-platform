@@ -6,13 +6,16 @@ import type { ReactNode } from "react";
 import { useAccount } from "wagmi";
 
 import { Footer } from "@/components/Footer";
+import { PrintIn } from "@/components/motion";
 import { Navbar } from "@/components/Navbar";
 import { AccountDetailsCard, OrganizerRequestCard, WalletCard } from "@/components/profile/ProfileCards";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
 import { useHasMounted } from "@/hooks/useHasMounted";
+import { useSawLoading } from "@/hooks/useSawLoading";
 import { useWalletAuth } from "@/hooks/useWalletAuth";
 import { ROUTES } from "@/lib/nav";
 import { canRequestOrganizer } from "@/lib/profile";
@@ -27,11 +30,12 @@ export default function ProfilePage() {
   const { isConnected } = useAccount();
   const { user, isLoading, authError, signIn, loadProfile, logout } = useWalletAuth();
   const authProblem = describeAuthError(authError);
+  const sawLoading = useSawLoading(!hasMounted);
 
   let content: ReactNode;
   // The server can't know the wallet, so nothing wallet-specific renders before mount (#220)
   if (!hasMounted) {
-    content = <div className="h-[560px] animate-pulse rounded-lg bg-card" aria-busy="true" aria-label="Loading" />;
+    content = <Skeleton sweep className="placeholder-in h-[560px] rounded-lg bg-card" aria-busy="true" aria-label="Loading" />;
   } else if (!isConnected) {
     content = (
       <Gate icon={<Wallet aria-hidden="true" />} title="Connect your wallet" action={<ConnectWalletButton />}>
@@ -68,14 +72,17 @@ export default function ProfilePage() {
     );
   } else {
     content = (
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_384px]">
-        {/* Remounted per wallet, so a wallet switch never shows the previous account's values */}
-        <AccountDetailsCard key={user.wallet_address} user={user} onSaved={loadProfile} />
-        <div className="flex flex-col gap-6 self-start">
-          <WalletCard user={user} onDisconnect={() => void logout()} />
-          {canRequestOrganizer(user.role) && <OrganizerRequestCard key={user.wallet_address} wallet={user.wallet_address} />}
+      // Prints in under the scan line when it replaces the placeholder (#365)
+      <PrintIn play={sawLoading}>
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_384px]">
+          {/* Remounted per wallet, so a wallet switch never shows the previous account's values */}
+          <AccountDetailsCard key={user.wallet_address} user={user} onSaved={loadProfile} />
+          <div className="flex flex-col gap-6 self-start">
+            <WalletCard user={user} onDisconnect={() => void logout()} />
+            {canRequestOrganizer(user.role) && <OrganizerRequestCard key={user.wallet_address} wallet={user.wallet_address} />}
+          </div>
         </div>
-      </div>
+      </PrintIn>
     );
   }
 
