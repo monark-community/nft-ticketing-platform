@@ -635,11 +635,11 @@
    Event page and buying (#367)
    --------------------------------------------------------------------------- */
 /* Opened without a card to fly from, the picture comes into focus like a photo developing */
-@keyframes photo-develop { from { filter: blur(14px) brightness(0.45) saturate(0.5); } }
+@keyframes photo-develop { from { filter: blur(14px) brightness(0.35) saturate(0.5); transform: scale(1.07); } }
 @utility photo-develop { animation: photo-develop 480ms ease-out backwards; }
 /* Hero text: the tag slides in, the title's words rise through a mask, the date and venue fade in */
 @keyframes slide-in-left { from { transform: translateX(-12px); opacity: 0; } }
-@keyframes word-rise { from { transform: translateY(105%); } }
+@keyframes word-rise { from { transform: translateY(115%); } }
 /* While the picture flies in from the card (#363), the hero's own arrival waits for it */
 :root:active-view-transition [data-hero-arrival] * { animation-play-state: paused; }
 /* The availability bar grows to its width */

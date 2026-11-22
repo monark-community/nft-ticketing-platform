@@ -64,12 +64,13 @@ export function EventHero({ event, eventId, loadingPicture = null, availability,
 // Category tag, title, date and venue over the picture
 function HeroText({ event }: { event: ApiEvent }) {
   const words = event.title.split(/\s+/).filter(Boolean);
-  // The date and venue fade in once the title's last word is rising: about 0.7 s in all
-  const metaDelay = Math.min(100 + words.length * 60 + 120, 520);
+  // As in the Motion Guide: the tag slides in after the picture starts (120 ms), the words rise from
+  // 140 ms, 60 ms apart, and the date and venue fade in as the last word rises: about 0.7 s in all
+  const metaDelay = Math.min(140 + words.length * 60 + 60, 560);
   return (
     <>
       {event.category && (
-        <span className="absolute top-5 left-5 animate-[slide-in-left_220ms_var(--ease-arrive)_backwards] rounded-sm border border-primary/70 bg-black/60 px-[11px] py-[5px] font-mono text-[10px] leading-[15px] font-medium tracking-[0.025em] text-primary backdrop-blur-md">
+        <span className="absolute top-5 left-5 animate-[slide-in-left_220ms_var(--ease-arrive)_120ms_backwards] rounded-sm border border-primary/70 bg-black/60 px-[11px] py-[5px] font-mono text-[10px] leading-[15px] font-medium tracking-[0.025em] text-primary backdrop-blur-md">
           {event.category}
         </span>
       )}
@@ -84,7 +85,7 @@ function HeroText({ event }: { event: ApiEvent }) {
               <span className="-mb-[0.15em] inline-block overflow-hidden pb-[0.15em] align-bottom">
                 <span
                   className="inline-block animate-[word-rise_320ms_var(--ease-arrive)_backwards] [animation-delay:var(--word-delay)]"
-                  style={{ "--word-delay": `${100 + index * 60}ms` } as CSSProperties}
+                  style={{ "--word-delay": `${140 + index * 60}ms` } as CSSProperties}
                 >
                   {word}
                 </span>
@@ -140,14 +141,14 @@ function AvailabilityBar({ availability }: Pick<EventHeroProps, "availability">)
             aria-valuemax={100}
             aria-valuenow={percent}
           >
-            {/* Grows to its width when it appears (420 ms), and slides when tickets sell (#367) */}
+            {/* Grows to its width once the hero has arrived (420 ms, from 300 ms), and slides when tickets sell (#367) */}
             <div
-              className="h-full origin-left animate-[bar-grow_420ms_var(--ease-arrive)_backwards] rounded-full bg-gradient-to-r from-primary to-primary-soft transition-[width] duration-[420ms]"
+              className="h-full origin-left animate-[bar-grow_420ms_var(--ease-arrive)_300ms_backwards] rounded-full bg-gradient-to-r from-primary to-primary-soft transition-[width] duration-[420ms]"
               style={{ width: `${percent}%` }}
             />
           </div>
           <span className="shrink-0 text-xs font-bold text-primary">
-            {remaining === 0 ? "Sold out" : <CountUp value={percent} from={0} ms={420} format={formatPercentLeft} />}
+            {remaining === 0 ? "Sold out" : <CountUp value={percent} from={0} delay={300} ms={420} format={formatPercentLeft} />}
           </span>
         </div>
       )}

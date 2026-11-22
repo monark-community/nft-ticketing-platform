@@ -227,8 +227,9 @@ function Actions({
 
 // Figma: Success. "You're going!" with the tickets bought and a link to My Tickets.
 // Above it, the ticket prints out of a slot and its stub tears off (#367): the one long moment of
-// the app, about 0.8 s. It's decorative and starts only once the purchase is confirmed; the text
-// and the button are there from the start.
+// the app, about 0.8 s. It's decorative and starts only once the purchase is confirmed. As in the
+// Motion Guide, "You're going!" fades in once the ticket is out (320 ms, from 680 ms); the button is
+// there and usable from the start.
 function SuccessPanel({ state, explorerUrl, purchased, ticket }: PurchasePanelProps) {
   return (
     <div role="status" className="flex flex-col items-center gap-3 rounded-md border border-success/60 bg-success-bg/30 px-4 py-5 text-center">
@@ -239,7 +240,7 @@ function SuccessPanel({ state, explorerUrl, purchased, ticket }: PurchasePanelPr
           <Check className="size-5" aria-hidden="true" />
         </span>
       )}
-      <div className="animate-[fade-in_320ms_ease-out_160ms_backwards]">
+      <div className="animate-[fade-in_320ms_ease-out_680ms_backwards]">
         <p className="font-serif text-[28px] leading-9 font-semibold text-foreground">You&apos;re going!</p>
         <p className="type-body-sm text-secondary-foreground">
           {purchased} {purchased === 1 ? "ticket was" : "tickets were"} sent to your wallet.

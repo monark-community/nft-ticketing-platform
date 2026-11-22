@@ -1,5 +1,6 @@
-import { Check, XCircle } from "lucide-react"
+import { XCircle } from "lucide-react"
 
+import { DrawnCheck } from "@/components/motion/DrawnCheck"
 import { Spinner } from "@/components/ui/spinner"
 import type { StepStatus } from "@/lib/purchase-steps"
 import { cn } from "@/lib/utils"
@@ -17,8 +18,8 @@ const STATUS: Record<StepStatus, { text: string; color: string }> = {
 }
 
 function StepIcon({ status }: { status: StepStatus }) {
-  // Stamped on when the step finishes (#367)
-  if (status === "done") return <Check className="size-4 animate-[stamp-on_200ms_var(--ease-snap)_backwards] text-success" aria-hidden="true" />
+  // Stamped on when the step finishes, and the tick draws itself (#367, as in the Motion Guide)
+  if (status === "done") return <DrawnCheck className="animate-[stamp-on_200ms_var(--ease-snap)_backwards] text-success [&_path]:[animation-delay:60ms]" />
   if (status === "failed") return <XCircle className="size-4 text-destructive" aria-hidden="true" />
   if (status === "inProgress" || status === "pending") return <Spinner className="text-primary" />
   return <span className="size-4 rounded-full border border-muted-foreground" aria-hidden="true" />
