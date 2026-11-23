@@ -5,7 +5,7 @@
 import { parseUnits } from "viem";
 
 import type { AlertTone } from "@/components/ui/alert";
-import { formatEth, formatTokenAmount } from "@/lib/token-amount";
+import { formatEth, formatTokenAmount, USDC_DECIMALS } from "@/lib/token-amount";
 
 // --- GET /api/listings -------------------------------------------------------------------------
 
@@ -117,6 +117,46 @@ export function isCollectible(ticket: SellableTicket, nowMs: number): boolean {
 // Tickets that can be listed: on-chain events only. Listed ones stay, so their price can change.
 export function sellableTickets(tickets: SellableTicket[]): SellableTicket[] {
   return tickets.filter((t) => t.event.contract_event_id !== null);
+}
+
+// --- Changes the API doesn't have yet ------------------------------------------------------------
+
+// What this page changed on the contract: the ticket's new price in USDC, or null once it's no
+// longer listed (cancelled or bought). The API's copy has it a few seconds later, when the listener
+// has saved the block, so until then the page shows it from here (#368).
+export interface ListingChange {
+  tokenId: string;
+  price: string | null;
+}
+export type ListingChanges = Record<string, string | null>; // token ID -> price
+
+// The listings with the changes made: at their new price, or gone
+export function withListingChanges(listings: Listing[], changes: ListingChanges): Listing[] {
+  if (Object.keys(changes).length === 0) return listings;
+  return listings.flatMap((listing) => {
+    if (!Object.hasOwn(changes, listing.token_id)) return [listing];
+    const price = changes[listing.token_id];
+    return price === null ? [] : [{ ...listing, price }];
+  });
+}
+
+// The Sell popup's tickets with the changes made: listed at their new price, or not listed
+export function withTicketChanges(tickets: SellableTicket[], changes: ListingChanges): SellableTicket[] {
+  if (Object.keys(changes).length === 0) return tickets;
+  return tickets.map((ticket) => (Object.hasOwn(changes, ticket.token_id) ? { ...ticket, listing_price: changes[ticket.token_id] } : ticket));
+}
+
+// The changes the API's listings have caught up with: the ticket listed at its new price, or in
+// none of them once it's no longer listed
+export function savedListingChanges(changes: ListingChanges, lists: Listing[][]): string[] {
+  const listings = lists.flat();
+  return Object.entries(changes)
+    .filter(([tokenId, price]) => {
+      const found = listings.filter((listing) => listing.token_id === tokenId);
+      if (price === null) return found.length === 0;
+      return found.some((listing) => toUnits(listing.price, USDC_DECIMALS) === toUnits(price, USDC_DECIMALS));
+    })
+    .map(([tokenId]) => tokenId);
 }
 
 // --- Money ---------------------------------------------------------------------------------------

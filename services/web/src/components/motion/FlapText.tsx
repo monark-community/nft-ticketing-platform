@@ -12,6 +12,8 @@ interface FlapTextProps {
   from?: string;
   /** ms between two flipping characters, so they go one after another. 0: all together. */
   stagger?: number;
+  /** ms before the first character flips (a row of numbers flipping one after another) */
+  delay?: number;
   className?: string;
 }
 
@@ -25,7 +27,7 @@ const FLIP_MS = 200; // one character: 80 ms out, 120 ms in (flap-out and flap-i
 // Changes text like a departure board: only the characters that changed flip over. Meant for text
 // in the mono font (prices, counts), where every character is as wide as the next. While nothing is
 // flipping, it is plain text.
-export function FlapText({ text, from, stagger = 0, className }: FlapTextProps) {
+export function FlapText({ text, from, stagger = 0, delay = 0, className }: FlapTextProps) {
   const [current, setCurrent] = useState(text);
   const [flip, setFlip] = useState<Flip | null>(() => (from !== undefined && from !== text ? { cells: flapCells(from, text), id: 1 } : null));
 
@@ -41,9 +43,9 @@ export function FlapText({ text, from, stagger = 0, className }: FlapTextProps) 
   useEffect(() => {
     if (!flip) return;
     const flipping = flip.cells.filter((cell) => cell.changed).length;
-    const timer = setTimeout(() => setFlip(null), motionDuration(FLIP_MS + Math.max(0, flipping - 1) * stagger, reduced));
+    const timer = setTimeout(() => setFlip(null), motionDuration(delay + FLIP_MS + Math.max(0, flipping - 1) * stagger, reduced));
     return () => clearTimeout(timer);
-  }, [flip, stagger, reduced]);
+  }, [flip, stagger, delay, reduced]);
 
   if (!flip) return <span className={className}>{text}</span>;
 
@@ -52,7 +54,7 @@ export function FlapText({ text, from, stagger = 0, className }: FlapTextProps) 
     <span key={flip.id} className={cn("whitespace-pre", className)}>
       {flip.cells.map((cell, i) => {
         if (!cell.changed) return cell.char;
-        const style = { "--flap-delay": `${order++ * stagger}ms` } as CSSProperties;
+        const style = { "--flap-delay": `${delay + order++ * stagger}ms` } as CSSProperties;
         return (
           <span key={i} className="relative inline-block" style={style}>
             {cell.was && (
