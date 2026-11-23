@@ -264,10 +264,12 @@ test.describe('sales', () => {
     await expect(sales.getByRole('button', { name: 'Resume sales' })).toBeVisible();
     await expect(main(page).getByText('Sales paused').first()).toBeVisible();
 
-    // A buyer is refused, on the event page and by the contract
-    const buyer = await page.context().newPage();
-    await buyer.goto(`/events/${event.apiId}`);
-    await expect(buyer.getByRole('main').getByText('Ticket sales are closed')).toBeVisible();
+    // A buyer, signed in in their own browser, is refused on the event page and by the contract
+    const buyer = await asSomeoneElse(page, accounts.jordan, `/events/${event.apiId}`);
+    const buyerMain = buyer.page.getByRole('main');
+    const buyTickets = buyerMain.getByRole('region', { name: 'Order Summary' }).getByRole('button', { name: /^Buy tickets/ });
+    await expect(buyerMain.getByText('Ticket sales are closed')).toBeVisible();
+    await expect(buyTickets).toBeDisabled();
     await expect(chain.ticketNft(accounts.jordan).buyTickets.staticCall(event.contractId, 0, 1)).rejects.toThrow('Sale is not active');
 
     sent = wallet.requests.length;
@@ -275,10 +277,13 @@ test.describe('sales', () => {
     await done(sales, 'Ticket sales are open again.');
     expect(sendsSince(wallet, sent)).toBe(1);
     expect((await chainEvent(event)).active).toBe(true);
+    await buyer.page.reload();
+    await expect(buyerMain.getByText('Ticket sales are closed')).toHaveCount(0);
+    await expect(buyTickets).toBeEnabled();
     await chain.buyTickets(accounts.jordan, { eventId: event.contractId });
-    await buyer.reload();
-    await expect(buyer.getByRole('main').getByText('Ticket sales are closed')).toHaveCount(0);
-    await expect(buyer.getByRole('main').getByText('99 of 100 tickets left')).toBeVisible();
+    await buyer.page.reload();
+    await expect(buyerMain.getByText('99 of 100 tickets left')).toBeVisible();
+    await buyer.close();
   });
 
   test('withdraw takes exactly the unwithdrawn sales revenue; the numbers follow sales, resales and withdrawals', async ({ page, signIn }) => {
@@ -554,12 +559,19 @@ test.describe('free tickets', () => {
     expect(sendsSince(wallet, sent)).toBe(0);
     await expect(
       chain.ticketNft(accounts.organizer).issueTickets.staticCall(event.contractId, 1, [accounts.new1.address, accounts.new2.address, accounts.new3.address]),
-    ).rejects.toThrow();
+    ).rejects.toThrow('Not enough tickets left');
 
-    // An invalid address: nothing can be issued (the button stays off; no message says why)
+    // An invalid address, or more than 100 recipients: nothing can be issued. The button just turns
+    // off; no message says why yet (#427)
     await recipients.fill(`${accounts.new1.address}\nnot-an-address`);
     await expect(issue).toBeDisabled();
     await expect(free.getByText(/will be issued/)).toHaveCount(0);
+    await recipients.fill(Array.from({ length: 101 }, (_, i) => newWallet(100 + i).address).join('\n'));
+    await expect(issue).toBeDisabled();
+    await expect(free.getByText(/will be issued/)).toHaveCount(0);
+    await expect(
+      chain.ticketNft(accounts.organizer).issueTickets.staticCall(event.contractId, 0, Array.from({ length: 101 }, (_, i) => newWallet(100 + i).address)),
+    ).rejects.toThrow('Batch size cannot exceed 100');
 
     // Jordan never was on the guest list, and has the ticket in My Tickets
     expect(await onGuestList(event, accounts.jordan)).toBe(false);
@@ -667,7 +679,8 @@ test.describe('access', () => {
     await sales.getByRole('button', { name: 'Pause sales' }).click();
     await expect(sales.getByText(MANAGE_ERRORS.notOrganizerRole)).toBeVisible();
     expect((await chainEvent(event)).active).toBe(true);
-    // The guest list goes through the API's organizer routes: refused
+    // The guest list goes through the API's organizer routes: refused. The message tells them to sign
+    // in with the wallet that created the event, which they already are (#428)
     const list = card(page, 'Guest list & presale');
     await list.getByLabel('Add wallets').fill(accounts.jordan.address);
     await list.getByRole('button', { name: 'Add to guest list' }).click();
