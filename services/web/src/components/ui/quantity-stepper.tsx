@@ -2,6 +2,7 @@
 
 import { Minus, Plus } from "lucide-react"
 
+import { RollingNumber } from "@/components/motion/RollingNumber"
 import { cn } from "@/lib/utils"
 
 // Quantity Stepper from the Figma Design System page (#290): minus, the value in orange mono, plus.
@@ -36,8 +37,9 @@ function QuantityStepper({ value, onChange, min = 1, max, disabled = false, labe
       >
         <Minus aria-hidden="true" />
       </button>
-      <output aria-live="polite" className="w-8 text-center font-mono text-lg leading-7 font-bold text-primary">
-        {value}
+      {/* The number rolls like a counter wheel when it changes (#367) */}
+      <output aria-live="polite" className="w-8 overflow-hidden text-center font-mono text-lg leading-7 font-bold text-primary">
+        <RollingNumber value={value} align="center" />
       </output>
       <button
         type="button"

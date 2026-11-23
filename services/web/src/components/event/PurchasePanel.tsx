@@ -14,6 +14,8 @@ import type { TxState } from "@/lib/transactions/types";
 import { cn } from "@/lib/utils";
 
 interface PurchasePanelProps {
+  // What the printed ticket on the success card shows; null hides it
+  ticket: { title: string; tierName: string; date: string } | null;
   steps: PurchaseStep[];
   state: TxState;
   explorerUrl: string | null;
@@ -42,9 +44,9 @@ export function PurchasePanel(props: PurchasePanelProps) {
 
   return (
     <div className="flex flex-col gap-4 pt-4">
-      <ol className="flex flex-col gap-2" aria-label="Purchase steps">
+      <ol className="flex flex-col gap-4" aria-label="Purchase steps">
         {steps.map((step, index) => (
-          <StepRow key={step.label} step={index + 1} label={step.label} status={step.status} />
+          <StepRow key={step.label} step={index + 1} label={step.label} status={step.status} linkToNext={index < steps.length - 1} />
         ))}
       </ol>
 
@@ -224,13 +226,21 @@ function Actions({
 }
 
 // Figma: Success. "You're going!" with the tickets bought and a link to My Tickets.
-function SuccessPanel({ state, explorerUrl, purchased }: PurchasePanelProps) {
+// Above it, the ticket prints out of a slot and its stub tears off (#367): the one long moment of
+// the app, about 0.8 s. It's decorative and starts only once the purchase is confirmed. As in the
+// Motion Guide, "You're going!" fades in once the ticket is out (320 ms, from 680 ms); the button is
+// there and usable from the start.
+function SuccessPanel({ state, explorerUrl, purchased, ticket }: PurchasePanelProps) {
   return (
     <div role="status" className="flex flex-col items-center gap-3 rounded-md border border-success/60 bg-success-bg/30 px-4 py-5 text-center">
-      <span className="flex size-9 items-center justify-center rounded-full border border-success/60 bg-success-bg text-success">
-        <Check className="size-5" aria-hidden="true" />
-      </span>
-      <div>
+      {ticket ? (
+        <PrintedTicket ticket={ticket} count={purchased} />
+      ) : (
+        <span className="flex size-9 items-center justify-center rounded-full border border-success/60 bg-success-bg text-success">
+          <Check className="size-5" aria-hidden="true" />
+        </span>
+      )}
+      <div className="animate-[fade-in_320ms_ease-out_680ms_backwards]">
         <p className="font-serif text-[28px] leading-9 font-semibold text-foreground">You&apos;re going!</p>
         <p className="type-body-sm text-secondary-foreground">
           {purchased} {purchased === 1 ? "ticket was" : "tickets were"} sent to your wallet.
@@ -240,6 +250,47 @@ function SuccessPanel({ state, explorerUrl, purchased }: PurchasePanelProps) {
         View my tickets <ArrowRight aria-hidden="true" />
       </Link>
       {state.hash && <TxHash hash={state.hash} explorerUrl={explorerUrl} />}
+    </div>
+  );
+}
+
+// Where the paper bits fly when the stub tears off: right or left, up or down
+const PAPER_BITS = [
+  { x: -10, y: -14 },
+  { x: 13, y: -9 },
+  { x: -16, y: -4 },
+  { x: 19, y: 1 },
+  { x: -22, y: 6 },
+  { x: 25, y: 11 },
+  { x: -28, y: 16 },
+];
+
+// A paper ticket coming out of a slot: the main part with the event, and a stub with a barcode,
+// joined by a perforation. Decorative: the text under it says what happened.
+function PrintedTicket({ ticket, count }: { ticket: NonNullable<PurchasePanelProps["ticket"]>; count: number }) {
+  return (
+    <div className="w-full" aria-hidden="true">
+      <div className="h-1.5 rounded-full bg-[#050506] shadow-[inset_0_1px_2px_#000,0_1px_0_var(--border)]" />
+      <div className="relative mx-2 -mt-[3px] flex ticket-print text-left drop-shadow-[0_10px_14px_rgb(0_0_0/45%)]">
+        <div className="flex min-w-0 flex-1 flex-col gap-1 rounded-bl-md bg-foreground px-3.5 py-3 text-[#17181a]">
+          <span className="w-fit rounded-xs border border-[#17181a]/35 px-1.5 py-0.5 font-mono text-[9px] font-bold tracking-[0.1em] uppercase">
+            Admit {count} · {ticket.tierName}
+          </span>
+          <span className="truncate font-serif text-[17px] leading-tight font-bold">{ticket.title}</span>
+          <span className="font-mono text-[10.5px] text-[#4a4b4f] uppercase">{ticket.date}</span>
+        </div>
+        <div className="relative flex w-[74px] flex-none origin-top-left stub-tear flex-col items-center justify-center gap-1.5 rounded-br-md border-l-2 border-dashed border-[#17181a] bg-primary px-2 py-2.5 text-primary-foreground">
+          <span className="h-7 w-full bg-[repeating-linear-gradient(90deg,#17181a_0_2px,transparent_2px_4px,#17181a_4px_5px,transparent_5px_8px,#17181a_8px_11px,transparent_11px_13px)]" />
+          <span className="font-mono text-[9px] font-bold tracking-[0.2em]">NFTP</span>
+          {PAPER_BITS.map((bit, index) => (
+            <span
+              key={index}
+              className="paper-bit absolute -left-[3px] size-[5px] rounded-full bg-primary"
+              style={{ top: `${8 + index * 12}%`, "--bit-x": `${bit.x}px`, "--bit-y": `${bit.y}px` } as React.CSSProperties}
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
