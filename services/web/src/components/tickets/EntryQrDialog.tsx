@@ -2,12 +2,16 @@
 
 import { Dialog } from "@base-ui/react/dialog";
 import { ChevronLeft, ChevronRight, RotateCw, X } from "lucide-react";
+import { AnimatePresence, useReducedMotion } from "motion/react";
+import * as m from "motion/react-m";
 import { QRCodeSVG } from "qrcode.react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
+import { RollingNumber } from "@/components/motion/RollingNumber";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useEntryQr, type EntryQr } from "@/hooks/useEntryQr";
+import { PRINT_MS } from "@/lib/motion";
 import { formatTicketDate, qrSecondsLeft, type TicketGroup } from "@/lib/my-tickets";
 import { QR_MAX_AGE_SECONDS } from "@/lib/ticket-qr";
 import { cn } from "@/lib/utils";
@@ -16,6 +20,9 @@ import { cn } from "@/lib/utils";
 // Opening it asks the wallet to sign for the first ticket; the arrows move between the group's tickets
 // and each one is signed when shown. Closing it forgets every code.
 // Not in Figma: waiting for the signature, and a cancelled or failed signature.
+// Motion (#369): each new code is drawn in behind an orange scan line, the arrows slide the code
+// sideways like flipping through a wallet while the ticket number rolls over, and an expired code
+// fogs over while "Regenerate code" glows once. Nothing moves over a code while it can be scanned.
 export function EntryQrDialog({ group, onClose }: { group: TicketGroup | null; onClose: () => void }) {
   return (
     <Dialog.Root open={group !== null} onOpenChange={(open) => !open && onClose()}>
@@ -32,8 +39,17 @@ export function EntryQrDialog({ group, onClose }: { group: TicketGroup | null; o
 
 function EntryQrContent({ group }: { group: TicketGroup }) {
   const [index, setIndex] = useState(0);
+  const [direction, setDirection] = useState(1); // 1: to the next ticket, -1: back
+  // Codes already drawn in: flipping back to one shows it at once
+  const [drawn, setDrawn] = useState<ReadonlySet<string>>(() => new Set());
   const { codes, sign } = useEntryQr();
   const now = useNowSeconds();
+  const reduced = Boolean(useReducedMotion());
+
+  const flip = (step: 1 | -1) => {
+    setDirection(step);
+    setIndex((i) => i + step);
+  };
 
   const ticket = group.tickets[Math.min(index, group.tickets.length - 1)];
   const code = codes[ticket.tokenId.toString()];
@@ -66,22 +82,22 @@ function EntryQrContent({ group }: { group: TicketGroup }) {
       <div className="flex flex-col items-center gap-2">
         <div className="flex items-center justify-center gap-3 sm:gap-4">
           {total > 1 && (
-            <PagerButton label="Previous ticket" disabled={index === 0 || signing} onClick={() => setIndex((i) => i - 1)}>
+            <PagerButton label="Previous ticket" disabled={index === 0 || signing} onClick={() => flip(-1)}>
               <ChevronLeft className="size-4" aria-hidden="true" />
             </PagerButton>
           )}
           <p className="font-mono text-lg leading-7 font-medium tracking-[0.45px] text-white" aria-live="polite">
             {total > 1 ? (
               <>
-                Ticket {index + 1} of {total} <span className="font-normal text-muted-foreground">·</span>{" "}
+                Ticket <RollingNumber value={index + 1} align="center" /> of {total} <span className="font-normal text-muted-foreground">·</span>{" "}
               </>
             ) : (
               "Ticket "
             )}
-            <span className="font-semibold text-primary">#{ticket.tokenId.toString()}</span>
+            <RollingNumber value={`#${ticket.tokenId.toString()}`} className="font-semibold text-primary" />
           </p>
           {total > 1 && (
-            <PagerButton label="Next ticket" disabled={index === total - 1 || signing} onClick={() => setIndex((i) => i + 1)}>
+            <PagerButton label="Next ticket" disabled={index === total - 1 || signing} onClick={() => flip(1)}>
               <ChevronRight className="size-4" aria-hidden="true" />
             </PagerButton>
           )}
@@ -89,7 +105,10 @@ function EntryQrContent({ group }: { group: TicketGroup }) {
         {total > 1 && (
           <div className="flex items-center gap-1.5 pt-0.5" aria-hidden="true">
             {group.tickets.map((t, i) => (
-              <span key={t.tokenId.toString()} className={cn("size-2 rounded-full", i === index ? "bg-primary" : "bg-white/30")} />
+              <span
+                key={t.tokenId.toString()}
+                className={cn("size-2 rounded-full transition-colors duration-200", i === index ? "bg-primary" : "bg-white/30")}
+              />
             ))}
           </div>
         )}
@@ -99,7 +118,24 @@ function EntryQrContent({ group }: { group: TicketGroup }) {
 
       <StatusPill code={code} expired={expired} />
 
-      <QrBox code={code} expired={expired} />
+      {/* The old code slides out (120 ms) to the side it came from, the next one slides in (180 ms) */}
+      <AnimatePresence mode="wait" initial={false} custom={direction}>
+        <m.div
+          key={ticket.tokenId.toString()}
+          custom={direction}
+          variants={reduced ? STILL : SLIDE}
+          initial="enter"
+          animate="center"
+          exit="exit"
+        >
+          <QrBox
+            code={code}
+            expired={expired}
+            scanIn={code?.status === "ready" && !drawn.has(code.value)}
+            onDrawn={(value) => setDrawn((done) => new Set(done).add(value))}
+          />
+        </m.div>
+      </AnimatePresence>
 
       <Footer code={code} expired={expired} secondsLeft={secondsLeft} onSign={() => sign(ticket)} />
 
@@ -144,16 +180,34 @@ function StatusPill({ code, expired }: { code: EntryQr | undefined; expired: boo
   return null;
 }
 
+const SLIDE = {
+  enter: (direction: number) => ({ x: 28 * direction, opacity: 0 }),
+  center: { x: 0, opacity: 1, transition: { duration: 0.18, ease: [0.2, 0.8, 0.2, 1] as const } },
+  exit: (direction: number) => ({ x: -28 * direction, opacity: 0, transition: { duration: 0.12, ease: "easeIn" as const } }),
+};
+// Reduced motion: the next code is there at once
+const STILL = { enter: { opacity: 1 }, center: { opacity: 1, transition: { duration: 0 } }, exit: { opacity: 1, transition: { duration: 0 } } };
+
 const BOX = "flex size-[260px] items-center justify-center rounded-lg sm:size-[280px]";
 
-function QrBox({ code, expired }: { code: EntryQr | undefined; expired: boolean }) {
+function QrBox({
+  code,
+  expired,
+  scanIn,
+  onDrawn,
+}: {
+  code: EntryQr | undefined;
+  expired: boolean;
+  scanIn: boolean;
+  onDrawn: (value: string) => void;
+}) {
   if (code?.status === "ready") {
     return (
       <div className="relative pt-1">
         <div
           className={cn(
             BOX,
-            "border-[6px] bg-white p-5",
+            "relative border-[6px] bg-white p-5 transition-[opacity,filter,border-color,box-shadow] duration-300 ease-out",
             expired
               ? "border-destructive opacity-35 blur-[4px] shadow-[0_0_12px_rgb(255_180_171/45%)]"
               : "border-success shadow-[0_0_10px_rgb(139_216_164/35%)]",
@@ -161,10 +215,10 @@ function QrBox({ code, expired }: { code: EntryQr | undefined; expired: boolean 
           role="img"
           aria-label={expired ? "Expired entry QR code" : "Entry QR code"}
         >
-          <QRCodeSVG value={code.value} size={208} level="M" className="size-full" />
+          <ScannedCode key={code.value} value={code.value} play={scanIn} onDrawn={onDrawn} />
         </div>
         {expired && (
-          <span className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1.5 rounded-full border border-destructive/40 bg-destructive-bg px-3 py-1 font-mono text-xs leading-4 text-destructive shadow-lg">
+          <span className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 animate-[fade-in_150ms_ease-out_200ms_backwards] items-center gap-1.5 rounded-full border border-destructive/40 bg-destructive-bg px-3 py-1 font-mono text-xs leading-4 text-destructive shadow-lg">
             <span className="size-1.5 rounded-full bg-destructive" aria-hidden="true" />
             Expired
           </span>
@@ -185,6 +239,30 @@ function QrBox({ code, expired }: { code: EntryQr | undefined; expired: boolean 
         <p className="text-sm leading-5 text-muted-foreground">No QR code yet</p>
       )}
     </div>
+  );
+}
+
+// A new code is drawn from top to bottom behind an orange line across the white box (400 ms), like a
+// ticket coming out of a reader. Read once when it appears.
+function ScannedCode({ value, play, onDrawn }: { value: string; play: boolean; onDrawn: (value: string) => void }) {
+  const [scanning, setScanning] = useState(play);
+  const style = { "--print-ms": `${PRINT_MS}ms` } as CSSProperties;
+  return (
+    <>
+      <div
+        className={cn("size-full", scanning && "print-in")}
+        style={scanning ? style : undefined}
+        onAnimationEnd={(event) => {
+          if (event.target !== event.currentTarget || event.animationName !== "print-in") return;
+          setScanning(false);
+          onDrawn(value);
+        }}
+      >
+        <QRCodeSVG value={value} size={208} level="M" className="size-full" />
+      </div>
+      {/* Spans the white box, not just the code */}
+      {scanning && <span className="print-in-line" style={style} data-qr-scan aria-hidden="true" />}
+    </>
   );
 }
 
@@ -226,7 +304,13 @@ function Footer({ code, expired, secondsLeft, onSign }: { code: EntryQr | undefi
       <p className="pt-2 text-xs leading-4 text-destructive" role="alert">
         {message}
       </p>
-      <Button onClick={onSign} className="h-11 w-full rounded-md text-sm font-semibold tracking-normal normal-case">
+      <Button
+        onClick={onSign}
+        className={cn(
+          "h-11 w-full rounded-md text-sm font-semibold tracking-normal normal-case",
+          expired && "animate-[glow-once_600ms_ease-out_150ms]",
+        )}
+      >
         <RotateCw className="size-3" aria-hidden="true" />
         {expired ? "Regenerate code" : "Sign to show QR"}
       </Button>
