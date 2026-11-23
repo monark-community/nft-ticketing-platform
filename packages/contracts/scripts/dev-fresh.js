@@ -1,6 +1,7 @@
 // npm run dev:fresh (#300): a fresh local environment in one command.
 // Starts a new Hardhat node, deploys, starts the database and API in Docker, resets and seeds
 // the database, seeds the chain, then adds the mock data (services/api/prisma/mock-data.ts).
+// Last, it moves the test accounts' nonces ahead, so MetaMask works without clearing its activity.
 // The node keeps running in this terminal; Ctrl+C stops it.
 // `npm run dev:fresh -- --bare` leaves the mock data out: only the dev seed, as in the end-to-end tests.
 // Plain Node, not bash, so it works the same in Git Bash on Windows, macOS and Linux.
@@ -59,7 +60,7 @@ const MOCK_ROLES = [
 ];
 const ROLES = BARE ? BARE_ROLES : MOCK_ROLES;
 
-const TOTAL_STEPS = BARE ? 9 : 10;
+const TOTAL_STEPS = BARE ? 10 : 11;
 let currentStep = 0;
 
 let node = null; // the Hardhat node
@@ -118,14 +119,21 @@ function portInUse() {
   });
 }
 
+// One JSON-RPC call to the node
+async function rpc(method, params = []) {
+  const res = await fetch(`http://${NODE_HOST}:${NODE_PORT}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+  });
+  const { result, error } = await res.json();
+  if (error) throw new Error(`${method}: ${error.message}`);
+  return result;
+}
+
 async function readChainId() {
   try {
-    const res = await fetch(`http://${NODE_HOST}:${NODE_PORT}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_chainId", params: [] }),
-    });
-    const { result } = await res.json();
+    const result = await rpc("eth_chainId");
     return typeof result === "string" ? Number(result) : null;
   } catch {
     return null; // not answering yet
@@ -283,6 +291,24 @@ async function addMockData() {
   }
 }
 
+// 10 (11 with the mock data). MetaMask sends each transaction with the higher of two nonces: the
+// chain's, and the next one after those it saved for the account. Every run starts a new chain
+// at 0, so an account used in an earlier run fails with "nonce too high" until its activity is
+// deleted in MetaMask (per account and per network). Moving every test account to the number of
+// seconds since 2026 puts the chain ahead of anything saved, as long as an account sent fewer
+// transactions than seconds passed between two runs. Done last, so the deploy (its addresses
+// come from the deployer's nonce) and the seeds run as before.
+const NONCE_START = Date.UTC(2026, 0, 1);
+
+async function moveNoncesAhead() {
+  step("Moving the test accounts' nonces past the ones MetaMask saved in earlier runs");
+  const nonce = Math.floor((Date.now() - NONCE_START) / 1000);
+  for (const address of await rpc("eth_accounts")) {
+    const current = Number(await rpc("eth_getTransactionCount", [address, "latest"]));
+    if (current < nonce) await rpc("hardhat_setNonce", [address, `0x${nonce.toString(16)}`]);
+  }
+}
+
 function printSummary() {
   const accounts = [...nodeLog.matchAll(/Account #(\d+):\s+(0x[0-9a-fA-F]{40}).*\r?\n\s*Private Key:\s+(0x[0-9a-fA-F]{64})/g)]
     .map(([, index, address, key]) => ({ index: Number(index), address, key }))
@@ -295,8 +321,9 @@ function printSummary() {
     console.log(`      private key ${key}`);
   }
   console.log(
-    "\nMetaMask: this is a new chain, so clear the activity of each imported test account\n" +
-      '(Settings > Advanced > Clear activity tab data), or transactions fail with "nonce too high".',
+    "\nMetaMask: no need to clear its activity; the nonces start past the ones it saved. If a transaction\n" +
+      'still fails with "nonce too high": select that account and this network, then Settings > Developer tools\n' +
+      "> Delete activity and nonce data.",
   );
   console.log("\nNext, in a second terminal: cd services/web && npm run dev");
   console.log("\nHardhat node output follows. Ctrl+C stops the node.\n");
@@ -317,6 +344,7 @@ async function main() {
   await resetDatabase();
   await seedChain();
   if (!BARE) await addMockData();
+  await moveNoncesAhead();
   printSummary();
   streamNodeOutput = true;
 }
