@@ -736,6 +736,18 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Profile (#370)
+   --------------------------------------------------------------------------- */
+/* After saving, an orange line sweeps under each changed field, then fades */
+@keyframes save-sweep {
+  from { transform: scaleX(0); opacity: 1; }
+  45% { transform: scaleX(1); opacity: 1; }
+  to { transform: scaleX(1); opacity: 0; }
+}
+/* Request access: the paper plane flies up and out of the button */
+@keyframes plane-fly { to { transform: translate(34px, -22px) rotate(-14deg); opacity: 0; } }
+
 /* Respect reduced motion everywhere: animations and transitions jump to their end, without delay */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

@@ -29,18 +29,40 @@ export type OrganizerRequestStatus = "none" | "pending" | "approved" | "rejected
 export interface OrganizerRequestState {
   status: OrganizerRequestStatus;
   rejectionReason: string | null;
+  id: string | null; // the request's ID; null when there is none
 }
 
 export async function fetchOrganizerRequest(
   request: (path: string) => Promise<unknown> = apiClient,
 ): Promise<OrganizerRequestState | null> {
   try {
-    const found = (await request(ORGANIZER_REQUEST_PATH)) as { status?: string; rejection_reason?: string | null };
+    const found = (await request(ORGANIZER_REQUEST_PATH)) as { id?: string; status?: string; rejection_reason?: string | null };
     const status = found.status === "PENDING" ? "pending" : found.status === "APPROVED" ? "approved" : found.status === "REJECTED" ? "rejected" : null;
     if (!status) return null;
-    return { status, rejectionReason: found.rejection_reason?.trim() || null };
+    return { status, rejectionReason: found.rejection_reason?.trim() || null, id: typeof found.id === "string" ? found.id : null };
   } catch (err) {
-    if (err instanceof Error && err.message === "No organizer request found") return { status: "none", rejectionReason: null };
+    if (err instanceof Error && err.message === "No organizer request found") return { status: "none", rejectionReason: null, id: null };
     return null;
+  }
+}
+
+// The APPROVED stamp lands once for each approval (#370): this browser remembers the requests whose
+// stamp it has shown. Storage can be missing or throw (private windows, blocked site data); then
+// the stamp lands each time, as before.
+const STAMP_SEEN_KEY = (requestId: string) => `nftokenpass:organizer-approved-stamp:${requestId}`;
+
+export function approvalStampSeen(requestId: string): boolean {
+  try {
+    return typeof window !== "undefined" && window.localStorage.getItem(STAMP_SEEN_KEY(requestId)) !== null;
+  } catch {
+    return false;
+  }
+}
+
+export function rememberApprovalStamp(requestId: string) {
+  try {
+    window.localStorage.setItem(STAMP_SEEN_KEY(requestId), new Date().toISOString());
+  } catch {
+    // Full or blocked: the stamp lands again next time
   }
 }

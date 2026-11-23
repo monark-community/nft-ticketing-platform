@@ -1,6 +1,8 @@
 // The lines of the transaction receipt (#364): each step of a transaction prints one more line.
 // Kept free of React so it can be tested.
 
+import { PRINT_STEP_MS } from "@/lib/motion";
+
 import type { TxState } from "./types";
 
 export type ReceiptTone = "plain" | "ok" | "slow" | "bad";
@@ -16,6 +18,17 @@ export interface ReceiptLine {
 /** "0x3a9f…e21c" */
 export function shortHash(hash: string) {
   return hash.length > 12 ? `${hash.slice(0, 6)}…${hash.slice(-4)}` : hash;
+}
+
+// A line prints in 160 ms (print-across in globals.css). Lines that arrive together, as on a local
+// chain that confirms at once, print one after another: each starts once the one before has printed
+// and a short pause has passed (the cards' PRINT_STEP_MS), so every step can be read (#370).
+export const RECEIPT_LINE_MS = 160;
+export const RECEIPT_LINE_STEP_MS = RECEIPT_LINE_MS + PRINT_STEP_MS;
+
+/** The first line that hasn't printed yet, or null once they all have */
+export function nextReceiptLine(lines: ReceiptLine[], printed: readonly string[]): ReceiptLine | null {
+  return lines.find((line) => !printed.includes(line.key)) ?? null;
 }
 
 /** True once nothing more will print: confirmed, failed, or the user stopped waiting */

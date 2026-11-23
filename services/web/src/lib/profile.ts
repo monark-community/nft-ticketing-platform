@@ -47,15 +47,20 @@ export function toProfilePayload(form: ProfileForm) {
   };
 }
 
-// Unsaved changes, compared the way the API stores them (trimmed, email lowercased)
-export function profileChanged(form: ProfileForm, user: UserProfile): boolean {
+// The fields with unsaved changes, compared the way the API stores them (trimmed, email lowercased)
+export function changedFields(form: ProfileForm, user: UserProfile): (keyof ProfileForm)[] {
   const next = toProfilePayload(form);
-  return (
-    next.first_name !== (user.first_name ?? "") ||
-    next.last_name !== (user.last_name ?? "") ||
-    next.nickname !== (user.nickname || null) ||
-    next.email.toLowerCase() !== (user.email ?? "").toLowerCase()
-  );
+  const changed: Record<keyof ProfileForm, boolean> = {
+    firstName: next.first_name !== (user.first_name ?? ""),
+    lastName: next.last_name !== (user.last_name ?? ""),
+    nickname: next.nickname !== (user.nickname || null),
+    email: next.email.toLowerCase() !== (user.email ?? "").toLowerCase(),
+  };
+  return (Object.keys(changed) as (keyof ProfileForm)[]).filter((key) => changed[key]);
+}
+
+export function profileChanged(form: ProfileForm, user: UserProfile): boolean {
+  return changedFields(form, user).length > 0;
 }
 
 // The API's error, as the field to fix and what to say. Reuses sign-up's mapping, with a
