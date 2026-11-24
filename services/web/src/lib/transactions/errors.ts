@@ -21,9 +21,10 @@ export const TX_ERRORS = {
   cancelled: "The transaction was cancelled in your wallet before it confirmed.",
   replaced:
     "The transaction was replaced by a different transaction from your wallet, so it did not go through.",
-  // The wallet's transaction count doesn't match the chain's, e.g. after the local node restarted
+  // The wallet's transaction count doesn't match the chain's, e.g. after the local node restarted.
+  // MetaMask clears its saved nonces for the network it's on only, so the message says so.
   nonce:
-    "Your wallet is out of sync with the network, so nothing was sent. In MetaMask, go to Settings → Advanced → Clear activity tab data, then try again.",
+    "Your wallet is out of sync with the network, so nothing was sent. In MetaMask, with this account and network selected, open Settings → Developer tools → Delete activity and nonce data, then try again.",
   unknown: "The transaction failed. Please try again.",
 };
 
