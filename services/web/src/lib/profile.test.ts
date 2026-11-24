@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { UserProfile } from "@/lib/auth-provider";
 import {
   canRequestOrganizer,
+  changedFields,
   cleanNickname,
   mapProfileSaveError,
   profileChanged,
@@ -75,6 +76,14 @@ describe("profileChanged", () => {
     expect(profileChanged({ ...form, lastName: "Vancouver" }, user)).toBe(true);
     expect(profileChanged({ ...form, nickname: "alexv" }, user)).toBe(true);
     expect(profileChanged(form, { ...user, nickname: "alexv" })).toBe(true);
+  });
+});
+
+describe("changedFields", () => {
+  it("lists only the fields that would change, in form order", () => {
+    expect(changedFields(form, user)).toEqual([]);
+    expect(changedFields({ ...form, email: "new@example.com", firstName: "Alexa" }, user)).toEqual(["firstName", "email"]);
+    expect(changedFields({ ...form, lastName: " Vance ", nickname: "@alexv" }, user)).toEqual(["nickname"]);
   });
 });
 

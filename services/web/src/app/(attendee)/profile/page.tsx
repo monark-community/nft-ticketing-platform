@@ -8,7 +8,7 @@ import { useAccount } from "wagmi";
 import { Footer } from "@/components/Footer";
 import { PrintIn } from "@/components/motion";
 import { Navbar } from "@/components/Navbar";
-import { AccountDetailsCard, OrganizerRequestCard, WalletCard } from "@/components/profile/ProfileCards";
+import { AccountDetailsCard, OrganizerApprovedCard, OrganizerRequestCard, WalletCard } from "@/components/profile/ProfileCards";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -80,6 +80,8 @@ export default function ProfilePage() {
           <div className="flex flex-col gap-6 self-start">
             <WalletCard user={user} onDisconnect={() => void logout()} />
             {canRequestOrganizer(user.role) && <OrganizerRequestCard key={user.wallet_address} wallet={user.wallet_address} />}
+            {/* Once, the first time after an approval (#370) */}
+            {user.role === "ORGANIZER" && <OrganizerApprovedCard key={user.wallet_address} wallet={user.wallet_address} />}
           </div>
         </div>
       </PrintIn>

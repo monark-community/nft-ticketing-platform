@@ -3,14 +3,24 @@
 // Shared display of a transaction's progress and outcome (#101), as a small receipt (#364): each
 // step prints one more line. When it's done the bottom edge tears off; a failure prints its line
 // in red and the receipt shakes once. What to do next stays under the receipt, in plain words.
+// Lines that arrive together print one after another, so each step can be read (#370).
 
 import { X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { DrawnCheck } from "@/components/motion/DrawnCheck";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { isReceiptFinished, receiptLines, receiptTitle, type ReceiptLine, type ReceiptTone } from "@/lib/transactions/receipt";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import {
+  isReceiptFinished,
+  nextReceiptLine,
+  RECEIPT_LINE_STEP_MS,
+  receiptLines,
+  receiptTitle,
+  type ReceiptLine,
+  type ReceiptTone,
+} from "@/lib/transactions/receipt";
 import type { TxState } from "@/lib/transactions/types";
 import { cn } from "@/lib/utils";
 
@@ -63,10 +73,34 @@ export function TransactionStatus({ state, explorerUrl, successMessage, onRetry,
   const asked = state.phase === "awaitingWallet" ? state.stepIndex : state.phase === "idle" || state.phase === "preparing" ? null : walletAsked;
   if (asked !== walletAsked) setWalletAsked(asked);
 
+  const lines = receiptLines(state, asked === state.stepIndex);
+  // The lines printed so far. A local chain confirms as soon as the wallet does, so "Sent" and
+  // "Confirmed" arrive together: each new line waits its turn (RECEIPT_LINE_STEP_MS after the one
+  // before), and the receipt only tears off, or shakes, once its last line has printed. A line that
+  // replaced the one before it ("Preparing…" becoming "Confirm in your wallet…") doesn't wait.
+  const reduced = usePrefersReducedMotion();
+  const [printed, setPrinted] = useState<string[]>([]);
+  if (state.phase === "idle" && printed.length > 0) setPrinted([]);
+  const lastPrint = useRef(0);
+  const waiting = reduced ? null : nextReceiptLine(lines, printed);
+  const waitingKey = waiting?.key ?? null;
+  const lastKey = printed[printed.length - 1];
+  const afterLine = lastKey !== undefined && lines.some((line) => line.key === lastKey);
+  useEffect(() => {
+    if (waitingKey === null) return;
+    const wait = afterLine ? Math.max(0, lastPrint.current + RECEIPT_LINE_STEP_MS - Date.now()) : 0;
+    const timer = window.setTimeout(() => {
+      lastPrint.current = Date.now();
+      setPrinted((keys) => [...keys, waitingKey]);
+    }, wait);
+    return () => window.clearTimeout(timer);
+  }, [waitingKey, afterLine]);
+
   if (state.phase === "idle") return null;
 
-  const lines = receiptLines(state, asked === state.stepIndex);
-  const finished = isReceiptFinished(state);
+  const shownLines = reduced ? lines : lines.filter((line) => printed.includes(line.key));
+  const caughtUp = waiting === null;
+  const finished = isReceiptFinished(state) && caughtUp;
   const multiStep = state.steps.length > 1;
   const stepLabel = `Step ${state.stepIndex + 1} of ${state.steps.length}: ${state.steps[state.stepIndex]}`;
 
@@ -78,19 +112,19 @@ export function TransactionStatus({ state, explorerUrl, successMessage, onRetry,
         className={cn(
           "relative w-full max-w-[340px] rounded-t-[4px] bg-[#ecebe6] px-3.5 pt-3 pb-4 font-mono text-[12.5px] leading-normal text-[#1d1d1f]",
           finished && "mb-2",
-          state.phase === "error" && "shake-once"
+          state.phase === "error" && caughtUp && "shake-once"
         )}
       >
         <p className="text-[#6b6760]">{receiptTitle(state)}</p>
         <ol className="flex flex-col pt-1.5">
-          {lines.map((line) => (
+          {shownLines.map((line) => (
             <Line key={line.key} line={line} explorerUrl={explorerUrl} />
           ))}
         </ol>
         {finished && <span className="receipt-tear" aria-hidden="true" />}
       </div>
 
-      {state.phase === "error" && (
+      {state.phase === "error" && caughtUp && (
         <div role="alert" className="fade-in mt-3 flex flex-col items-start gap-1">
           <p className="type-body-md-strong text-destructive">{multiStep ? `Failed at ${stepLabel}` : "Transaction failed"}</p>
           {state.error && <p className="type-body-sm text-secondary-foreground">{state.error}</p>}
@@ -105,7 +139,7 @@ export function TransactionStatus({ state, explorerUrl, successMessage, onRetry,
       {/* The outcome in words, announced politely too. This region is there from the first step,
           so screen readers notice what is added to it. */}
       <div role="status" className="flex flex-col">
-        {state.phase === "success" && <p className="fade-in mt-3 type-body-md-strong text-success">{successMessage ?? "Transaction confirmed."}</p>}
+        {state.phase === "success" && caughtUp && <p className="fade-in mt-3 type-body-md-strong text-success">{successMessage ?? "Transaction confirmed."}</p>}
 
         {state.phase === "stoppedWaiting" && (
           <div className="fade-in mt-3 flex flex-col gap-1">
