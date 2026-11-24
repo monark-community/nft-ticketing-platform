@@ -5,7 +5,7 @@ import { erc20Abi, type Address } from "viem";
 import { TICKET_NFT_ADDRESS, ticketNftAbi } from "@/lib/contracts/ticket-nft";
 import { getPurchaseErrorMessage } from "@/lib/purchase-errors";
 import { APPROVE_STEP_LABEL, BUY_STEP_LABEL, getPurchaseSteps } from "@/lib/purchase-steps";
-import type { TxStep } from "@/lib/transactions/types";
+import { IDLE_TX_STATE, type TxStep } from "@/lib/transactions/types";
 import { useTransaction } from "./useTransaction";
 
 interface Options {
@@ -63,7 +63,9 @@ export function usePurchaseTickets({ contractEventId, typeId, quantity, unitPric
     total,
     approvalNeeded,
     purchased,
-    steps: getPurchaseSteps(tx.state, approvalNeeded),
+    // After the wallet switched accounts, the rows are the new account's: an approval by the other
+    // account doesn't count for this one (#396)
+    steps: getPurchaseSteps(tx.accountChanged ? IDLE_TX_STATE : tx.state, approvalNeeded),
     state: tx.state,
     isBusy: tx.isBusy,
     reset: tx.reset,

@@ -7,6 +7,7 @@ import {
 } from "viem";
 import { describe, expect, it } from "vitest";
 import { getPurchaseErrorMessage, PURCHASE_ERRORS } from "@/lib/purchase-errors";
+import { AccountChangedError } from "@/lib/transactions/errors";
 
 // buyTickets() reverts and wallet errors map to purchase messages (#147).
 
@@ -37,6 +38,12 @@ describe("getPurchaseErrorMessage", () => {
     ["Event has ended", PURCHASE_ERRORS.eventEnded],
   ])('maps the "%s" revert', (reason, message) => {
     expect(getPurchaseErrorMessage(buyRevert(reason))).toBe(message);
+  });
+
+  it("says nothing was bought when the wallet switched accounts (#396)", () => {
+    expect(getPurchaseErrorMessage(new AccountChangedError(new Error("The requested account is not connected.")))).toBe(
+      PURCHASE_ERRORS.accountChanged,
+    );
   });
 
   it("gives the generic purchase message for anything else", () => {

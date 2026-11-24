@@ -8,7 +8,7 @@ import {
   type ReplacementReturnType,
   type TransactionReceipt,
 } from "viem";
-import { TransactionReplacedError, TransactionRevertedError } from "./errors";
+import { AccountChangedError, TransactionReplacedError, TransactionRevertedError } from "./errors";
 import type { TxOutcome, TxState, TxStep } from "./types";
 
 export interface TransactionClient {
@@ -62,6 +62,7 @@ interface RunParams {
   getErrorMessage: (err: unknown) => string;
   timeoutMs?: number;
   stopSignal?: AbortSignal; // aborting it stops waiting on a still-pending transaction (#252)
+  currentAccount?: () => Address | undefined; // the wallet's account now, to tell a switch apart (#396)
 }
 
 // Resolves to how the run ended: every step succeeded, nothing changed, or the user stopped
@@ -74,6 +75,7 @@ export async function runTransactionSteps({
   getErrorMessage,
   timeoutMs = DEFAULT_PENDING_TIMEOUT_MS,
   stopSignal,
+  currentAccount,
 }: RunParams): Promise<TxOutcome> {
   const labels = steps.map((s) => s.label);
   let state: TxState = { phase: "preparing", steps: labels, stepIndex: 0, hash: null, error: null, note: null };
@@ -155,7 +157,12 @@ export async function runTransactionSteps({
       return "stoppedWaiting";
     }
     console.error(`Transaction failed at step "${labels[state.stepIndex]}":`, err);
-    update({ phase: "error", error: getErrorMessage(err) });
+    // Failed before the wallet sent it, and the wallet is on another account now: say so (#396).
+    // A disconnected wallet has no account, and keeps its own message.
+    const now = currentAccount?.();
+    const notSent = state.phase === "preparing" || state.phase === "awaitingWallet";
+    const switched = notSent && now !== undefined && now.toLowerCase() !== account.toLowerCase();
+    update({ phase: "error", error: getErrorMessage(switched ? new AccountChangedError(err) : err) });
     finished = true;
     return "error";
   }

@@ -38,7 +38,7 @@ import { ROUTES } from "@/lib/nav";
 import { APPROVE_STEP_LABEL, getPurchaseSteps, isApproving } from "@/lib/purchase-steps";
 import { getResaleBuyErrorMessage } from "@/lib/resale-errors";
 import { formatEth } from "@/lib/token-amount";
-import type { TxStep } from "@/lib/transactions/types";
+import { IDLE_TX_STATE, type TxStep } from "@/lib/transactions/types";
 import { cn } from "@/lib/utils";
 
 const BUY_LABEL = "Buy ticket";
@@ -101,7 +101,8 @@ function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: ()
       : null;
   const blockMessage = block ? getResaleBlockMessage(block, { usdcDecimals: decimals, chainName: contractChain?.name ?? "the right network" }) : null;
 
-  const steps = getPurchaseSteps(tx.state, approvalNeeded, BUY_LABEL);
+  // After the wallet switched accounts, the rows are the new account's (#396)
+  const steps = getPurchaseSteps(tx.accountChanged ? IDLE_TX_STATE : tx.state, approvalNeeded, BUY_LABEL);
   const approving = isApproving(tx.state);
 
   async function buy() {

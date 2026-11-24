@@ -8,7 +8,7 @@ import {
 } from "viem";
 import { describe, expect, it } from "vitest";
 import { CHECK_IN_ERRORS, getCheckInErrorMessage } from "@/lib/check-in-errors";
-import { getTransactionErrorMessage, TX_ERRORS } from "@/lib/transactions/errors";
+import { AccountChangedError, getTransactionErrorMessage, TX_ERRORS } from "@/lib/transactions/errors";
 
 // Every known error maps to the right message, and anything else gets the generic one (#272).
 
@@ -59,6 +59,10 @@ describe("getTransactionErrorMessage", () => {
     });
     expect(getTransactionErrorMessage(err)).toBe(TX_ERRORS.nonce);
     expect(getTransactionErrorMessage(new Error("nonce too low: next nonce 7, tx nonce 6"))).toBe(TX_ERRORS.nonce);
+  });
+
+  it("says the wallet switched accounts, whatever the wallet answered (#396)", () => {
+    expect(getTransactionErrorMessage(new AccountChangedError(userRejected()))).toBe(TX_ERRORS.accountChanged);
   });
 
   it("gives the generic message for an unknown error", () => {

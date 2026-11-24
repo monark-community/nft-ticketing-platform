@@ -582,9 +582,11 @@ test.describe('buying', () => {
     expect(await soldOf(event, 0)).toBe(2);
   });
 
-  test('switching account mid-purchase: nothing is sent from either wallet', async ({ page, signIn, wallet }) => {
+  test('switching account mid-purchase: nothing is sent, the page says why, and Try again buys with the new account', async ({ page, signIn, wallet }) => {
     const event = await createPublishedEvent({ title: 'Switched Mid Purchase', ticketTypes: [{ name: 'General Admission', price: 20, supply: 50 }] });
+    // Jordan has approved this order already; Alex hasn't approved anything
     await approve(accounts.jordan, chain.usdc(20));
+    await approve(accounts.alex, 0n);
     await openSignedIn(page, signIn, accounts.jordan, event);
     const before = { jordan: await chain.usdcBalance(accounts.jordan.address), alex: await chain.usdcBalance(accounts.alex.address) };
     const alexHeld = await held(accounts.alex, event);
@@ -596,15 +598,24 @@ test.describe('buying', () => {
     await wallet.switchAccount(accounts.alex);
     hold.release();
 
-    // The wallet refuses to send for an account that is no longer selected, and the page says
-    // the purchase failed. Its wording is generic for now, and it still says USDC is approved for
-    // the new wallet (#396), so only the error itself is checked.
-    await expect(errorAlert(page)).toBeVisible();
+    // The wallet refuses to send for an account that is no longer selected. The page says the
+    // account switched, and its steps are Alex's: Jordan's approval doesn't count for Alex (#396).
+    await expect(errorAlert(page)).toHaveText(
+      'Your wallet switched to another account before the purchase went through, so no tickets were bought and no USDC was taken. Try again to buy with this account.',
+    );
+    await expectSteps(page, 'Not started', 'Not started');
+    await expect(summary(page).getByText('USDC is already approved')).toHaveCount(0);
     await chain.mine();
     expect(await held(accounts.jordan, event)).toBe(0);
     expect(await held(accounts.alex, event)).toBe(alexHeld);
     expect(await chain.usdcBalance(accounts.jordan.address)).toBe(before.jordan);
     expect(await chain.usdcBalance(accounts.alex.address)).toBe(before.alex);
+
+    // Try again approves and buys from Alex's wallet
+    await summary(page).getByRole('button', { name: 'Try again' }).click();
+    await expect(success(page)).toBeVisible();
+    expect(await held(accounts.alex, event)).toBe(alexHeld + 1);
+    expect(await held(accounts.jordan, event)).toBe(0);
   });
 
   test('disconnecting mid-purchase: nothing is sent', async ({ page, signIn, wallet }) => {
