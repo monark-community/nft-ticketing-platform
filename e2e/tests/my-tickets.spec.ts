@@ -261,6 +261,8 @@ test.describe('entry QR', () => {
     const dialog = qrDialog(page);
     await expect(dialog.getByText('Ready to scan')).toBeVisible();
     await expect(dialog.getByRole('img', { name: 'Entry QR code', exact: true })).toBeVisible();
+    // The code's drawing isn't a second, unnamed picture inside it (#429)
+    await expect(dialog.getByRole('img')).toHaveCount(1);
     await expect(dialog).toContainText('Ticket 1 of 2 · #0');
     expect(wallet.signed).toHaveLength(before + 1);
 

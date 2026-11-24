@@ -258,7 +258,8 @@ function ScannedCode({ value, play, onDrawn }: { value: string; play: boolean; o
           onDrawn(value);
         }}
       >
-        <QRCodeSVG value={value} size={208} level="M" className="size-full" />
+        {/* The box around it is the named picture, so the drawing itself is hidden from screen readers (#429) */}
+        <QRCodeSVG value={value} size={208} level="M" className="size-full" aria-hidden="true" />
       </div>
       {/* Spans the white box, not just the code */}
       {scanning && <span className="print-in-line" style={style} data-qr-scan aria-hidden="true" />}
