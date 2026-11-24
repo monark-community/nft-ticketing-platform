@@ -14,9 +14,12 @@ import {
   parsePrice,
   priceOverCap,
   royaltySplit,
+  savedListingChanges,
   sellableTickets,
   toUnits,
   walletLimitLabel,
+  withListingChanges,
+  withTicketChanges,
   type Listing,
   type ResaleBuyInput,
   type SellableTicket,
@@ -130,6 +133,30 @@ describe("tickets to sell", () => {
 
   it("only offers tickets of events on-chain", () => {
     expect(sellableTickets([ticket({ token_id: "1" }), ticket({ token_id: "2", contract_event_id: null })]).map((t) => t.token_id)).toEqual(["1"]);
+  });
+});
+
+describe("changes the API doesn't have yet", () => {
+  const listing = (token_id: string, price: string) => ({ token_id, price }) as Listing;
+  const ticket = (token_id: string, listing_price: string | null) => ({ token_id, listing_price }) as SellableTicket;
+
+  it("shows a new price, and takes a listing that's gone off", () => {
+    const listings = [listing("1", "25.00000000"), listing("2", "30.00000000"), listing("3", "18.00000000")];
+    expect(withListingChanges(listings, { "1": "28", "2": null })).toEqual([listing("1", "28"), listing("3", "18.00000000")]);
+    expect(withListingChanges(listings, {})).toBe(listings);
+  });
+
+  it("marks the Sell popup's tickets listed or not", () => {
+    const tickets = [ticket("1", "25.00000000"), ticket("2", null), ticket("3", "18.00000000")];
+    expect(withTicketChanges(tickets, { "1": null, "2": "22.5" })).toEqual([ticket("1", null), ticket("2", "22.5"), ticket("3", "18.00000000")]);
+  });
+
+  it("is done with a change once the API's lists have it", () => {
+    const changes = { "1": "28", "2": null, "4": "40" };
+    // The API still has the old price, the cancelled listing, and not the new one
+    expect(savedListingChanges(changes, [[listing("1", "25.00000000"), listing("2", "30.00000000")], []])).toEqual([]);
+    // Then it has all three: 28.00000000 is 28, and listing 2 is in neither list
+    expect(savedListingChanges(changes, [[listing("1", "28.00000000")], [listing("1", "28.00000000"), listing("4", "40.00000000")]])).toEqual(["1", "2", "4"]);
   });
 });
 

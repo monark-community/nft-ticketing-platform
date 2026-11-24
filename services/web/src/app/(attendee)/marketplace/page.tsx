@@ -10,7 +10,8 @@ import { Footer } from "@/components/Footer";
 import { BuyDialog } from "@/components/marketplace/BuyDialog";
 import { ListingCard, ListingCardSkeleton } from "@/components/marketplace/ListingCard";
 import { MarketplaceFilters } from "@/components/marketplace/MarketplaceFilters";
-import { PrintIn } from "@/components/motion";
+import { PrintIn, RollingNumber } from "@/components/motion";
+import { ShuffleGrid } from "@/components/motion/ShuffleGrid";
 import { SellDialog } from "@/components/marketplace/SellDialog";
 import { YourListings } from "@/components/marketplace/YourListings";
 import { Navbar } from "@/components/Navbar";
@@ -21,13 +22,23 @@ import { useListingEvents } from "@/hooks/useListingEvents";
 import { useHeldLoading } from "@/hooks/useHeldLoading";
 import { useSawLoading } from "@/hooks/useSawLoading";
 import { LISTINGS_PAGE_SIZE, useListings } from "@/hooks/useListings";
-import { DEFAULT_FILTERS, hasActiveFilters, type Listing, type ListingFilters } from "@/lib/marketplace";
+import {
+  DEFAULT_FILTERS,
+  hasActiveFilters,
+  savedListingChanges,
+  withListingChanges,
+  type Listing,
+  type ListingChange,
+  type ListingChanges,
+  type ListingFilters,
+} from "@/lib/marketplace";
 import { printDelay } from "@/lib/motion";
 
 const SEARCH_DELAY_MS = 300;
 // The listener saves a new listing or sale within a few seconds of its block (it polls every 4 s),
-// so after a transaction the lists are read again a few times
-const REFRESH_AFTER_CHANGE_MS = [0, 4_500, 9_000];
+// so after a transaction the lists are read again every 2 s until they have it, for 20 s at most
+const RELOAD_EVERY_MS = 2_000;
+const RELOAD_FOR_MS = 20_000;
 const MY_LISTINGS: ListingFilters = { ...DEFAULT_FILTERS, sort: "newest" };
 
 // Marketplace (#295), from the Figma "Marketplace" frames: tickets resold by other fans, with
@@ -57,21 +68,45 @@ export default function MarketplacePage() {
   const [selling, setSelling] = useState<{ tokenId: string | null } | null>(null);
   const [sellLinkClosed, setSellLinkClosed] = useState(false);
 
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  // Listings changed here that the API doesn't have yet. What you change in the Sell or Buy popup
+  // shows on the page when you close it, so you see it happen (#368); a listing cancelled from Your
+  // listings says it leaves in a few seconds, and leaves once the API has it.
+  const [changes, setChanges] = useState<Record<string, PendingChange>>({});
+  const lastChange = useRef(0);
+  const recordChange = useCallback((change: ListingChange, show: PendingChange["show"]) => {
+    lastChange.current = Date.now();
+    setChanges((current) => ({ ...current, [change.tokenId]: { price: change.price, show } }));
+  }, []);
+  const showPopupChanges = useCallback(() => {
+    setChanges((current) => mapChanges(current, (change) => (change.show === "afterPopup" ? { ...change, show: "now" } : change)));
+  }, []);
+  // Done with the ones the API's lists have
+  const saved = savedListingChanges(pricesOf(changes), [market.listings, mine.listings]);
+  if (saved.length > 0) setChanges(mapChanges(changes, (change, tokenId) => (saved.includes(tokenId) ? null : change)));
+
+  const waiting = Object.keys(changes).length > 0;
   const { reload: reloadMarket } = market;
   const { reload: reloadMine } = mine;
-  const refreshAfterChange = useCallback(() => {
-    timers.current.forEach(clearTimeout);
-    timers.current = REFRESH_AFTER_CHANGE_MS.map((delay) =>
-      setTimeout(() => {
-        void reloadMarket(true);
-        if (wallet) void reloadMine(true);
-      }, delay),
-    );
-  }, [reloadMarket, reloadMine, wallet]);
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = window.setInterval(() => {
+      if (Date.now() - lastChange.current >= RELOAD_FOR_MS) {
+        setChanges({}); // still not there: the API's copy is shown, whatever it says
+        return;
+      }
+      void reloadMarket(true);
+      if (wallet) void reloadMine(true);
+    }, RELOAD_EVERY_MS);
+    return () => window.clearInterval(timer);
+  }, [waiting, reloadMarket, reloadMine, wallet]);
 
-  const myTokens = useMemo(() => new Set(mine.listings.map((l) => l.token_id)), [mine.listings]);
+  const shown = useMemo(() => pricesOf(changes, "now"), [changes]);
+  const listings = useMemo(() => withListingChanges(market.listings, shown), [market.listings, shown]);
+  const total = market.total - (market.listings.length - listings.length);
+  const myListings = useMemo(() => withListingChanges(mine.listings, shown), [mine.listings, shown]);
+  const waitingPrices = useMemo(() => pricesOf(changes), [changes]);
+
+  const myTokens = useMemo(() => new Set(myListings.map((l) => l.token_id)), [myListings]);
   const isMine = (listing: Listing) => Boolean(wallet) && (myTokens.has(listing.token_id) || listing.seller_wallet === wallet?.toLowerCase());
   const filtered = hasActiveFilters(filters);
 
@@ -91,8 +126,12 @@ export default function MarketplacePage() {
               <h1 className="type-heading-lg text-foreground">Marketplace</h1>
               <p className="type-body-lg text-secondary-foreground">Buy tickets resold by other fans</p>
             </div>
-            <Button variant="outline" className="normal-case tracking-normal" onClick={() => setSelling({ tokenId: null })}>
-              <Ticket className="text-primary" aria-hidden="true" />
+            {/* The ticket icon is pulled out of the button on hover (#368) */}
+            <Button variant="outline" className="group normal-case tracking-normal" onClick={() => setSelling({ tokenId: null })}>
+              <Ticket
+                className="text-primary transition-transform duration-[140ms] ease-[var(--ease-snap)] group-hover:translate-x-[3px] group-hover:-rotate-12"
+                aria-hidden="true"
+              />
               Sell a ticket
             </Button>
           </header>
@@ -106,8 +145,12 @@ export default function MarketplacePage() {
             </p>
           </div>
 
-          {wallet && mine.listings.length > 0 && (
-            <YourListings listings={mine.listings} onEdit={(tokenId) => setSelling({ tokenId })} onChanged={refreshAfterChange} />
+          {wallet && myListings.length > 0 && (
+            <YourListings
+              listings={myListings}
+              onEdit={(tokenId) => setSelling({ tokenId })}
+              onCancelled={(tokenId) => recordChange({ tokenId, price: null }, "no")}
+            />
           )}
 
           <MarketplaceFilters
@@ -139,7 +182,7 @@ export default function MarketplacePage() {
             >
               <p role="alert">Something went wrong while loading the Marketplace. Check your connection and try again.</p>
             </EventsMessage>
-          ) : market.listings.length === 0 ? (
+          ) : listings.length === 0 ? (
             filtered ? (
               <EventsMessage
                 icon={<Ticket aria-hidden="true" />}
@@ -163,26 +206,32 @@ export default function MarketplacePage() {
             )
           ) : (
             <>
-              <ul className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {market.listings.map((listing, index) => (
-                  <li key={listing.token_id} className="flex">
-                    {/* Each card prints in under its own scan line, one after another, when the cards
-                        replace the placeholders; "Load more" prints its new page the same way (#365) */}
-                    <PrintIn play={sawListingsLoading} delay={printDelay(index % LISTINGS_PAGE_SIZE)} className="flex w-full">
-                      <ListingCard
-                        listing={listing}
-                        mine={isMine(listing)}
-                        onBuy={() => setBuying(listing)}
-                        onEdit={() => setSelling({ tokenId: listing.token_id })}
-                      />
-                    </PrintIn>
-                  </li>
-                ))}
-              </ul>
+              {/* Cards print in when they replace the placeholders (#365); a filter or sort change
+                  slides the cards that stay, lifting them a little while they move (#368) */}
+              <ShuffleGrid
+                items={listings}
+                itemKey={(listing) => listing.token_id}
+                batch={market.batch}
+                print={sawListingsLoading}
+                updating={market.updating}
+                lift
+                className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3"
+              >
+                {(listing, arrival) => (
+                  <PrintOnArrival print={arrival.print} order={arrival.order}>
+                    <ListingCard
+                      listing={listing}
+                      mine={isMine(listing)}
+                      onBuy={() => setBuying(listing)}
+                      onEdit={() => setSelling({ tokenId: listing.token_id })}
+                    />
+                  </PrintOnArrival>
+                )}
+              </ShuffleGrid>
 
               <div className="flex flex-col items-center gap-3">
                 <p className="type-body-sm text-muted-foreground" aria-live="polite">
-                  Showing {market.listings.length} of {market.total} {market.total === 1 ? "listing" : "listings"}
+                  Showing <RollingNumber value={listings.length} /> of <RollingNumber value={total} /> {total === 1 ? "listing" : "listings"}
                 </p>
                 {market.loadMoreError && (
                   <Alert tone="error" title="Couldn't load more listings" className="w-full max-w-md">
@@ -203,18 +252,36 @@ export default function MarketplacePage() {
 
       <Footer />
 
-      <BuyDialog listing={buying} onClose={() => setBuying(null)} onBought={refreshAfterChange} />
-      <SellDialog open={selling !== null} tokenId={selling?.tokenId ?? null} onClose={() => setSelling(null)} onChanged={refreshAfterChange} />
+      <BuyDialog
+        listing={buying}
+        onClose={() => {
+          setBuying(null);
+          showPopupChanges();
+        }}
+        onBought={() => buying && recordChange({ tokenId: buying.token_id, price: null }, "afterPopup")}
+      />
+      <SellDialog
+        open={selling !== null}
+        tokenId={selling?.tokenId ?? null}
+        onClose={() => {
+          setSelling(null);
+          showPopupChanges();
+        }}
+        onChanged={(change) => recordChange(change, "afterPopup")}
+        changes={waitingPrices}
+      />
       {/* useSearchParams needs a Suspense boundary in the App Router */}
       <Suspense fallback={null}>
         <SellFromLink
           closed={sellLinkClosed || selling !== null}
           onClose={() => {
             setSellLinkClosed(true);
+            showPopupChanges();
             // Drop ?sell= so a reload doesn't open it again
             window.history.replaceState(null, "", window.location.pathname);
           }}
-          onChanged={refreshAfterChange}
+          onChanged={(change) => recordChange(change, "afterPopup")}
+          changes={waitingPrices}
         />
       </Suspense>
     </div>
@@ -222,9 +289,38 @@ export default function MarketplacePage() {
 }
 
 // "Sell on Marketplace" on My Tickets opens the Sell popup for that ticket: /marketplace?sell=12
-function SellFromLink({ closed, onClose, onChanged }: { closed: boolean; onClose: () => void; onChanged: () => void }) {
+function SellFromLink({ closed, onClose, onChanged, changes }: { closed: boolean; onClose: () => void; onChanged: (change: ListingChange) => void; changes: ListingChanges }) {
   const tokenId = useSearchParams().get("sell");
   const hasMounted = useHasMounted(); // the wallet is only known once mounted (#220)
   if (closed || !hasMounted || !tokenId || !/^\d+$/.test(tokenId)) return null;
-  return <SellDialog open tokenId={tokenId} onClose={onClose} onChanged={onChanged} />;
+  return <SellDialog open tokenId={tokenId} onClose={onClose} onChanged={onChanged} changes={changes} />;
+}
+
+interface PendingChange {
+  price: string | null; // USDC; null once it's no longer listed
+  show: "now" | "afterPopup" | "no"; // on the page: now, once the popup it was made in closes, or not
+}
+
+function mapChanges(changes: Record<string, PendingChange>, map: (change: PendingChange, tokenId: string) => PendingChange | null) {
+  return Object.fromEntries(
+    Object.entries(changes).flatMap(([tokenId, change]) => {
+      const next = map(change, tokenId);
+      return next ? [[tokenId, next]] : [];
+    }),
+  );
+}
+
+// token ID -> price, for the changes shown on the page now, or all of them
+function pricesOf(changes: Record<string, PendingChange>, show?: PendingChange["show"]): ListingChanges {
+  return Object.fromEntries(Object.entries(changes).flatMap(([tokenId, change]) => (show === undefined || change.show === show ? [[tokenId, change.price]] : [])));
+}
+
+// A card that prints in when it appears with `print`, in turn with the others (printDelay)
+function PrintOnArrival({ print, order, children }: { print: boolean; order: number; children: React.ReactNode }) {
+  const [printing] = useState(print);
+  return (
+    <PrintIn play={printing} delay={printDelay(order)} className="w-full">
+      {children}
+    </PrintIn>
+  );
 }

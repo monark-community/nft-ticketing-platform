@@ -10,6 +10,7 @@ import { useAccount, useChains, usePublicClient, useSwitchChain } from "wagmi";
 import { EventImage } from "@/components/event/EventImage";
 import { TxHash } from "@/components/event/TxHash";
 import { CapBar } from "@/components/marketplace/CapBar";
+import { FlapText } from "@/components/motion/FlapText";
 import { MarketDialog, SummaryRow } from "@/components/marketplace/MarketDialog";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -191,8 +192,32 @@ function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: ()
       ) : terms ? (
         <>
           <div className="flex flex-col gap-2">
-            <p className="font-mono text-[28px] leading-9 font-bold text-primary">{usdc(price)}</p>
-            <CapBar price={price} faceValue={terms.faceValue} maxPrice={terms.capApplies ? terms.maxPrice : null} decimals={decimals} collectible={listing.collectible || !terms.capApplies} />
+            {/* If the seller changed the price, the digits that changed flip like a departure board,
+                then the old price stays next to the new one, crossed out (#368) */}
+            <p className="flex flex-wrap items-baseline gap-x-3 font-mono text-[28px] leading-9 font-bold text-primary">
+              <FlapText text={usdc(price)} from={priceChanged ? usdc(apiPrice) : undefined} stagger={35} />
+              {priceChanged && (
+                <span className="animate-[fade-in_240ms_ease-out_260ms_backwards] text-base font-medium text-muted-foreground">
+                  was{" "}
+                  <span className="relative">
+                    {usdc(apiPrice)}
+                    <span
+                      className="absolute inset-x-0 top-1/2 h-px origin-left animate-[strike-draw_240ms_ease-out_420ms_backwards] bg-muted-foreground"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </span>
+              )}
+            </p>
+            {/* The bar slides to the new share of the cap */}
+            <CapBar
+              price={price}
+              from={priceChanged ? apiPrice : undefined}
+              faceValue={terms.faceValue}
+              maxPrice={terms.capApplies ? terms.maxPrice : null}
+              decimals={decimals}
+              collectible={listing.collectible || !terms.capApplies}
+            />
           </div>
 
           {priceChanged && !succeeded && block?.reason !== "notListed" && (
@@ -202,7 +227,8 @@ function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: ()
           )}
 
           <dl className="flex flex-col gap-2.5 rounded-md bg-background px-4 py-4">
-            <SummaryRow label="Ticket price" value={usdc(price)} />
+            {/* Flips just after the big price, and the button just after this */}
+            <SummaryRow label="Ticket price" value={<FlapText text={usdc(price)} from={priceChanged ? usdc(apiPrice) : undefined} stagger={35} delay={60} />} />
             <SummaryRow
               label="Network fee (est.)"
               value={networkFee !== null ? `~${formatEth(networkFee)} ETH` : "—"}
@@ -290,6 +316,7 @@ function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: ()
                 block={block?.reason ?? null}
                 ready={ready}
                 priceLabel={usdc(price)}
+                oldPriceLabel={priceChanged ? usdc(apiPrice) : undefined}
                 signingIn={signingIn}
                 onBuy={buy}
                 onConnect={() => openConnectModal?.()}
@@ -317,6 +344,7 @@ interface BuyButtonProps {
   block: string | null;
   ready: boolean;
   priceLabel: string;
+  oldPriceLabel?: string; // the price before the seller changed it: the new one flips from it
   signingIn: boolean;
   onBuy: () => void;
   onConnect: () => void;
@@ -324,7 +352,7 @@ interface BuyButtonProps {
   onSignIn: () => void;
 }
 
-function BuyButton({ busy, phase, approving, block, ready, priceLabel, signingIn, onBuy, onConnect, onSwitchNetwork, onSignIn }: BuyButtonProps) {
+function BuyButton({ busy, phase, approving, block, ready, priceLabel, oldPriceLabel, signingIn, onBuy, onConnect, onSwitchNetwork, onSignIn }: BuyButtonProps) {
   const base = "w-full normal-case tracking-normal";
   if (busy) {
     const label: Record<string, string> = {
@@ -376,7 +404,7 @@ function BuyButton({ busy, phase, approving, block, ready, priceLabel, signingIn
   }
   return (
     <Button size="lg" className={base} onClick={onBuy} disabled={!ready || Boolean(block)}>
-      Buy ticket · <span className="font-mono">{priceLabel}</span>
+      Buy ticket · <FlapText text={priceLabel} from={oldPriceLabel} stagger={35} delay={120} className="font-mono" />
     </Button>
   );
 }

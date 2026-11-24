@@ -662,6 +662,26 @@
 @utility stub-tear { animation: stub-tear 220ms var(--ease-snap) 580ms both; }
 @utility paper-bit { opacity: 0; animation: paper-bit 360ms ease-out 580ms; }
 
+/* ---------------------------------------------------------------------------
+   Marketplace (#368)
+   --------------------------------------------------------------------------- */
+/* Over the cap, the bar presses against the post */
+@keyframes cap-press { 40% { transform: scaleX(1.025); } }
+/* The price changed: the bar slides from the old share of the cap (--cap-from) to the new one */
+@keyframes cap-slide { from { width: var(--cap-from); } }
+/* Sorting: a card that moves is picked up (a little bigger, with a shadow) and put down again */
+@keyframes shuffle-lift { 50% { scale: 1.03; filter: drop-shadow(0 14px 18px rgb(0 0 0 / 50%)); } }
+/* A cancelled listing tears off along a jagged right edge */
+@utility torn-edge {
+  mask:
+    linear-gradient(#000 0 0) left / calc(100% - 8px) 100% no-repeat,
+    conic-gradient(from 45deg at left, #000 90deg, transparent 0) right / 8px 12px repeat-y;
+}
+/* A message slides in under the field it's about */
+@keyframes slide-down-in { from { transform: translateY(-4px); opacity: 0; } }
+/* "was 22.00": the line through the old price draws itself */
+@keyframes strike-draw { from { transform: scaleX(0); } }
+
 /* Respect reduced motion everywhere: animations and transitions jump to their end, without delay */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
