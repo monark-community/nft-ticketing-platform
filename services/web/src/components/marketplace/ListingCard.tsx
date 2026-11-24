@@ -4,6 +4,7 @@ import { Calendar, CircleUser, MapPin, Pencil } from "lucide-react";
 
 import { EventImage } from "@/components/event/EventImage";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatEventDate } from "@/lib/events";
 import { shortAddress } from "@/lib/format";
 import { capShare, toUnits, type Listing } from "@/lib/marketplace";
@@ -30,7 +31,7 @@ export function ListingCard({ listing, mine, onBuy, onEdit }: ListingCardProps) 
   const { event } = listing;
 
   return (
-    <article className="flex w-full flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors duration-200 hover:border-border-accent">
+    <article className="flex h-full w-full flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors duration-200 hover:border-border-accent">
       <div className="relative aspect-[16/8] overflow-hidden bg-muted">
         <EventImage src={event.image_url} className={cn(listing.used && "grayscale-[40%]")} />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-card to-transparent" />
@@ -101,18 +102,18 @@ export function ListingCard({ listing, mine, onBuy, onEdit }: ListingCardProps) 
   );
 }
 
-// Placeholder card while listings load
+// Placeholder card while listings load: the orange band sweeps down it (#365)
 export function ListingCardSkeleton() {
   return (
-    <div aria-hidden="true" className="flex flex-col overflow-hidden rounded-lg border border-border bg-card">
-      <div className="aspect-[16/8] animate-pulse bg-muted motion-reduce:animate-none" />
+    <div aria-hidden="true" className="skeleton-sweep flex flex-col rounded-lg border border-border bg-card">
+      <Skeleton className="aspect-[16/8] rounded-none" />
       <div className="flex flex-col gap-3 p-4">
-        <div className="h-6 w-3/4 animate-pulse rounded-xs bg-muted motion-reduce:animate-none" />
-        <div className="h-4 w-1/2 animate-pulse rounded-xs bg-muted motion-reduce:animate-none" />
-        <div className="h-16 animate-pulse rounded-md bg-muted motion-reduce:animate-none" />
+        <Skeleton className="h-6 w-3/4" />
+        <Skeleton className="h-4 w-1/2" />
+        <Skeleton className="h-16 rounded-md" />
         <div className="flex justify-between">
-          <div className="h-4 w-24 animate-pulse rounded-xs bg-muted motion-reduce:animate-none" />
-          <div className="h-9 w-16 animate-pulse rounded-sm bg-muted motion-reduce:animate-none" />
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-9 w-16 rounded-sm" />
         </div>
       </div>
     </div>

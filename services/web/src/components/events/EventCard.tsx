@@ -4,7 +4,9 @@ import { ArrowRight, Calendar, MapPin, Ticket } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
+import { CountUp } from "@/components/motion/CountUp";
 import { SharedPicture, usePictureLink } from "@/components/motion/SharedPicture";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { usePrefetchEvent } from "@/hooks/useEvent";
@@ -13,9 +15,18 @@ import { rememberEventPicture } from "@/lib/event-picture";
 import { eventHref, eventStockStatus, formatEventDate, formatPrice, startingPrice, type EventSummary } from "@/lib/events";
 import { cn } from "@/lib/utils";
 
+// A notch bitten into the card's edge at the divider: a circle in the page's colour centred on the
+// edge, with only its inner half showing (the outer half is clipped), so it covers the border there
+const NOTCH =
+  "pointer-events-none absolute top-0 -mt-[9px] size-[18px] scale-0 rounded-full border border-primary/55 bg-background transition-transform duration-[170ms] ease-[var(--ease-snap)] group-hover:scale-100 group-focus-visible:scale-100";
+
 // Event card from the Figma "Events / Default" frame (#283).
 // The whole card is one link to the event page, so the "View tickets" button is only a visual cue.
-export function EventCard({ event }: { event: EventSummary }) {
+// On hover or keyboard focus it becomes a ticket with a stub (#366): two notches bite into its
+// sides at the divider, which turns into a dashed tear line; the picture zooms 3% and the arrow
+// steps forward. Pressing it sinks it 1%. `countFrom` counts the price up from that number when the card first appears
+// (after `countDelay` ms), while it prints in.
+export function EventCard({ event, countFrom, countDelay = 0 }: { event: EventSummary; countFrom?: number; countDelay?: number }) {
   const [imageFailed, setImageFailed] = useState(false);
   const status = eventStockStatus(event.ticket_types);
   const price = startingPrice(event.ticket_types);
@@ -40,9 +51,10 @@ export function EventCard({ event }: { event: EventSummary }) {
       onPointerEnter={prefetch}
       onPointerDown={prefetch}
       onFocus={prefetch}
-      className="group flex w-full flex-col overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow] duration-200 hover:border-primary/55 hover:shadow-[0_0_0_2px_rgb(249_115_22/55%),0_0_24px_rgb(249_115_22/22%)] focus-visible:border-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/30"
+      // Not overflow-hidden: the notches reach over the card's edge (the picture clips itself)
+      className="group flex h-full w-full flex-col rounded-lg border border-border bg-card [transition:border-color_200ms,box-shadow_200ms,scale_90ms_ease-out] hover:border-primary/55 hover:shadow-[0_0_0_2px_rgb(249_115_22/55%),0_0_24px_rgb(249_115_22/22%)] focus-visible:border-primary focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/30 active:scale-[0.99]"
     >
-      <div className="relative aspect-[16/9] overflow-hidden bg-muted">
+      <div className="relative aspect-[16/9] overflow-hidden rounded-t-[calc(var(--radius-lg)-1px)] bg-muted">
         {/* The picture flies into the event page's hero, and back from it (#363) */}
         <SharedPicture eventId={event.id} role="card">
           {showImage ? (
@@ -54,7 +66,7 @@ export function EventCard({ event }: { event: EventSummary }) {
               loading="lazy"
               onError={() => setImageFailed(true)}
               className={cn(
-                "size-full object-cover transition-transform duration-500 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100",
+                "size-full object-cover transition-transform duration-300 ease-[var(--ease-arrive)] group-hover:scale-[1.03] group-focus-visible:scale-[1.03] motion-reduce:transition-none",
                 soldOut && "opacity-60 grayscale-[40%]"
               )}
             />
@@ -94,19 +106,24 @@ export function EventCard({ event }: { event: EventSummary }) {
           )}
         </div>
 
-        <div className="mt-auto flex items-end justify-between gap-3 border-t border-border pt-4">
+        {/* The divider: a dashed tear line with a notch on each side while hovered or focused */}
+        <div className="relative mt-auto flex items-end justify-between gap-3 border-t border-border pt-4 transition-colors duration-[160ms] before:pointer-events-none before:absolute before:inset-x-0 before:-top-px before:border-t before:border-dashed before:border-primary/80 before:opacity-0 before:transition-opacity before:duration-[160ms] group-hover:border-t-transparent group-hover:before:opacity-100 group-focus-visible:border-t-transparent group-focus-visible:before:opacity-100">
+          <span className={cn(NOTCH, "-left-[30px] [clip-path:inset(-2px_-2px_-2px_50%)]")} aria-hidden="true" />
+          <span className={cn(NOTCH, "-right-[30px] [clip-path:inset(-2px_50%_-2px_-2px)]")} aria-hidden="true" />
           <div>
             <p className="type-label-sm text-muted-foreground">{price === null ? "Tickets" : "Starting from"}</p>
             {price === null ? (
               <p className="type-body-md text-secondary-foreground">Coming soon</p>
             ) : (
-              <p className={cn("type-price", soldOut ? "text-muted-foreground" : "text-primary")}>{formatPrice(price)}</p>
+              <p className={cn("type-price", soldOut ? "text-muted-foreground" : "text-primary")}>
+                <CountUp value={price} from={countFrom} delay={countDelay} ms={360} format={formatPrice} />
+              </p>
             )}
           </div>
           {soldOut ? (
             <span className={cn(buttonVariants({ variant: "outline", size: "sm" }), "text-muted-foreground")}>Sold out</span>
           ) : (
-            <span className={buttonVariants({ size: "sm" })}>
+            <span className={cn(buttonVariants({ size: "sm" }), "group-hover:[&_svg.lucide-arrow-right]:translate-x-1 group-focus-visible:[&_svg.lucide-arrow-right]:translate-x-1")}>
               View tickets
               <ArrowRight aria-hidden="true" />
             </span>
@@ -120,16 +137,16 @@ export function EventCard({ event }: { event: EventSummary }) {
 // Placeholder card while events load ("Events / Loading")
 export function EventCardSkeleton() {
   return (
-    <div aria-hidden="true" className="flex flex-col overflow-hidden rounded-lg border border-border bg-card">
-      <div className="aspect-[16/9] animate-pulse bg-muted motion-reduce:animate-none" />
+    <div aria-hidden="true" className="skeleton-sweep flex flex-col rounded-lg border border-border bg-card">
+      <Skeleton className="aspect-[16/9] rounded-none" />
       <div className="flex flex-col gap-3 p-5">
-        <div className="h-4 w-24 animate-pulse rounded-xs bg-muted motion-reduce:animate-none" />
-        <div className="h-6 w-3/4 animate-pulse rounded-xs bg-muted motion-reduce:animate-none" />
-        <div className="h-4 w-1/2 animate-pulse rounded-xs bg-muted motion-reduce:animate-none" />
-        <div className="h-4 w-2/3 animate-pulse rounded-xs bg-muted motion-reduce:animate-none" />
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-6 w-3/4" />
+        <Skeleton className="h-4 w-1/2" />
+        <Skeleton className="h-4 w-2/3" />
         <div className="mt-2 flex items-end justify-between border-t border-border pt-4">
-          <div className="h-8 w-28 animate-pulse rounded-xs bg-muted motion-reduce:animate-none" />
-          <div className="h-9 w-28 animate-pulse rounded-sm bg-muted motion-reduce:animate-none" />
+          <Skeleton className="h-8 w-28" />
+          <Skeleton className="h-9 w-28 rounded-sm" />
         </div>
       </div>
     </div>

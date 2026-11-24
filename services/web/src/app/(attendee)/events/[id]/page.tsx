@@ -19,13 +19,14 @@ import { Navbar } from "@/components/Navbar";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useEvent } from "@/hooks/useEvent";
 import { useEventOnChain } from "@/hooks/useEventOnChain";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { usePurchaseTickets } from "@/hooks/usePurchaseTickets";
 import { useWalletAuth } from "@/hooks/useWalletAuth";
 import { TICKET_NFT_ADDRESS, TICKET_NFT_CHAIN_ID } from "@/lib/contracts/ticket-nft";
-import { buildTiers } from "@/lib/event-details";
+import { buildTiers, formatEventDate } from "@/lib/event-details";
 import { rememberedEventPicture } from "@/lib/event-picture";
 import { ROUTES } from "@/lib/nav";
 import { estimatePurchaseGas, getBlockMessage, getMaxQuantity, getPurchaseBlock } from "@/lib/purchase-checks";
@@ -163,15 +164,25 @@ export default function EventPage() {
           <Link
             href={ROUTES.events}
             onClick={backWithPicture}
-            className="flex w-fit items-center gap-1 rounded-xs text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="group flex w-fit items-center gap-1 rounded-xs text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <ArrowLeft className="size-3" aria-hidden="true" />
+            {/* Steps back 4 px on hover (#367) */}
+            <ArrowLeft className="size-3 transition-transform duration-fast group-hover:-translate-x-1" aria-hidden="true" />
             Back to events
           </Link>
 
           {/* One hero for the loading page and the loaded one, so the picture that flew out of the
               card isn't swapped for another element halfway through (#363) */}
-          {(event || heroWhileLoading) && <EventHero event={event} eventId={id} loadingPicture={loadingPicture ?? null} availability={availability} arrivedLate={!loadedAtStart} />}
+          {(event || heroWhileLoading) && (
+            <EventHero
+              event={event}
+              eventId={id}
+              loadingPicture={loadingPicture ?? null}
+              availability={availability}
+              develop={loadingPicture === undefined}
+              arrivedLate={!loadedAtStart}
+            />
+          )}
 
           {loading ? (
             <EventPageSkeleton hero={!heroWhileLoading} />
@@ -222,6 +233,7 @@ export default function EventPage() {
                         tier={tier}
                         usdcDecimals={decimals}
                         selected={tier.key === selected?.key}
+                        chosen={tier.key === selectedKey}
                         onSelect={() => {
                           setSelectedKey(tier.key);
                           setQuantity(1);
@@ -253,6 +265,7 @@ export default function EventPage() {
                     walletAddress={wallet}
                   >
                     <PurchasePanel
+                      ticket={selected ? { title: event.title, tierName: selected.name, date: formatEventDate(event.start_date) } : null}
                       steps={purchase.steps}
                       state={purchase.state}
                       explorerUrl={purchase.explorerUrl}
@@ -302,18 +315,19 @@ export default function EventPage() {
 }
 
 // Placeholder shapes while the event loads, so the layout doesn't jump. Without `hero`, the real
-// hero is already on the page with the picture of the card that was clicked.
+// hero is already on the page with the picture of the card that was clicked. The orange band
+// sweeps down each block (#365); the page's arrival is the event page sub-issue's (#367).
 function EventPageSkeleton({ hero }: { hero: boolean }) {
   return (
     <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading event">
-      {hero && <div className="h-[340px] animate-pulse rounded-lg bg-card md:h-[450px]" />}
+      {hero && <Skeleton sweep className="h-[340px] rounded-lg bg-card md:h-[450px]" />}
       <div className="grid grid-cols-1 gap-8 pt-4 lg:grid-cols-12">
         <div className="flex flex-col gap-6 lg:col-span-7">
-          <div className="h-8 w-56 animate-pulse rounded-sm bg-card" />
-          <div className="h-40 animate-pulse rounded-lg bg-card" />
-          <div className="h-40 animate-pulse rounded-lg bg-card" />
+          <Skeleton sweep className="h-8 w-56 rounded-sm bg-card" />
+          <Skeleton sweep className="h-40 rounded-lg bg-card" />
+          <Skeleton sweep className="h-40 rounded-lg bg-card" />
         </div>
-        <div className="h-[520px] animate-pulse rounded-lg bg-card lg:col-span-5" />
+        <Skeleton sweep className="h-[520px] rounded-lg bg-card lg:col-span-5" />
       </div>
     </div>
   );

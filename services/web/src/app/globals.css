@@ -231,7 +231,8 @@
   to { transform: translateY(0); opacity: 1; }
 }
 @utility print-in {
-  animation: print-in var(--print-ms, 260ms) linear var(--print-delay, 0ms) both;
+  /* backwards, not both: once printed, nothing stays clipped (shadows, focus rings, menus) */
+  animation: print-in var(--print-ms, 400ms) linear var(--print-delay, 0ms) backwards;
 }
 @utility print-in-line {
   position: absolute;
@@ -241,7 +242,45 @@
   border-bottom: 2px solid var(--primary);
   background: linear-gradient(to top, rgb(249 115 22 / 30%), transparent 16px);
   opacity: 0;
-  animation: print-line var(--print-ms, 260ms) linear var(--print-delay, 0ms) backwards;
+  animation: print-line var(--print-ms, 400ms) linear var(--print-delay, 0ms) backwards;
+}
+/* The same print for a table row, whose cells can't be wrapped (PrintIn's timings: --print-ms and
+   --print-delay on the row). On phones the row is laid out as a card and prints as one box; as a
+   real table row, its cells print together, each with its part of the line. */
+@utility print-row {
+  position: relative;
+  animation: print-in var(--print-ms, 400ms) linear var(--print-delay, 0ms) backwards;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    border-bottom: 2px solid var(--primary);
+    background: linear-gradient(to top, rgb(249 115 22 / 30%), transparent 16px);
+    opacity: 0;
+    animation: print-line var(--print-ms, 400ms) linear var(--print-delay, 0ms) backwards;
+  }
+  @media (width >= 64rem) {
+    position: static;
+    animation: none;
+    &::after { content: none; }
+    & > td {
+      position: relative;
+      animation: print-in var(--print-ms, 400ms) linear var(--print-delay, 0ms) backwards;
+    }
+    & > td::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+      border-bottom: 2px solid var(--primary);
+      background: linear-gradient(to top, rgb(249 115 22 / 30%), transparent 16px);
+      opacity: 0;
+      animation: print-line var(--print-ms, 400ms) linear var(--print-delay, 0ms) backwards;
+    }
+  }
 }
 
 /* Stamp: a rubber stamp landing at a slight angle (Stamp) */
@@ -507,6 +546,121 @@
 :root:active-view-transition .after-flight { animation-play-state: paused; }
 /* The pages' content doesn't also fade in on its own while they change */
 :root:active-view-transition main { animation-duration: 0s; }
+
+/* ---------------------------------------------------------------------------
+   Loading placeholders and empty states (#365)
+   --------------------------------------------------------------------------- */
+/* Placeholders wait 250 ms before they show (PLACEHOLDER_DELAY_MS in lib/motion.ts), then fade in,
+   so a page that answers faster goes straight to its content without a flash. Put it on the
+   outermost box of a placeholder (the one with role="status" or aria-busy). useHeldLoading keeps
+   them on screen at least 500 ms once they show. */
+@keyframes placeholder-in { from { opacity: 0; } }
+@utility placeholder-in { animation: placeholder-in 200ms ease-out 250ms backwards; }
+
+/* Placeholders (Skeleton) don't blink: a soft orange band sweeps down the box like the scanner
+   line, every 1.2 s. The band is the bottom 46 px of a layer as tall as the box, moved from just
+   above the box to just below it. At rest it's hidden, so with reduced motion the shapes are still. */
+@keyframes skeleton-sweep {
+  from { transform: translateY(-100%); opacity: 1; }
+  to { transform: translateY(46px); opacity: 1; }
+}
+@utility skeleton-sweep {
+  position: relative;
+  overflow: hidden;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent calc(100% - 46px),
+      rgb(249 115 22 / 9%) calc(100% - 18px),
+      rgb(249 115 22 / 35%) calc(100% - 2px),
+      transparent
+    );
+    opacity: 0;
+    animation: skeleton-sweep 1.2s linear infinite;
+  }
+}
+
+/* Empty states: the icon (first child) drops in like a ticket stub and settles with a small
+   bounce, a thin orange outline draws itself around the box and fades back to its grey border,
+   and the rest rises in after it, 60 ms apart: about a second in all, so it reads as an arrival */
+@property --outline-drawn {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes stub-drop { from { transform: translateY(-18px) rotate(-10deg); opacity: 0; } }
+@keyframes outline-draw {
+  from { --outline-drawn: 0deg; opacity: 1; }
+  70% { --outline-drawn: 360deg; opacity: 1; }
+  to { --outline-drawn: 360deg; opacity: 0; }
+}
+@keyframes rise-in { from { transform: translateY(6px); opacity: 0; } }
+@keyframes stamp-on { from { transform: scale(1.6) rotate(-10deg); opacity: 0; } }
+@utility empty-arrive {
+  position: relative;
+  /* Laid over the box's own border, shown only as far round as it has been drawn */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border: 1px solid var(--primary);
+    border-radius: inherit;
+    pointer-events: none;
+    mask-image: conic-gradient(#000 var(--outline-drawn), transparent 0);
+    opacity: 0;
+    animation: outline-draw 1100ms ease-out 80ms backwards;
+  }
+  & > * { animation: rise-in 320ms var(--ease-arrive) 220ms backwards; }
+  & > :first-child { animation: stub-drop 420ms var(--ease-snap) backwards; }
+  /* No results (#366): the icon is stamped on instead */
+  &[data-arrive="stamp"] > :first-child { animation: stamp-on 320ms var(--ease-snap) backwards; }
+  & > :nth-child(3) { animation-delay: 280ms; }
+  & > :nth-child(4) { animation-delay: 340ms; }
+  & > :nth-child(n + 5) { animation-delay: 400ms; }
+}
+
+/* ---------------------------------------------------------------------------
+   Events page (#366)
+   --------------------------------------------------------------------------- */
+/* Refresh: the icon makes one full turn per refresh */
+@keyframes turn-once { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@utility turn-once { animation: turn-once 520ms cubic-bezier(0.4, 0, 0.2, 1); }
+
+/* ---------------------------------------------------------------------------
+   Event page and buying (#367)
+   --------------------------------------------------------------------------- */
+/* Opened without a card to fly from, the picture comes into focus like a photo developing */
+@keyframes photo-develop { from { filter: blur(14px) brightness(0.35) saturate(0.5); transform: scale(1.07); } }
+@utility photo-develop { animation: photo-develop 480ms ease-out backwards; }
+/* Hero text: the tag slides in, the title's words rise through a mask, the date and venue fade in */
+@keyframes slide-in-left { from { transform: translateX(-12px); opacity: 0; } }
+@keyframes word-rise { from { transform: translateY(115%); } }
+/* While the picture flies in from the card (#363), the hero's own arrival waits for it */
+:root:active-view-transition [data-hero-arrival] * { animation-play-state: paused; }
+/* The availability bar grows to its width */
+@keyframes bar-grow { from { transform: scaleX(0); } }
+/* Phones: the buy bar slides up from the bottom */
+@keyframes slide-up { from { transform: translateY(100%); } }
+
+/* Success: the ticket prints out of a slot in steps (0.5 s), then its stub tears off along the
+   perforation, scattering a few paper bits. The final state is the torn ticket. */
+@keyframes ticket-print {
+  from { clip-path: inset(0 -24px 100% -24px); transform: translateY(-6px); }
+  to { clip-path: inset(0 -24px -40px -24px); transform: none; }
+}
+@keyframes stub-tear { to { transform: translate(9px, 3px) rotate(5deg); } }
+@keyframes paper-bit {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translate(var(--bit-x), var(--bit-y)) scale(0.4); }
+}
+@utility ticket-print { animation: ticket-print 520ms steps(9, end) both; }
+@utility stub-tear { animation: stub-tear 220ms var(--ease-snap) 580ms both; }
+@utility paper-bit { opacity: 0; animation: paper-bit 360ms ease-out 580ms; }
 
 /* Respect reduced motion everywhere: animations and transitions jump to their end, without delay */
 @media (prefers-reduced-motion: reduce) {

@@ -5,10 +5,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { EventsMessage } from "@/components/events/EventsMessage";
+import { PrintIn } from "@/components/motion";
 import { OrganizerEventTable, OrganizerEventTableSkeleton } from "@/components/organizer/OrganizerEventTable";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useOrganizerEvents } from "@/hooks/useOrganizerEvents";
+import { useHeldLoading } from "@/hooks/useHeldLoading";
+import { useSawLoading } from "@/hooks/useSawLoading";
 import {
   filterOrganizerEvents,
   formatRevenue,
@@ -37,13 +40,16 @@ const EMPTY_TEXT: Record<OrganizerFilter, string> = {
 // events, in the Figma table with their sales. The list comes from GET /api/events/mine (#250).
 export function OrganizerDashboard() {
   const { events, loading, error, reload } = useOrganizerEvents();
+  const sawLoading = useSawLoading(loading);
+  // Placeholders never flash for a fast answer, and never blink when they do show (#365)
+  const showPlaceholders = useHeldLoading(loading);
   const [filter, setFilter] = useState<OrganizerFilter>("all");
   const now = useNowMinutes();
 
   const summary = useMemo(() => summarizeOrganizerEvents(events, now), [events, now]);
   const visible = useMemo(() => filterOrganizerEvents(events, filter, now), [events, filter, now]);
   // With no events the empty state has its own Create event button, so the header one stays hidden
-  const showCreate = !loading && !error && events.length > 0;
+  const showCreate = !showPlaceholders && !error && events.length > 0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -61,7 +67,7 @@ export function OrganizerDashboard() {
         )}
       </header>
 
-      {loading ? (
+      {showPlaceholders ? (
         <OrganizerEventTableSkeleton />
       ) : error ? (
         <Alert
@@ -90,7 +96,11 @@ export function OrganizerDashboard() {
         </EventsMessage>
       ) : (
         <div className="flex flex-col gap-6">
-          <SummaryStrip summary={summary} />
+          {/* When it replaces the placeholders, the summary prints in under its scan line, then the
+              table's rows one after another (#365) */}
+          <PrintIn play={sawLoading}>
+            <SummaryStrip summary={summary} />
+          </PrintIn>
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <FilterTabs filter={filter} onChange={setFilter} summary={summary} />
@@ -113,7 +123,7 @@ export function OrganizerDashboard() {
                 <p>{EMPTY_TEXT[filter]}</p>
               </EventsMessage>
             ) : (
-              <OrganizerEventTable events={visible} now={now} />
+              <OrganizerEventTable events={visible} now={now} print={sawLoading} printFrom={1} />
             )}
           </div>
         </div>

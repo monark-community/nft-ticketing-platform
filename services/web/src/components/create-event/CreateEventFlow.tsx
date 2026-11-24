@@ -9,9 +9,13 @@ import { useAccount } from "wagmi";
 
 import { CreateEventStepper } from "@/components/create-event/CreateEventStepper";
 import { DraftEditor } from "@/components/create-event/DraftEditor";
+import { PrintIn } from "@/components/motion";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useHeldLoading } from "@/hooks/useHeldLoading";
+import { useSawLoading } from "@/hooks/useSawLoading";
 import { ApiError } from "@/lib/api";
 import { parseStep, type FormStep } from "@/lib/create-event";
 import { fetchDraft, type DraftEvent } from "@/lib/create-event-api";
@@ -45,6 +49,10 @@ export function CreateEventFlow() {
     refetchOnWindowFocus: false,
   });
   const event = eventId ? (draft.data ?? null) : null;
+  // A saved draft that had to load prints in when it arrives (#365)
+  const sawDraftLoading = useSawLoading(Boolean(eventId && !event));
+  // Placeholders never flash for a fast answer, and never blink when they do show (#365)
+  const showDraftPlaceholders = useHeldLoading(Boolean(eventId && !event));
 
   // The cover image isn't saved in the API until freeze, so it's kept here for the draft it
   // was picked for (it carries over when the first save creates the draft)
@@ -128,7 +136,7 @@ export function CreateEventFlow() {
     );
   }
 
-  if (eventId && !event) return <FlowSkeleton stepper={stepper} />;
+  if (showDraftPlaceholders) return <FlowSkeleton stepper={stepper} />;
 
   if (event && !ownDraft) {
     return (
@@ -160,18 +168,20 @@ export function CreateEventFlow() {
         </Alert>
       )}
 
-      <DraftEditor
-        key={event?.id ?? "new"}
-        event={event}
-        step={step}
-        image={currentImage?.file ?? null}
-        imagePreview={currentImage?.url ?? null}
-        onImageChange={changeImage}
-        onCreated={onCreated}
-        onEventChange={(updated) => queryClient.setQueryData(draftKey(updated.id), updated)}
-        goTo={goTo}
-        justCreated={Boolean(event && createdId === event.id)}
-      />
+      <PrintIn play={sawDraftLoading}>
+        <DraftEditor
+          key={event?.id ?? "new"}
+          event={event}
+          step={step}
+          image={currentImage?.file ?? null}
+          imagePreview={currentImage?.url ?? null}
+          onImageChange={changeImage}
+          onCreated={onCreated}
+          onEventChange={(updated) => queryClient.setQueryData(draftKey(updated.id), updated)}
+          goTo={goTo}
+          justCreated={Boolean(event && createdId === event.id)}
+        />
+      </PrintIn>
     </div>
   );
 }
@@ -211,13 +221,14 @@ function MessageCard({ title, text, children }: { title: string; text: string; c
   );
 }
 
+// The orange band sweeps down each block while a draft loads (#365)
 export function FlowSkeleton({ stepper }: { stepper?: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-8" aria-busy="true" aria-label="Loading">
-      {stepper ?? <div className="h-7 animate-pulse rounded-sm bg-card" />}
+    <div className="placeholder-in flex flex-col gap-8" aria-busy="true" aria-label="Loading">
+      {stepper ?? <Skeleton sweep className="h-7 rounded-sm bg-card" />}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="h-[640px] animate-pulse rounded-lg bg-card" />
-        <div className="h-32 animate-pulse rounded-lg bg-card" />
+        <Skeleton sweep className="h-[640px] rounded-lg bg-card" />
+        <Skeleton sweep className="h-32 rounded-lg bg-card" />
       </div>
     </div>
   );

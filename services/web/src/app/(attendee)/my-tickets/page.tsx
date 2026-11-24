@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAccount } from "wagmi";
 
 import { Footer } from "@/components/Footer";
+import { PrintIn } from "@/components/motion";
 import { Navbar } from "@/components/Navbar";
 import { EntryQrDialog } from "@/components/tickets/EntryQrDialog";
 import { TicketGroupCard } from "@/components/tickets/TicketGroupCard";
@@ -15,7 +16,10 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { useOwnedTickets } from "@/hooks/useOwnedTickets";
+import { useHeldLoading } from "@/hooks/useHeldLoading";
+import { useSawLoading } from "@/hooks/useSawLoading";
 import { useTicketEvents } from "@/hooks/useTicketEvents";
+import { printDelay } from "@/lib/motion";
 import { groupTickets, parseTicketView, type TicketView } from "@/lib/my-tickets";
 
 const VIEW_KEY = "nftokenpass:my-tickets-view";
@@ -50,6 +54,9 @@ export default function MyTicketsPage() {
   const connected = hasMounted && isConnected && Boolean(address);
   const loading = owned.loading || (owned.tickets.length > 0 && details.loading);
   const hasTickets = grouped.upcoming.length + grouped.past.length > 0;
+  const sawLoading = useSawLoading(!hasMounted || (connected && loading));
+  // Placeholders never flash for a fast answer, and never blink when they do show (#365)
+  const showPlaceholders = useHeldLoading(connected && loading);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -62,7 +69,7 @@ export default function MyTicketsPage() {
               <h1 className="font-serif text-[32px] leading-10 font-semibold tracking-[-0.8px] text-foreground">My Tickets</h1>
               <p className="text-[15px] leading-6 text-muted-foreground">Your tickets and entry QR codes</p>
             </div>
-            {connected && !loading && !owned.error && hasTickets && (
+            {connected && !showPlaceholders && !owned.error && hasTickets && (
               <div className="flex justify-end">
                 <TicketViewSwitcher view={view} onChange={changeView} />
               </div>
@@ -77,7 +84,7 @@ export default function MyTicketsPage() {
               <ConnectWalletPrompt onConnect={() => openConnectModal?.()} />
               <HowItWorks />
             </div>
-          ) : loading ? (
+          ) : showPlaceholders ? (
             <TicketsSkeleton />
           ) : owned.error ? (
             <Alert
@@ -111,17 +118,23 @@ export default function MyTicketsPage() {
                   Your tickets and entry QR codes still work.
                 </Alert>
               )}
+              {/* Each card prints in under its own scan line, one after another, when the cards
+                  replace the placeholders (#365) */}
               {grouped.upcoming.length > 0 && (
                 <TicketSection title="Upcoming" count={grouped.upcoming.length} tone="upcoming" view={view}>
-                  {grouped.upcoming.map((group) => (
-                    <TicketGroupCard key={group.key} group={group} view={view} onShowQr={() => setQrFor({ key: group.key, wallet: address! })} />
+                  {grouped.upcoming.map((group, index) => (
+                    <PrintIn key={group.key} play={sawLoading} delay={printDelay(index)}>
+                      <TicketGroupCard group={group} view={view} onShowQr={() => setQrFor({ key: group.key, wallet: address! })} />
+                    </PrintIn>
                   ))}
                 </TicketSection>
               )}
               {grouped.past.length > 0 && (
                 <TicketSection title="Past" count={grouped.past.length} tone="past" view={view}>
-                  {grouped.past.map((group) => (
-                    <TicketGroupCard key={group.key} group={group} view={view} onShowQr={() => {}} />
+                  {grouped.past.map((group, index) => (
+                    <PrintIn key={group.key} play={sawLoading} delay={printDelay(grouped.upcoming.length + index)}>
+                      <TicketGroupCard group={group} view={view} onShowQr={() => {}} />
+                    </PrintIn>
                   ))}
                 </TicketSection>
               )}

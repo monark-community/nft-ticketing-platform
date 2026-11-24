@@ -12,6 +12,7 @@ import { CreateAccountForm } from "@/components/auth/CreateAccountForm";
 import { OrganizerRequestCard } from "@/components/auth/OrganizerRequestCard";
 import { Footer } from "@/components/Footer";
 import { Navbar } from "@/components/Navbar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { useWalletAuth, type UserProfile } from "@/hooks/useWalletAuth";
@@ -122,5 +123,5 @@ function SignUpFlow() {
 
 // Same footprint as the cards, so the page doesn't jump while the wallet state loads
 function CardSkeleton() {
-  return <div className="h-[352px] w-full animate-pulse rounded-lg bg-card" aria-busy="true" aria-label="Loading" />;
+  return <Skeleton sweep className="placeholder-in h-[352px] w-full rounded-lg bg-card" aria-busy="true" aria-label="Loading" />;
 }

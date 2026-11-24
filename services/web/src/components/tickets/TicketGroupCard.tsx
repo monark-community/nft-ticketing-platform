@@ -56,7 +56,7 @@ export function TicketGroupCard({ group, view, onShowQr }: { group: TicketGroup;
   return (
     <article
       className={cn(
-        "flex flex-col overflow-hidden rounded-lg border border-border bg-card shadow-[0_4px_24px_rgb(0_0_0/40%)]",
+        "flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card shadow-[0_4px_24px_rgb(0_0_0/40%)]",
         past && "opacity-70",
       )}
     >

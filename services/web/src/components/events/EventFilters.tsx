@@ -1,6 +1,7 @@
 "use client";
 
 import { RotateCw, Search } from "lucide-react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,13 +22,19 @@ interface EventFiltersProps {
 
 // Search, category dropdown and quick-select chips above the events grid (Figma "Events / Default",
 // #320). The dropdown and the chips are two ways to set the same category.
+// Motion (#366): the search icon turns orange with the box's ring, Refresh turns its icon once per
+// refresh, and the chosen chip gets a hole punched into it.
 export function EventFilters({ search, onSearchChange, category, onCategoryChange, totalEvents, onRefresh, refreshing }: EventFiltersProps) {
+  const [turns, setTurns] = useState(0); // a new turn of the Refresh icon per refresh
   return (
     <section aria-label="Find events" className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <label className="relative w-full md:max-w-xl">
+        <label className="group/search relative w-full md:max-w-xl">
           <span className="sr-only">Search events, venues or cities</span>
-          <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Search
+            className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground transition-colors duration-[140ms] group-focus-within/search:text-primary"
+            aria-hidden="true"
+          />
           <Input
             type="search"
             value={search}
@@ -47,8 +54,18 @@ export function EventFilters({ search, onSearchChange, category, onCategoryChang
               </option>
             ))}
           </Select>
-          <Button variant="outline" size="icon" onClick={onRefresh} loading={refreshing} aria-label="Refresh events">
-            {!refreshing && <RotateCw aria-hidden="true" />}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              setTurns((n) => n + 1);
+              onRefresh();
+            }}
+            disabled={refreshing}
+            aria-busy={refreshing || undefined}
+            aria-label="Refresh events"
+          >
+            <RotateCw key={turns} className={turns > 0 ? "turn-once" : undefined} aria-hidden="true" />
           </Button>
         </div>
       </div>
@@ -78,10 +95,13 @@ function Chip({ selected, onClick, children }: { selected: boolean; onClick: () 
       aria-pressed={selected}
       onClick={onClick}
       className={cn(
-        "shrink-0 rounded-sm border px-3 py-1.5 type-mono-tag whitespace-nowrap transition-colors duration-200 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        "relative shrink-0 rounded-sm border py-1.5 type-mono-tag whitespace-nowrap transition-[color,background-color,border-color,padding] duration-200 outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        // The hole punched into the chosen chip (#366): it pops in with a small overshoot, and the
+        // label moves over to make room
+        "before:absolute before:top-1/2 before:left-2.5 before:-mt-1 before:size-2 before:scale-0 before:rounded-full before:bg-card before:shadow-[0_0_0_1.5px_var(--primary)] before:transition-transform before:duration-[180ms] before:ease-[var(--ease-snap)]",
         selected
-          ? "border-primary bg-primary-tint text-primary"
-          : "border-border bg-background text-secondary-foreground hover:border-border-accent hover:text-foreground",
+          ? "border-primary bg-primary-tint pr-3 pl-[27px] text-primary before:scale-100"
+          : "border-border bg-background px-3 text-secondary-foreground hover:border-border-accent hover:text-foreground",
       )}
     >
       {children}
