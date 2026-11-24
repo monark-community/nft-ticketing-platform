@@ -271,20 +271,31 @@ export function OrganizerRequestCard({ wallet }: { wallet: string }) {
   // also waits for the plane to leave the button: the API can answer before it has taken off.
   const reduced = usePrefersReducedMotion();
   const [shape, setShape] = useState(next);
+  // The first answer from the API shows at once: the request was there before the page opened. Only
+  // a change while the page is open (Request access, or an answer read later) fades and reshapes it.
+  const [loaded, setLoaded] = useState(!latest.isPending);
+  if (!loaded && !latest.isPending) {
+    setLoaded(true);
+    setShape(next);
+  }
   if (next !== shape && reduced) setShape(next);
   const leaving = next !== shape && !reduced;
   const [fadingTo, setFadingTo] = useState<string | null>(null);
+  const [reshapes, setReshapes] = useState(0); // the changes that reshape the card
   useEffect(() => {
     if (!leaving) return;
     const wait = Math.max(0, planeOut.current - Date.now());
     const fade = setTimeout(() => setFadingTo(next), wait);
-    const swap = setTimeout(() => setShape(next), wait + LEAVE_MS);
+    const swap = setTimeout(() => {
+      setShape(next);
+      setReshapes((count) => count + 1);
+    }, wait + LEAVE_MS);
     return () => {
       clearTimeout(fade);
       clearTimeout(swap);
     };
   }, [leaving, next]);
-  useReshape(card, shape);
+  useReshape(card, String(reshapes));
   const fading = leaving && fadingTo === next && "[&>*]:animate-[dim-out_100ms_ease-in_forwards]";
   const stampLands = useApprovalStamp(status === "approved" ? (latest.data?.id ?? null) : null);
 
