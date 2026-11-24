@@ -391,22 +391,33 @@ export function parseStoredSaleRules(value: string | null): SaleRulesForm | null
 
 // "A VIP ticket (28.00 USDC) can be resold for up to 56.00 USDC before the event. You receive 10%
 // of each resale." Uses the most expensive ticket type.
-export function resaleExample(types: TicketTypeForm[], rules: SaleRulesForm, decimals: number, format: (v: bigint) => string): string {
-  const royalty = parseRoyaltyBps(rules.royaltyPercent);
-  const royaltyText =
-    royalty === null ? "" : royalty === 0 ? " You don't receive a royalty on resales." : ` You receive ${Number((royalty / 100).toFixed(2))}% of each resale.`;
+// The ticket type buyers' resale example is about: the most expensive named one, with its cap
+// (null: no cap). Also drawn as a small ticket on the sale rules step (#372).
+export function resalePreview(
+  types: TicketTypeForm[],
+  rules: SaleRulesForm,
+  decimals: number,
+): { name: string; price: bigint; cap: bigint | null } | null {
   let top: { name: string; price: bigint } | null = null;
   for (const type of types) {
     const price = parsePrice(type.price, decimals);
     if (price !== null && type.name.trim() && (!top || price > top.price)) top = { name: type.name.trim(), price };
   }
+  if (!top) return null;
+  return { ...top, cap: rules.resaleCapBps === 0 ? null : (top.price * BigInt(rules.resaleCapBps)) / BigInt(10_000) };
+}
+
+export function resaleExample(types: TicketTypeForm[], rules: SaleRulesForm, decimals: number, format: (v: bigint) => string): string {
+  const royalty = parseRoyaltyBps(rules.royaltyPercent);
+  const royaltyText =
+    royalty === null ? "" : royalty === 0 ? " You don't receive a royalty on resales." : ` You receive ${Number((royalty / 100).toFixed(2))}% of each resale.`;
+  const top = resalePreview(types, rules, decimals);
   if (!top) return `Resale prices follow the cap you choose.${royaltyText}`;
   const article = /^[aeiou]/i.test(top.name) ? "An" : "A";
-  if (rules.resaleCapBps === 0) {
+  if (top.cap === null) {
     return `${article} ${top.name} ticket (${format(top.price)} USDC) can be resold at any price.${royaltyText}`;
   }
-  const cap = (top.price * BigInt(rules.resaleCapBps)) / BigInt(10_000);
-  return `${article} ${top.name} ticket (${format(top.price)} USDC) can be resold for up to ${format(cap)} USDC before the event.${royaltyText}`;
+  return `${article} ${top.name} ticket (${format(top.price)} USDC) can be resold for up to ${format(top.cap)} USDC before the event.${royaltyText}`;
 }
 
 // ---------------------------------------------------------------------------------------------

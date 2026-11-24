@@ -801,6 +801,22 @@
   transition: translate 180ms var(--ease-arrive), height 180ms var(--ease-arrive);
 }
 
+/* ---------------------------------------------------------------------------
+   Create event (#372)
+   --------------------------------------------------------------------------- */
+/* Moving between steps: out the way you're going, in from the other side (--step-dir: 1 or -1) */
+@keyframes step-out { to { opacity: 0; translate: calc(var(--step-dir, 1) * -24px) 0; } }
+@keyframes step-in { from { opacity: 0; translate: calc(var(--step-dir, 1) * 24px) 0; } }
+/* A new cover image develops from dark and blurred to sharp */
+@keyframes cover-develop {
+  from { filter: brightness(0.15) blur(10px) saturate(0); }
+  50% { filter: brightness(0.6) blur(3px) saturate(0.4); }
+}
+/* A padlock's shackle (the icon's path): dropped shut, or lifted and dropped again on hover */
+@keyframes shackle-shut { from { translate: 0 -5px; } }
+@keyframes shackle-lift { 35%, 70% { translate: 0 -4px; } }
+[data-lock-note]:hover svg.lucide-lock > path { animation: shackle-lift 420ms var(--ease-arrive); }
+
 /* Respect reduced motion everywhere: animations and transitions jump to their end, without delay */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

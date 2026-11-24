@@ -1,5 +1,9 @@
-import { Check } from "lucide-react";
+"use client";
 
+import { Check } from "lucide-react";
+import { useState } from "react";
+
+import { RollingNumber } from "@/components/motion";
 import { FORM_STEPS, STEP_LABELS, type FormStep } from "@/lib/create-event";
 import { cn } from "@/lib/utils";
 
@@ -12,8 +16,14 @@ interface CreateEventStepperProps {
 // Create Event Stepper from Figma (Current=1..4): the current step is an orange dot, finished steps
 // have an orange check and an orange line after them, later steps are grey.
 // On phones the labels move to one line under the dots ("Step 2 of 4: Ticket types"), so it fits.
+// Motion (#372): the line between two steps is a perforation. Going forward fills it with orange
+// from left to right (240 ms) and the finished step's tick is punched in; going back drains it.
+// On phones the "Step 2 of 4" line rolls over.
 export function CreateEventStepper({ current, onSelect }: CreateEventStepperProps) {
   const currentIndex = FORM_STEPS.indexOf(current);
+  // The step just finished by going forward: its tick is punched in
+  const [moves, setMoves] = useState({ index: currentIndex, finished: null as number | null });
+  if (moves.index !== currentIndex) setMoves({ index: currentIndex, finished: currentIndex > moves.index ? moves.index : null });
 
   return (
     <nav aria-label="Create event steps" className="flex flex-col gap-3">
@@ -27,10 +37,11 @@ export function CreateEventStepper({ current, onSelect }: CreateEventStepperProp
             <>
               <span
                 className={cn(
-                  "flex size-7 shrink-0 items-center justify-center rounded-full border font-mono text-[11px] font-bold",
+                  "flex size-7 shrink-0 items-center justify-center rounded-full border font-mono text-[11px] font-bold transition-colors duration-200",
                   isCurrent && "border-primary bg-primary text-primary-foreground",
                   done && "border-primary text-primary",
                   !isCurrent && !done && "border-border bg-muted text-muted-foreground",
+                  done && moves.finished === index && "punch-ring",
                 )}
                 aria-hidden="true"
               >
@@ -65,13 +76,24 @@ export function CreateEventStepper({ current, onSelect }: CreateEventStepperProp
                   <span className="sr-only">{isCurrent ? " (current step)" : done ? " (done)" : ""}</span>
                 </span>
               )}
-              {!last && <span className={cn("h-px min-w-4 flex-1", done ? "bg-primary/70" : "bg-border")} aria-hidden="true" />}
+              {!last && (
+                // A perforation, filled with orange once the step before it is done
+                <span className="relative h-px min-w-4 flex-1 bg-[repeating-linear-gradient(90deg,var(--border)_0_4px,transparent_4px_8px)]" aria-hidden="true">
+                  <span
+                    className={cn(
+                      "absolute inset-0 origin-left bg-primary/70 transition-[scale] duration-[240ms] ease-[var(--ease-arrive)]",
+                      done ? "scale-x-100" : "scale-x-0",
+                    )}
+                    data-step-fill
+                  />
+                </span>
+              )}
             </li>
           );
         })}
       </ol>
       <p className="type-body-md text-foreground md:hidden" aria-hidden="true">
-        Step {currentIndex + 1} of {FORM_STEPS.length}: {STEP_LABELS[current]}
+        <RollingNumber value={`Step ${currentIndex + 1} of ${FORM_STEPS.length}: ${STEP_LABELS[current]}`} />
       </p>
     </nav>
   );

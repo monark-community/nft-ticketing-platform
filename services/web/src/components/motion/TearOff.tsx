@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 
-import { animate, finished, prefersReducedMotion, TEAR_BOTTOM, TEAR_TOP } from "@/lib/motion";
+import { animate, finished, MOTION, prefersReducedMotion, TEAR_BOTTOM, TEAR_TOP } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 interface TearOffProps {
@@ -14,8 +14,12 @@ interface TearOffProps {
   className?: string;
 }
 
-// Removes an item like a ticket torn in two: it splits along a jagged line, both halves fall away
-// (200 ms), then the space it took closes (160 ms). With reduced motion, onTorn is called at once.
+// The space starts closing this long after the block tears
+const CLOSE_AFTER_MS = 60;
+
+// Removes an item like a ticket torn in two: it splits along a jagged line and both halves fall away
+// (200 ms) while the space it took closes (300 ms, from 60 ms in), with the gap after it in a column.
+// With reduced motion, onTorn is called at once.
 export function TearOff({ children, torn, onTorn, className }: TearOffProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const onTornRef = useRef(onTorn);
@@ -42,6 +46,9 @@ export function TearOff({ children, torn, onTorn, className }: TearOffProps) {
           piece.inert = true;
           piece.classList.add("tear-piece");
           piece.style.clipPath = clipPath;
+          // As tall as the block, also while its space closes under the falling halves
+          piece.style.bottom = "auto";
+          piece.style.height = `${host.offsetHeight}px`;
           host.append(piece);
           pieces.push(piece);
         }
@@ -49,11 +56,16 @@ export function TearOff({ children, torn, onTorn, className }: TearOffProps) {
 
         const fall = { duration: 200, easing: "ease-in", fill: "forwards" } as const;
         animate(pieces[0], [{ transform: "none", opacity: 1 }, { transform: "translate(-8px, -6px) rotate(-2.5deg)", opacity: 0 }], fall);
-        await finished(animate(pieces[1], [{ transform: "none", opacity: 1 }, { transform: "translate(8px, 14px) rotate(2.5deg)", opacity: 0 }], fall));
-        if (cancelled) return;
+        const falling = finished(animate(pieces[1], [{ transform: "none", opacity: 1 }, { transform: "translate(8px, 14px) rotate(2.5deg)", opacity: 0 }], fall));
 
-        host.style.overflow = "hidden";
-        await finished(animate(host, [{ height: `${host.offsetHeight}px` }, { height: "0px" }], { duration: 160, easing: "ease-in", fill: "forwards" }));
+        // The space closes while they fall. In a column, the gap after it closes too, so nothing
+        // jumps when the item is removed.
+        await new Promise((resolve) => setTimeout(resolve, CLOSE_AFTER_MS));
+        if (cancelled) return;
+        const column = host.parentElement ? getComputedStyle(host.parentElement) : null;
+        const gap = column && column.display.includes("flex") && column.flexDirection.startsWith("column") ? parseFloat(column.rowGap) || 0 : 0;
+        const closing = animate(host, [{ height: `${host.offsetHeight}px`, marginTop: "0px" }, { height: "0px", marginTop: `${-gap}px` }], { duration: MOTION.slow, fill: "forwards" });
+        await Promise.all([falling, finished(closing)]);
         if (cancelled) return;
       }
       onTornRef.current?.();
@@ -64,7 +76,6 @@ export function TearOff({ children, torn, onTorn, className }: TearOffProps) {
       cancelled = true;
       pieces.forEach((piece) => piece.remove());
       host.getAnimations?.().forEach((animation) => animation.cancel());
-      host.style.overflow = "";
       content.style.visibility = "";
     };
   }, [torn]);

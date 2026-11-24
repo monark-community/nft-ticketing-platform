@@ -16,6 +16,7 @@ import {
   planTicketTypeSync,
   PRESALE_AVAILABLE,
   resaleExample,
+  resalePreview,
   startsInPresale,
   ticketTotals,
   ticketTypeFromApi,
@@ -339,6 +340,19 @@ describe("resaleExample", () => {
       "An Early bird ticket (15.00 USDC) can be resold at any price. You don't receive a royalty on resales.",
     );
     expect(resaleExample([], rules, 6, format)).toBe("Resale prices follow the cap you choose. You receive 10% of each resale.");
+  });
+});
+
+describe("resalePreview (the small ticket on Sale rules)", () => {
+  const rules = defaultSaleRules(details);
+
+  it("is the most expensive named type, with its cap", () => {
+    expect(resalePreview([type(), type({ name: "VIP", price: "28" })], rules, 6)).toEqual({ name: "VIP", price: BigInt(28_000_000), cap: BigInt(56_000_000) });
+  });
+
+  it("has no cap with No cap, and nothing without a priced, named type", () => {
+    expect(resalePreview([type()], { ...rules, resaleCapBps: 0 }, 6)?.cap).toBeNull();
+    expect(resalePreview([type({ name: "" })], rules, 6)).toBeNull();
   });
 });
 

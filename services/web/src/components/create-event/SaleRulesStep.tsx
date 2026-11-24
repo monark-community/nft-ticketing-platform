@@ -1,7 +1,8 @@
 "use client";
 
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 
+import { FlapText, RollingNumber } from "@/components/motion";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -14,6 +15,7 @@ import {
   PRESALE_AVAILABLE,
   RESALE_CAP_OPTIONS,
   resaleExample,
+  resalePreview,
   startsInPresale,
   type FieldErrors,
   type SaleRulesForm,
@@ -21,6 +23,7 @@ import {
 } from "@/lib/create-event";
 import { formatMultiplier } from "@/lib/event-details";
 import { formatTokenAmount } from "@/lib/token-amount";
+import { cn } from "@/lib/utils";
 
 interface SaleRulesStepProps {
   value: SaleRulesForm;
@@ -34,7 +37,10 @@ interface SaleRulesStepProps {
   onChange: (value: SaleRulesForm) => void;
 }
 
-// Figma "Create event / 3 Sale rules": the rules card, and what buyers will see on the right
+// Figma "Create event / 3 Sale rules": the rules card, and what buyers will see on the right.
+// Motion (#372): what buyers will see is a small ticket with the resale cap drawn as a measure,
+// like the Marketplace cards. Changing the cap slides its marker; "No cap" opens the end of the
+// bar. The chips flip like a departure board and the numbers in the sentence roll.
 export function SaleRulesStep({ value, errors, types, usdcDecimals, minSalesEnd, locked, onChange }: SaleRulesStepProps) {
   const presaleLabelId = useId();
   const presaleHintId = useId();
@@ -119,16 +125,76 @@ export function SaleRulesStep({ value, errors, types, usdcDecimals, minSalesEnd,
 
         <Card className="gap-3">
           <CardTitle>What buyers will see</CardTitle>
+          <CapPreview types={types} rules={value} usdcDecimals={usdcDecimals} />
           <div className="flex flex-wrap gap-2">
-            <Badge tone="neutral">{limit ? `Max ${limit} per wallet` : "No wallet limit"}</Badge>
-            <Badge tone="code">{value.resaleCapBps > 0 ? `Resale cap ${formatMultiplier(value.resaleCapBps).replace("×", "x")}` : "No resale cap"}</Badge>
+            <Badge tone="neutral">
+              <FlapText text={limit ? `Max ${limit} per wallet` : "No wallet limit"} />
+            </Badge>
+            <Badge tone="code">
+              <FlapText text={value.resaleCapBps > 0 ? `Resale cap ${formatMultiplier(value.resaleCapBps).replace("×", "x")}` : "No resale cap"} />
+            </Badge>
             {startsInPresale(value) && <Badge tone="highlight">Presale first</Badge>}
           </div>
           <p className="type-body-sm text-secondary-foreground">
-            {resaleExample(types, value, usdcDecimals, (v) => formatTokenAmount(v, usdcDecimals))}
+            <RollingNumbers text={resaleExample(types, value, usdcDecimals, (v) => formatTokenAmount(v, usdcDecimals))} />
           </p>
         </Card>
       </div>
     </div>
   );
+}
+
+// The measure goes from 0 to 3.3x face value, so a 3x cap still has room after it
+const MEASURE_MAX_BPS = 33_000;
+const pct = (bps: number) => `${(bps / MEASURE_MAX_BPS) * 100}%`;
+
+// A small ticket of the most expensive type: face value ticked on the bar, the cap as a post the
+// bar runs up to. With no cap the bar runs on and fades out.
+function CapPreview({ types, rules, usdcDecimals }: { types: TicketTypeForm[]; rules: SaleRulesForm; usdcDecimals: number }) {
+  const ticket = resalePreview(types, rules, usdcDecimals);
+  if (!ticket) return null;
+  const capped = ticket.cap !== null;
+  const format = (v: bigint) => formatTokenAmount(v, usdcDecimals);
+  return (
+    <div className="relative flex flex-col gap-2 rounded-md border border-border-accent bg-background px-4 py-3" data-cap-preview={capped ? "capped" : "open"}>
+      {/* Notches cut into the ticket's sides */}
+      <span className="absolute top-1/2 -left-1.5 size-3 -translate-y-1/2 rounded-full border-r border-border-accent bg-card" aria-hidden="true" />
+      <span className="absolute top-1/2 -right-1.5 size-3 -translate-y-1/2 rounded-full border-l border-border-accent bg-card" aria-hidden="true" />
+      <span className="type-label-sm text-muted-foreground">{ticket.name} ticket</span>
+      <div className="relative h-1.5 rounded-full bg-muted" aria-hidden="true">
+        <span
+          className={cn(
+            "absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-primary/50 to-primary transition-[width] duration-[260ms] ease-[var(--ease-arrive)]",
+            !capped && "[mask-image:linear-gradient(to_right,#000_75%,transparent)]",
+          )}
+          style={{ width: capped ? pct(rules.resaleCapBps) : "100%" }}
+          data-cap-fill
+        />
+        {/* Face value */}
+        <span className="absolute -top-1 h-3.5 w-px bg-foreground/70" style={{ left: pct(10_000) }} />
+        {/* The cap: a post the bar runs up to */}
+        <span
+          className={cn(
+            "absolute -top-1.5 h-4.5 w-0.5 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_6px_rgb(249_115_22/60%)] transition-[left,opacity] duration-[260ms] ease-[var(--ease-snap)]",
+            !capped && "opacity-0",
+          )}
+          style={{ left: capped ? pct(rules.resaleCapBps) : "100%" }}
+          data-cap-post
+        />
+      </div>
+      <div className="flex justify-between font-mono text-[11px] leading-4 text-muted-foreground">
+        <span>
+          Face <RollingNumber value={format(ticket.price)} />
+        </span>
+        <span className={capped ? "text-primary" : undefined}>
+          <RollingNumber value={capped ? `Cap ${format(ticket.cap as bigint)}` : "No cap"} align="end" />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// A sentence whose numbers roll when they change
+function RollingNumbers({ text }: { text: string }): ReactNode {
+  return text.split(/(\d[\d,]*(?:\.\d+)?%?)/).map((part, i) => (i % 2 === 1 ? <RollingNumber key={i} value={part} /> : part));
 }
