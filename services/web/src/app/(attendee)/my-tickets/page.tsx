@@ -1,7 +1,8 @@
 "use client";
 
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { useEffect, useMemo, useState } from "react";
+import { useReducedMotion } from "motion/react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 
 import { Footer } from "@/components/Footer";
@@ -19,7 +20,7 @@ import { useOwnedTickets } from "@/hooks/useOwnedTickets";
 import { useHeldLoading } from "@/hooks/useHeldLoading";
 import { useSawLoading } from "@/hooks/useSawLoading";
 import { useTicketEvents } from "@/hooks/useTicketEvents";
-import { printDelay } from "@/lib/motion";
+import { MOTION, printDelay } from "@/lib/motion";
 import { groupTickets, parseTicketView, type TicketView } from "@/lib/my-tickets";
 
 const VIEW_KEY = "nftokenpass:my-tickets-view";
@@ -38,6 +39,15 @@ export default function MyTicketsPage() {
   const grouped = useMemo(() => groupTickets(owned.tickets, details.events, now), [owned.tickets, details.events, now]);
 
   const [view, setView] = useState<TicketView>(readSavedView);
+  // Switching the layout (#369): the cards fade out (200 ms), then the new layout rises in, 80 ms
+  // apart. `shown` is the layout on screen once the user has switched; the highlight moves at once.
+  const reduced = useReducedMotion();
+  const [shown, setShown] = useState<TicketView | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const dealTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(dealTimer.current), []);
+  const shownView = shown ?? view;
+
   const changeView = (next: TicketView) => {
     setView(next);
     try {
@@ -45,7 +55,19 @@ export default function MyTicketsPage() {
     } catch {
       // Private browsing or blocked storage: the choice just isn't remembered
     }
+    window.clearTimeout(dealTimer.current);
+    if (reduced) {
+      setShown(next);
+      return;
+    }
+    setLeaving(true);
+    dealTimer.current = window.setTimeout(() => {
+      setLeaving(false);
+      setShown(next);
+    }, MOTION.base);
   };
+  // Cards are keyed by layout, so the new layout's cards are new and rise in; until the first switch they don't
+  const deal = (order: number) => (shown !== null && !reduced ? order : undefined);
 
   // The popup belongs to the wallet that opened it, so a wallet switch closes it
   const [qrFor, setQrFor] = useState<{ key: string; wallet: string } | null>(null);
@@ -119,21 +141,36 @@ export default function MyTicketsPage() {
                 </Alert>
               )}
               {/* Each card prints in under its own scan line, one after another, when the cards
-                  replace the placeholders (#365) */}
+                  replace the placeholders (#365). The card inside is keyed by layout, so switching
+                  the layout deals the new one in (#369) without printing again. */}
               {grouped.upcoming.length > 0 && (
-                <TicketSection title="Upcoming" count={grouped.upcoming.length} tone="upcoming" view={view}>
+                <TicketSection title="Upcoming" count={grouped.upcoming.length} tone="upcoming" view={shownView}>
                   {grouped.upcoming.map((group, index) => (
                     <PrintIn key={group.key} play={sawLoading} delay={printDelay(index)}>
-                      <TicketGroupCard group={group} view={view} onShowQr={() => setQrFor({ key: group.key, wallet: address! })} />
+                      <TicketGroupCard
+                        key={shownView}
+                        group={group}
+                        view={shownView}
+                        leaving={leaving}
+                        dealOrder={deal(index)}
+                        onShowQr={() => setQrFor({ key: group.key, wallet: address! })}
+                      />
                     </PrintIn>
                   ))}
                 </TicketSection>
               )}
               {grouped.past.length > 0 && (
-                <TicketSection title="Past" count={grouped.past.length} tone="past" view={view}>
+                <TicketSection title="Past" count={grouped.past.length} tone="past" view={shownView}>
                   {grouped.past.map((group, index) => (
                     <PrintIn key={group.key} play={sawLoading} delay={printDelay(grouped.upcoming.length + index)}>
-                      <TicketGroupCard group={group} view={view} onShowQr={() => {}} />
+                      <TicketGroupCard
+                        key={shownView}
+                        group={group}
+                        view={shownView}
+                        leaving={leaving}
+                        dealOrder={deal(grouped.upcoming.length + index)}
+                        onShowQr={() => {}}
+                      />
                     </PrintIn>
                   ))}
                 </TicketSection>

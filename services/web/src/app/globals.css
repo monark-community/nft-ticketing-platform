@@ -682,6 +682,60 @@
 /* "was 22.00": the line through the old price draws itself */
 @keyframes strike-draw { from { transform: scaleX(0); } }
 
+/* ---------------------------------------------------------------------------
+   My Tickets (#369)
+   --------------------------------------------------------------------------- */
+/* Grid ↔ list: the new layout's cards rise in (the card sets the delay) */
+@keyframes deal-in { from { opacity: 0; translate: 0 10px; } }
+/* A holographic foil over the picture, where the pointer is on the card (--fx and --fy, 0 to 1) */
+@utility ticket-foil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: screen;
+  background:
+    linear-gradient(115deg, transparent 24%, rgb(249 115 22 / 38%) 38%, rgb(110 200 255 / 32%) 50%, rgb(200 120 255 / 32%) 60%, transparent 74%),
+    repeating-linear-gradient(115deg, rgb(255 255 255 / 6%) 0 2px, transparent 2px 6px);
+  background-size: 300% 300%, auto;
+  background-position: calc(var(--fx, 0.5) * 100%) calc(var(--fy, 0.5) * 100%), 0 0;
+  transition: opacity 160ms;
+}
+/* ...and the card tilts toward the pointer, up to 2.5° each way. Mouse and pen only. The fade is
+   for switching the layout. */
+@utility ticket-tilt {
+  transition: transform 120ms ease-out, opacity 200ms ease-in;
+  @media (hover: hover) and (pointer: fine) {
+    &:hover { transform: perspective(800px) rotateX(calc((0.5 - var(--fy, 0.5)) * 5deg)) rotateY(calc((var(--fx, 0.5) - 0.5) * 5deg)); }
+    &:hover .ticket-foil { opacity: 0.95; }
+  }
+  /* Reduced motion: no tilt, and the foil stays still */
+  @media (prefers-reduced-motion: reduce) {
+    &:hover { transform: none; }
+    & .ticket-foil { background-position: 50% 50%, 0 0; }
+  }
+}
+/* An expired code's "Regenerate code" glows once */
+@keyframes glow-once {
+  from { box-shadow: 0 0 0 0 rgb(249 115 22 / 70%); }
+  to { box-shadow: 0 0 0 14px rgb(249 115 22 / 0%); }
+}
+/* How it works: a dashed line joins the steps when they're in a row (the cards cover it) */
+@utility steps-line {
+  position: relative;
+  @media (width >= 48rem) {
+    &::before {
+      content: "";
+      position: absolute;
+      inset-inline: 16%;
+      top: 42px;
+      border-top: 1.5px dashed rgb(249 115 22 / 45%);
+      transform-origin: left;
+      animation: bar-grow 420ms linear backwards;
+    }
+  }
+}
+
 /* Respect reduced motion everywhere: animations and transitions jump to their end, without delay */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
