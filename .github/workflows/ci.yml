@@ -126,14 +126,15 @@ jobs:
 
   # End-to-end tests (Playwright): the whole app on a fresh local chain - sub-issue #337
   e2e:
-    name: End-to-end tests (${{ matrix.project }})
+    name: End-to-end tests (${{ matrix.project }}, part ${{ matrix.shard }} of 2)
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Desktop and phone side by side, so each job runs half the tests
+    # Desktop and phone, each split in two by test file: four jobs side by side, a quarter of the tests each
     strategy:
       fail-fast: false
       matrix:
         project: [desktop, phone]
+        shard: [1, 2]
     services:
       # Same settings as e2e/docker-compose.yml. The stack makes its nft_ticketing_e2e database here
       postgres:
@@ -196,7 +197,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: services/web/.next/cache
-          key: next-e2e-${{ runner.os }}-${{ hashFiles('services/web/package-lock.json') }}-${{ github.sha }}-${{ matrix.project }}
+          key: next-e2e-${{ runner.os }}-${{ hashFiles('services/web/package-lock.json') }}-${{ github.sha }}-${{ matrix.project }}-${{ matrix.shard }}
           restore-keys: next-e2e-${{ runner.os }}-${{ hashFiles('services/web/package-lock.json') }}-
 
       - name: Install Chromium
@@ -207,14 +208,14 @@ jobs:
       - name: Run the end-to-end tests
         if: steps.changes.outputs.run == 'true'
         working-directory: e2e
-        run: npx playwright test --project=${{ matrix.project }}
+        run: npx playwright test --project=${{ matrix.project }} --shard=${{ matrix.shard }}/2
 
       # Traces and screenshots of the failed tests only, plus the stack's logs
       - name: Upload the failures
         if: failure() && steps.changes.outputs.run == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-results-${{ matrix.project }}
+          name: e2e-results-${{ matrix.project }}-${{ matrix.shard }}
           path: |
             e2e/test-results/
             e2e/playwright-report/
