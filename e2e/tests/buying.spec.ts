@@ -618,6 +618,26 @@ test.describe('buying', () => {
     expect(await held(accounts.jordan, event)).toBe(0);
   });
 
+  test('switching account after a purchase: the page shows a new order for the new account', async ({ page, signIn, wallet }) => {
+    const event = await createPublishedEvent({ title: 'Switched After Purchase', ticketTypes: [{ name: 'General Admission', price: 20, supply: 50 }] });
+    await approve(accounts.jordan, chain.usdc(20));
+    await approve(accounts.alex, 0n);
+    await openSignedIn(page, signIn, accounts.jordan, event);
+
+    await buyButton(page).click();
+    await expect(success(page)).toBeVisible();
+
+    // Jordan's tickets aren't Alex's: Alex gets the order form, with nothing approved yet (#396)
+    await wallet.switchAccount(accounts.alex);
+    await expect(success(page)).toHaveCount(0);
+    await expect(buyButton(page)).toBeEnabled();
+    await expectSteps(page, 'Not started', 'Not started');
+
+    // Back on Jordan's account, the purchase it made shows again
+    await wallet.switchAccount(accounts.jordan);
+    await expect(success(page)).toBeVisible();
+  });
+
   test('disconnecting mid-purchase: nothing is sent', async ({ page, signIn, wallet }) => {
     const event = await createPublishedEvent({ title: 'Disconnected Mid Purchase', ticketTypes: [{ name: 'General Admission', price: 20, supply: 50 }] });
     await openSignedIn(page, signIn, accounts.jordan, event);

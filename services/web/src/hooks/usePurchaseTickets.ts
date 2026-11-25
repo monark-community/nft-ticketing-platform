@@ -58,6 +58,10 @@ export function usePurchaseTickets({ contractEventId, typeId, quantity, unitPric
     return succeeded;
   }
 
+  // A purchase that went through belongs to the account that made it: once the wallet is on another
+  // account, the page shows a new order for that one instead of "You're going!" (#396)
+  const state = tx.accountChanged && tx.state.phase === "success" ? IDLE_TX_STATE : tx.state;
+
   return {
     buy,
     total,
@@ -66,7 +70,7 @@ export function usePurchaseTickets({ contractEventId, typeId, quantity, unitPric
     // After the wallet switched accounts, the rows are the new account's: an approval by the other
     // account doesn't count for this one (#396)
     steps: getPurchaseSteps(tx.accountChanged ? IDLE_TX_STATE : tx.state, approvalNeeded),
-    state: tx.state,
+    state,
     isBusy: tx.isBusy,
     reset: tx.reset,
     stopWaiting: tx.stopWaiting,
