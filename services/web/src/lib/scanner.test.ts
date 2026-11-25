@@ -5,6 +5,7 @@ import {
   canResumeCamera,
   cameraErrorMessage,
   canScanEvent,
+  codeFrame,
   formatCheckedInAt,
   onChainEvents,
   pickEventId,
@@ -155,5 +156,35 @@ describe("cameraErrorMessage", () => {
     expect(cameraErrorMessage({ kind: "unknown", message: "Something odd happened" })).toBe(`Something odd happened. ${reload}`);
     expect(cameraErrorMessage({ kind: "unknown", message: "" })).toBe(`The camera couldn't start. ${reload}`);
     expect(cameraErrorMessage(undefined)).toBe(`The camera couldn't start. ${reload}`);
+  });
+});
+
+describe("codeFrame", () => {
+  it("frames the code where it shows in the camera box, with a margin", () => {
+    // 1280x720 video in a 300 px box: scaled to 533x300, 117 px cut off each side
+    expect(codeFrame({ x: 540, y: 260, width: 200, height: 200 }, { width: 1280, height: 720 }, { width: 300, height: 300 })).toEqual({
+      top: 98.3,
+      right: 98.3,
+      bottom: 98.3,
+      left: 98.3,
+    });
+  });
+
+  it("closes in on the middle when the video size isn't known yet", () => {
+    expect(codeFrame({ x: 0, y: 0, width: 10, height: 10 }, { width: 0, height: 0 }, { width: 300, height: 300 })).toEqual({
+      top: 60,
+      right: 60,
+      bottom: 60,
+      left: 60,
+    });
+  });
+
+  it("keeps a small code's frame big enough for the corners, and a code at the edge inside the box", () => {
+    const small = codeFrame({ x: 150, y: 150, width: 4, height: 4 }, { width: 300, height: 300 }, { width: 300, height: 300 }, 0);
+    expect(300 - small.left - small.right).toBe(72);
+    expect(small.left).toBe(116);
+    const edge = codeFrame({ x: 0, y: 280, width: 40, height: 20 }, { width: 300, height: 300 }, { width: 300, height: 300 });
+    expect(edge.left).toBe(8);
+    expect(edge.bottom).toBe(8);
   });
 });

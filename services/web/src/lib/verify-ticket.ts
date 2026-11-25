@@ -48,24 +48,7 @@ export async function verifyTicketQR({
     return { ok: false, reason: "This QR code has an invalid ticket ID.", qr };
   }
 
-  // 2. Is it fresh? Stops screenshots from being reused.
-  const now = Math.floor(Date.now() / 1000);
-  if (qr.timestamp > now + CLOCK_SKEW_SECONDS) {
-    return {
-      ok: false,
-      reason: "QR code time is in the future. Ask the attendee to refresh it.",
-      qr,
-    };
-  }
-  if (isQRExpired(qr.timestamp, now)) {
-    return {
-      ok: false,
-      reason: "QR code has expired. Ask the attendee to refresh it.",
-      qr,
-    };
-  }
-
-  // 3. Is it for this network and this contract?
+  // 2. Is it for this network and this contract?
   if (qr.chainId !== expectedChainId) {
     return {
       ok: false,
@@ -77,9 +60,11 @@ export async function verifyTicketQR({
     return { ok: false, reason: "Ticket is from a different contract.", qr };
   }
 
-  // 4. On-chain checks, all read together. The event comes from tokenEventId(),
+  // 3. On-chain checks, all read together. The event comes from tokenEventId(),
   //    not the QR's eventId, which is only used to rebuild the signed message (#56).
   //    isUsed is also read so staff get a clearer reason than "invalid".
+  //    These come before the QR's age: a missing ticket, one already checked in or one for
+  //    another event stays that way with a new QR, so asking the attendee to refresh is no help.
   try {
     // Cast to the Solidity return types (the JSON ABI has no exact types)
     const [isValid, isUsed, onChainEventId] = (await Promise.all([
@@ -115,6 +100,23 @@ export async function verifyTicketQR({
         qr,
         eventId: onChainEventId,
         wrongEvent: true,
+      };
+    }
+
+    // 4. Is it fresh? Stops screenshots from being reused.
+    const now = Math.floor(Date.now() / 1000);
+    if (qr.timestamp > now + CLOCK_SKEW_SECONDS) {
+      return {
+        ok: false,
+        reason: "QR code time is in the future. Ask the attendee to refresh it.",
+        qr,
+      };
+    }
+    if (isQRExpired(qr.timestamp, now)) {
+      return {
+        ok: false,
+        reason: "QR code has expired. Ask the attendee to refresh it.",
+        qr,
       };
     }
 
