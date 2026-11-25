@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isReceiptFinished, receiptLines, receiptTitle, shortHash } from "./receipt";
+import { isReceiptFinished, nextReceiptLine, receiptLines, receiptTitle, shortHash } from "./receipt";
 import { IDLE_TX_STATE, type TxState } from "./types";
 
 const HASH = "0x3a9f00000000000000000000000000000000000000000000000000000000e21c" as const;
@@ -85,5 +85,22 @@ describe("receiptTitle and isReceiptFinished", () => {
     expect(isReceiptFinished(state({ phase: "stoppedWaiting" }))).toBe(true);
     expect(isReceiptFinished(state({ phase: "confirming" }))).toBe(false);
     expect(isReceiptFinished(state({ phase: "stillPending" }))).toBe(false);
+  });
+});
+
+describe("nextReceiptLine", () => {
+  it("prints the lines that arrive together one at a time, in order", () => {
+    const lines = receiptLines(state({ phase: "success", hash: HASH }), true);
+    const keys = lines.map((line) => line.key);
+    expect(nextReceiptLine(lines, [])?.text).toBe("Confirmed in your wallet");
+    expect(nextReceiptLine(lines, keys.slice(0, 1))?.text).toBe("Sent · 0x3a9f…e21c");
+    expect(nextReceiptLine(lines, keys.slice(0, 2))?.text).toBe("Confirmed");
+    expect(nextReceiptLine(lines, keys)).toBeNull();
+  });
+
+  it("doesn't wait for a line that has gone: a line that changed in place keeps its turn", () => {
+    // "Confirm in your wallet…" became "Confirmed in your wallet": the same line, already printed
+    const asked = receiptLines(state({ phase: "awaitingWallet" }), true).map((line) => line.key);
+    expect(nextReceiptLine(receiptLines(state({ phase: "confirming", hash: HASH }), true), asked)?.text).toBe("Sent · 0x3a9f…e21c");
   });
 });

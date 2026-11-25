@@ -127,7 +127,7 @@ That's the dev seed (`--bare`). The mock data (`services/api/prisma/mock-data.ts
 
 Dates are relative to the day you run it, so the events stay upcoming. Accounts #10 to #19 have no profile, for trying sign-up. The pictures are drawings in `services/web/public/seed`, served by the web app (no IPFS); events you create yourself still upload their cover to Pinata.
 
-Each run is a new chain, so MetaMask's saved activity no longer matches. For each imported test account: Settings > Advanced > Clear activity tab data, or transactions fail with "nonce too high".
+Each run is a new chain, but MetaMask keeps the nonces it saved for each account. So the last step moves every test account's nonce to the number of seconds since 2026, ahead of anything MetaMask saved, and you don't need to clear its activity. If a transaction still fails with "nonce too high", select that account and the local network in MetaMask, then Settings > Developer tools > Delete activity and nonce data (it only clears the network you're on).
 
 ### Without Docker
 

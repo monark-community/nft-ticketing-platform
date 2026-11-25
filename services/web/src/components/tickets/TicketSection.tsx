@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
 
+import { RollingNumber } from "@/components/motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { TicketView } from "@/lib/my-tickets";
 import { cn } from "@/lib/utils";
 
-// "UPCOMING · 2" / "PAST · 1" with the fading divider, and the cards under it
+// "UPCOMING · 2" / "PAST · 1" with the fading divider, and the cards under it. As the section
+// arrives the divider draws from left to right and the count rolls up (#369).
 export function TicketSection({
   title,
   count,
@@ -28,11 +30,12 @@ export function TicketSection({
           id={headingId}
           className={cn("font-mono text-xs leading-4 font-semibold tracking-[0.6px] uppercase", upcoming ? "text-primary" : "text-muted-foreground")}
         >
-          {title} · {count}
+          {title} · <RollingNumber value={count} from={0} />
         </h2>
         <div
           className={cn(
-            "h-px min-w-px flex-1",
+            "h-px min-w-px flex-1 origin-left",
+            upcoming ? "animate-[bar-grow_300ms_var(--ease-arrive)_backwards]" : "animate-[bar-grow_300ms_var(--ease-arrive)_80ms_backwards]",
             upcoming
               ? "bg-gradient-to-r from-primary/80 via-primary/20 via-60% to-transparent shadow-[0_0_8px_rgb(249_115_22/35%)]"
               : "bg-gradient-to-r from-muted-foreground to-transparent",

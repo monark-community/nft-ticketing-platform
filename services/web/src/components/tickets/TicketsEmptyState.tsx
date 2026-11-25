@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 // Figma "My Tickets / Empty" and "My Tickets / Not connected". Both arrive like the other empty
 // states (#365): the icon drops in, an orange outline draws around the card.
 // The "Upcoming events" row from those frames is added once the events list cards exist (#283).
+// How it works (#369): a dashed line connects the three steps and each icon is stamped on in turn.
 
 const CTA = "h-10 px-6 text-sm font-semibold tracking-normal normal-case";
 
@@ -51,10 +52,13 @@ export function HowItWorks() {
       <h2 id="how-it-works" className="font-serif text-xl leading-7 font-medium text-foreground">
         How it works
       </h2>
-      <ol className="grid grid-cols-1 gap-5 md:grid-cols-3">
-        {STEPS.map(({ icon: Icon, title, text }) => (
-          <li key={title} className="flex flex-col gap-2 rounded-lg border border-border bg-card p-6">
-            <span className="flex size-9 items-center justify-center rounded-sm bg-primary-tint text-primary shadow-[0_0_6px_rgb(249_115_22/15%)]">
+      <ol className="steps-line grid grid-cols-1 gap-5 md:grid-cols-3">
+        {STEPS.map(({ icon: Icon, title, text }, i) => (
+          <li key={title} className="relative flex flex-col gap-2 rounded-lg border border-border bg-card p-6">
+            <span
+              className="flex size-9 animate-[stamp-on_320ms_var(--ease-snap)_backwards] items-center justify-center rounded-sm bg-primary-tint text-primary shadow-[0_0_6px_rgb(249_115_22/15%)]"
+              style={{ animationDelay: `${40 + i * 160}ms` }}
+            >
               <Icon className="size-4" aria-hidden="true" />
             </span>
             <h3 className="pt-1 font-serif text-base leading-6 font-semibold text-foreground">{title}</h3>

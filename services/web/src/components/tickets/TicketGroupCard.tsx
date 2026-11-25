@@ -2,9 +2,11 @@
 
 import { ArrowRight, Calendar, CircleCheck, Clock, MapPin, QrCode } from "lucide-react";
 import Link from "next/link";
+import type { CSSProperties, PointerEvent } from "react";
 
 import { EventImage } from "@/components/event/EventImage";
 import { Button } from "@/components/ui/button";
+import { printDelay } from "@/lib/motion";
 import { ROUTES } from "@/lib/nav";
 import {
   formatCheckInDate,
@@ -20,8 +22,32 @@ import { cn } from "@/lib/utils";
 
 // One card per event + ticket type + status, from the Figma "My Tickets / Grid" and "List" frames.
 // "Sell on Marketplace" opens the Marketplace's Sell popup for the group's first ticket (#295).
-export function TicketGroupCard({ group, view, onShowQr }: { group: TicketGroup; view: TicketView; onShowQr: () => void }) {
+// Hover: a holographic foil follows the pointer over the picture and the card tilts toward it, up to
+// 2.5° (#369, mouse and pen only). Switching the layout fades the cards out (`leaving`), then the
+// new ones rise in one after another (`dealOrder`: 300 ms each, 80 ms apart like the print).
+export function TicketGroupCard({
+  group,
+  view,
+  onShowQr,
+  leaving = false,
+  dealOrder,
+}: {
+  group: TicketGroup;
+  view: TicketView;
+  onShowQr: () => void;
+  leaving?: boolean;
+  dealOrder?: number;
+}) {
   const past = group.status !== "valid";
+  const cardMotion = {
+    className: cn(
+      "ticket-tilt",
+      leaving && "opacity-0",
+      dealOrder !== undefined && "animate-[deal-in_300ms_var(--ease-arrive)_backwards]",
+    ),
+    style: dealOrder !== undefined ? ({ animationDelay: `${printDelay(dealOrder)}ms` } as CSSProperties) : undefined,
+    onPointerMove: followPointer,
+  };
 
   if (view === "list") {
     return (
@@ -30,11 +56,15 @@ export function TicketGroupCard({ group, view, onShowQr }: { group: TicketGroup;
         className={cn(
           "grid grid-cols-[88px_minmax(0,1fr)] overflow-hidden rounded-lg border border-border bg-card shadow-[0_4px_24px_rgb(0_0_0/40%)] sm:flex sm:min-h-[140px] sm:flex-row sm:items-stretch",
           past && "opacity-70",
+          cardMotion.className,
         )}
+        style={cardMotion.style}
+        onPointerMove={cardMotion.onPointerMove}
       >
         <div className="relative mt-4 ml-4 h-20 shrink-0 overflow-hidden rounded-sm sm:m-0 sm:my-3 sm:h-auto sm:w-52 sm:rounded-none">
           <EventImage src={group.event?.image_url ?? null} className={cn(past && "grayscale-[60%]")} />
           <div className="absolute inset-0 hidden bg-gradient-to-r from-card/60 via-transparent to-transparent sm:block" aria-hidden="true" />
+          <span className="ticket-foil" aria-hidden="true" />
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5 px-4 py-4 sm:px-5">
@@ -58,11 +88,15 @@ export function TicketGroupCard({ group, view, onShowQr }: { group: TicketGroup;
       className={cn(
         "flex h-full flex-col overflow-hidden rounded-lg border border-border bg-card shadow-[0_4px_24px_rgb(0_0_0/40%)]",
         past && "opacity-70",
+        cardMotion.className,
       )}
+      style={cardMotion.style}
+      onPointerMove={cardMotion.onPointerMove}
     >
       <div className="relative h-48 shrink-0 overflow-hidden">
         <EventImage src={group.event?.image_url ?? null} className={cn(past && "grayscale-[60%]")} />
         <div className="absolute inset-0 bg-gradient-to-t from-card/80 via-transparent to-transparent" aria-hidden="true" />
+        <span className="ticket-foil" aria-hidden="true" />
       </div>
 
       <div className="flex flex-1 flex-col justify-between gap-5 p-5">
@@ -80,6 +114,15 @@ export function TicketGroupCard({ group, view, onShowQr }: { group: TicketGroup;
       </div>
     </article>
   );
+}
+
+// Where the pointer is on the card, from 0 to 1 each way: the foil and the tilt follow it (globals.css)
+function followPointer(event: PointerEvent<HTMLElement>) {
+  if (event.pointerType === "touch") return;
+  const card = event.currentTarget;
+  const box = card.getBoundingClientRect();
+  card.style.setProperty("--fx", ((event.clientX - box.left) / box.width).toFixed(3));
+  card.style.setProperty("--fy", ((event.clientY - box.top) / box.height).toFixed(3));
 }
 
 const TAG = "rounded-xs px-2 py-0.5 font-mono text-xs leading-4 whitespace-nowrap";
@@ -187,11 +230,15 @@ function SellLink({ group }: { group: TicketGroup }) {
   return (
     <Link
       href={`${ROUTES.marketplace}?sell=${tokenId}`}
-      className="flex items-center justify-center gap-1.5 rounded-xs py-1 font-mono text-xs leading-4 text-secondary-foreground outline-none hover:text-primary focus-visible:ring-3 focus-visible:ring-ring/50"
+      className="group flex items-center justify-center gap-1.5 rounded-xs py-1 font-mono text-xs leading-4 text-secondary-foreground transition-colors duration-[140ms] outline-none hover:text-primary focus-visible:text-primary focus-visible:ring-3 focus-visible:ring-ring/50"
       aria-label={`Sell ticket #${tokenId} to ${group.title} on the Marketplace`}
     >
       Sell on Marketplace
-      <ArrowRight className="size-3" aria-hidden="true" />
+      {/* Steps forward on hover */}
+      <ArrowRight
+        className="size-3 transition-transform duration-[140ms] ease-[var(--ease-arrive)] group-hover:translate-x-1 group-focus-visible:translate-x-1"
+        aria-hidden="true"
+      />
     </Link>
   );
 }

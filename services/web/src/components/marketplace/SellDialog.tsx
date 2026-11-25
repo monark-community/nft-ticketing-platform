@@ -3,22 +3,38 @@
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { ArrowRight, Check, RotateCw, Ticket } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { formatUnits } from "viem";
 import { useAccount, useChains, useSwitchChain } from "wagmi";
 
 import { TxHash } from "@/components/event/TxHash";
 import { CapBar } from "@/components/marketplace/CapBar";
 import { MarketDialog, SummaryRow } from "@/components/marketplace/MarketDialog";
+import { CountUp } from "@/components/motion/CountUp";
+import { Unfold } from "@/components/motion/Unfold";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useHasMounted } from "@/hooks/useHasMounted";
-import { useResaleOnChain } from "@/hooks/useResaleOnChain";
+import { useResaleOnChain, type ResaleTerms } from "@/hooks/useResaleOnChain";
 import { useSellableTickets } from "@/hooks/useSellableTickets";
 import { useTransaction } from "@/hooks/useTransaction";
 import { TICKET_NFT_ADDRESS, TICKET_NFT_CHAIN_ID, ticketNftAbi } from "@/lib/contracts/ticket-nft";
 import { formatEventDate } from "@/lib/events";
-import { formatBps, formatUsdc, isCollectible, parsePrice, priceOverCap, royaltySplit, toUnits, type SellableTicket } from "@/lib/marketplace";
+import {
+  formatBps,
+  formatUsdc,
+  isCollectible,
+  parsePrice,
+  priceOverCap,
+  royaltySplit,
+  toUnits,
+  withTicketChanges,
+  type ListingChange,
+  type ListingChanges,
+  type SellableTicket,
+} from "@/lib/marketplace";
+import { MOTION, PLACEHOLDER_DELAY_MS } from "@/lib/motion";
 import { ROUTES } from "@/lib/nav";
 import { getCancelErrorMessage, getListErrorMessage } from "@/lib/resale-errors";
 import { formatTokenAmount } from "@/lib/token-amount";
@@ -28,18 +44,28 @@ interface SellDialogProps {
   open: boolean;
   tokenId: string | null; // the ticket to preselect ("Sell on Marketplace" on My Tickets, Edit on a card)
   onClose: () => void;
-  onChanged: () => void; // a ticket was listed, repriced or unlisted
+  onChanged: (change: ListingChange) => void; // a ticket was listed, repriced or unlisted
+  changes?: ListingChanges; // the page's changes the API doesn't have yet
 }
 
 // Sell popup (Figma: Marketplace / Sell open): pick one of your tickets, set a price under the cap,
 // see the royalty and what you receive, then listForResale(). Listing an already listed ticket
 // changes its price. Nothing moves until a buyer buys it.
-export function SellDialog({ open, tokenId, onClose, onChanged }: SellDialogProps) {
+export function SellDialog({ open, tokenId, onClose, onChanged, changes = NO_CHANGES }: SellDialogProps) {
   if (!open) return null;
-  return <SellFlow key={tokenId ?? "new"} initialTokenId={tokenId} onClose={onClose} onChanged={onChanged} />;
+  return <SellFlow key={tokenId ?? "new"} initialTokenId={tokenId} onClose={onClose} onChanged={onChanged} pageChanges={changes} />;
 }
 
-function SellFlow({ initialTokenId, onClose, onChanged }: { initialTokenId: string | null; onClose: () => void; onChanged: () => void }) {
+const NO_CHANGES: ListingChanges = {};
+
+interface SellFlowProps {
+  initialTokenId: string | null;
+  onClose: () => void;
+  onChanged: (change: ListingChange) => void;
+  pageChanges: ListingChanges;
+}
+
+function SellFlow({ initialTokenId, onClose, onChanged, pageChanges }: SellFlowProps) {
   const hasMounted = useHasMounted();
   const { address, isConnected: walletConnected, chainId } = useAccount();
   const isConnected = hasMounted && walletConnected;
@@ -50,11 +76,16 @@ function SellFlow({ initialTokenId, onClose, onChanged }: { initialTokenId: stri
   const onContractChain = chainId === TICKET_NFT_CHAIN_ID;
 
   const owned = useSellableTickets(wallet, true);
+  // The API's copy of a ticket's listing lags the contract by a few seconds, so the list shows the
+  // changes made here, and the ones the page is still waiting for, from the start (#368)
+  const [changes, setChanges] = useState(pageChanges);
+  const tickets = useMemo(() => withTicketChanges(owned.tickets, changes), [owned.tickets, changes]);
   const [now] = useState(() => Date.now()); // for "Collectible": events that are over
   const [chosen, setChosen] = useState<string | null>(initialTokenId);
+  // Picked in the list (not preselected): its dot is punched in and "Selected" stamped on (#368)
+  const [picked, setPicked] = useState<string | null>(null);
   // The chosen ticket, else the first one that isn't listed yet
-  const selected =
-    owned.tickets.find((t) => t.token_id === chosen) ?? owned.tickets.find((t) => t.listing_price === null) ?? owned.tickets[0] ?? null;
+  const selected = tickets.find((t) => t.token_id === chosen) ?? tickets.find((t) => t.listing_price === null) ?? tickets[0] ?? null;
 
   const listTx = useTransaction({ getErrorMessage: getListErrorMessage });
   const cancelTx = useTransaction({ getErrorMessage: getCancelErrorMessage });
@@ -82,7 +113,7 @@ function SellFlow({ initialTokenId, onClose, onChanged }: { initialTokenId: stri
         >
           Check your connection and try again.
         </Alert>
-      ) : owned.tickets.length === 0 ? (
+      ) : tickets.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-md border border-dashed border-border px-6 py-8 text-center">
           <Ticket className="size-8 text-muted-foreground" aria-hidden="true" />
           <p className="type-title-md text-foreground">No tickets to sell</p>
@@ -95,16 +126,20 @@ function SellFlow({ initialTokenId, onClose, onChanged }: { initialTokenId: stri
         <>
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-2 type-body-md-strong text-foreground">Choose a ticket</legend>
-            <div role="radiogroup" className="flex max-h-[260px] flex-col gap-2 overflow-y-auto pr-1">
-              {owned.tickets.map((ticket) => (
+            {/* Scrolls up and down only: the "Selected" stamp lands from a little bigger than its
+                place, and shouldn't make the list scroll sideways for a moment (#368) */}
+            <div role="radiogroup" className="flex max-h-[260px] flex-col gap-2 overflow-x-hidden overflow-y-auto pr-1">
+              {tickets.map((ticket) => (
                 <TicketOption
                   key={ticket.token_id}
                   ticket={ticket}
                   collectible={isCollectible(ticket, now)}
                   selected={ticket.token_id === selected?.token_id}
+                  picked={ticket.token_id === picked}
                   disabled={busy}
                   onSelect={() => {
                     setChosen(ticket.token_id);
+                    setPicked(ticket.token_id);
                     listTx.reset();
                     cancelTx.reset();
                   }}
@@ -115,7 +150,6 @@ function SellFlow({ initialTokenId, onClose, onChanged }: { initialTokenId: stri
 
           {selected && (
             <PriceForm
-              key={selected.token_id}
               ticket={selected}
               wallet={wallet}
               onContractChain={onContractChain}
@@ -124,8 +158,10 @@ function SellFlow({ initialTokenId, onClose, onChanged }: { initialTokenId: stri
               listTx={listTx}
               cancelTx={cancelTx}
               onDone={onClose}
-              onChanged={() => {
-                onChanged();
+              onChanged={(change) => {
+                setChosen(change.tokenId); // stays on this ticket now that it's listed
+                setChanges((current) => ({ ...current, [change.tokenId]: change.price }));
+                onChanged(change);
                 void owned.reload(true);
               }}
             />
@@ -140,11 +176,12 @@ interface TicketOptionProps {
   ticket: SellableTicket;
   collectible: boolean;
   selected: boolean;
+  picked: boolean; // chosen by a click: play the punch and the stamp
   disabled: boolean;
   onSelect: () => void;
 }
 
-function TicketOption({ ticket, collectible, selected, disabled, onSelect }: TicketOptionProps) {
+function TicketOption({ ticket, collectible, selected, picked, disabled, onSelect }: TicketOptionProps) {
   return (
     <button
       type="button"
@@ -158,7 +195,7 @@ function TicketOption({ ticket, collectible, selected, disabled, onSelect }: Tic
       )}
     >
       <span className={cn("mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border", selected ? "border-primary" : "border-muted-foreground")} aria-hidden="true">
-        {selected && <span className="size-2 rounded-full bg-primary" />}
+        {selected && <span className={cn("size-2 rounded-full bg-primary", picked && "animate-[punch-pop_180ms_var(--ease-snap)_backwards]")} />}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="type-body-md-strong text-foreground">
@@ -179,7 +216,11 @@ function TicketOption({ ticket, collectible, selected, disabled, onSelect }: Tic
           </span>
         )}
       </span>
-      {selected && <span className="shrink-0 rounded-xs bg-primary-tint px-2 py-0.5 type-mono-address text-primary">Selected</span>}
+      {selected && (
+        <span className={cn("shrink-0 rounded-xs bg-primary-tint px-2 py-0.5 type-mono-address text-primary", picked && "animate-[stamp-on_200ms_var(--ease-snap)_backwards]")}>
+          Selected
+        </span>
+      )}
     </button>
   );
 }
@@ -193,7 +234,7 @@ interface PriceFormProps {
   listTx: ReturnType<typeof useTransaction>;
   cancelTx: ReturnType<typeof useTransaction>;
   onDone: () => void;
-  onChanged: () => void;
+  onChanged: (change: ListingChange) => void;
 }
 
 function PriceForm({ ticket, wallet, onContractChain, chainName, onSwitchNetwork, listTx, cancelTx, onDone, onChanged }: PriceFormProps) {
@@ -202,12 +243,35 @@ function PriceForm({ ticket, wallet, onContractChain, chainName, onSwitchNetwork
   // The cap, face value and royalty as the contract has them now. No wallet reads needed to list.
   const chain = useResaleOnChain(tokenId, eventId, undefined);
   const decimals = chain.usdcDecimals;
-  const terms = chain.terms;
   const usdc = (value: bigint) => formatUsdc(value, decimals);
+
+  // Picking another ticket keeps the form on the last one until the new one's terms arrive, then
+  // moves it in one go: the bar slides and the numbers count from the old price, and the popup keeps
+  // its size instead of shrinking to a loading line and jumping (#368)
+  const [shown, setShown] = useState<{ tokenId: string; terms: ResaleTerms; key: string } | null>(null);
+  const [text, setText] = useState("");
+  if (chain.terms !== null) {
+    const key = termsKey(chain.terms);
+    if (shown?.tokenId !== ticket.token_id) {
+      setShown({ tokenId: ticket.token_id, terms: chain.terms, key });
+      setText(ticket.listing_price !== null ? formatTokenAmount(toUnits(ticket.listing_price, decimals), decimals).replace(/,/g, "") : "");
+    } else if (shown.key !== key) {
+      setShown({ ...shown, terms: chain.terms, key }); // read again after listing or cancelling
+    }
+  }
+  const terms = shown?.terms ?? null;
+  const switching = shown !== null && shown.tokenId !== ticket.token_id;
+  // A switch that takes longer than a placeholder's delay dims the form until the new terms are in
+  const [slow, setSlow] = useState(false);
+  if (!switching && slow) setSlow(false);
+  useEffect(() => {
+    if (!switching) return;
+    const timer = window.setTimeout(() => setSlow(true), PLACEHOLDER_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [switching]);
 
   const listedOnChain = terms !== null && terms.listing.seller.toLowerCase() === wallet?.toLowerCase();
   const listedPrice = listedOnChain ? terms!.listing.price : null;
-  const [text, setText] = useState(ticket.listing_price !== null ? formatTokenAmount(toUnits(ticket.listing_price, decimals), decimals).replace(/,/g, "") : "");
 
   const parsed = parsePrice(text, decimals);
   const price = parsed.ok ? parsed.value : BigInt(0);
@@ -215,26 +279,33 @@ function PriceForm({ ticket, wallet, onContractChain, chainName, onSwitchNetwork
   const samePrice = listedPrice !== null && parsed.ok && price === listedPrice;
   const split = royaltySplit(price, terms?.royaltyBps ?? 0);
   const inputError = !parsed.ok ? parsed.error : overCap ? `The most you can ask for this ticket is ${usdc(terms!.maxPrice)}.` : null;
-
   const listed = listTx.state.phase === "success";
   const cancelled = cancelTx.state.phase === "success";
   const canList = terms !== null && parsed.ok && !overCap && !samePrice && onContractChain;
+  const error = listTx.state.phase === "error" ? listTx.state.error : cancelTx.state.phase === "error" ? cancelTx.state.error : null;
+  const showCancel = listedPrice !== null && onContractChain;
+  // The price error and the Cancel button stay in their fold while it closes, then go, so a fixed
+  // price leaves no old error in the page or in the field's description
+  const shownError = useLastShown(inputError, MOTION.fast);
+  const shownCancel = useLastShown(showCancel ? true : null, MOTION.fast);
 
   async function list() {
-    if (!canList) return;
+    if (!canList || switching) return;
     const ok = await listTx.run([
       { label: "List ticket", request: { address: TICKET_NFT_ADDRESS, abi: ticketNftAbi, functionName: "listForResale", args: [tokenId, price] } },
     ]);
+    // Told first: the ticket's line has its new price even if you pick another ticket right away
+    if (ok === "success") onChanged({ tokenId: ticket.token_id, price: formatUnits(price, decimals) });
     await chain.refetch();
-    if (ok === "success") onChanged();
   }
 
   async function cancel() {
+    if (switching) return;
     const ok = await cancelTx.run([
       { label: "Cancel listing", request: { address: TICKET_NFT_ADDRESS, abi: ticketNftAbi, functionName: "cancelListing", args: [tokenId] } },
     ]);
+    if (ok === "success") onChanged({ tokenId: ticket.token_id, price: null });
     await chain.refetch();
-    if (ok === "success") onChanged();
   }
 
   if (listed || cancelled) {
@@ -260,14 +331,7 @@ function PriceForm({ ticket, wallet, onContractChain, chainName, onSwitchNetwork
     );
   }
 
-  if (chain.loading) {
-    return (
-      <p className="flex items-center gap-2 type-body-md text-secondary-foreground" role="status">
-        <Spinner /> Reading this ticket&apos;s resale terms…
-      </p>
-    );
-  }
-  if (chain.error || !terms) {
+  if (chain.error || (!chain.loading && chain.terms === null)) {
     return (
       <Alert
         tone="error"
@@ -280,12 +344,18 @@ function PriceForm({ ticket, wallet, onContractChain, chainName, onSwitchNetwork
       />
     );
   }
+  if (!terms) {
+    return (
+      <p className="flex items-center gap-2 type-body-md text-secondary-foreground" role="status">
+        <Spinner /> Reading this ticket&apos;s resale terms…
+      </p>
+    );
+  }
 
   const busy = listTx.isBusy || cancelTx.isBusy;
-  const error = listTx.state.phase === "error" ? listTx.state.error : cancelTx.state.phase === "error" ? cancelTx.state.error : null;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className={cn("flex flex-col gap-5 transition-opacity", slow ? "opacity-60 duration-200" : "duration-[140ms]")} aria-busy={switching || undefined}>
       <div className="flex flex-col gap-2">
         <label htmlFor="resale-price" className="type-body-md-strong text-foreground">
           Set your price
@@ -301,6 +371,7 @@ function PriceForm({ ticket, wallet, onContractChain, chainName, onSwitchNetwork
               if (listTx.state.phase === "error") listTx.reset();
             }}
             disabled={busy}
+            readOnly={switching}
             placeholder={formatTokenAmount(terms.faceValue, decimals).replace(/,/g, "")}
             aria-invalid={Boolean(inputError) || undefined}
             aria-describedby="resale-price-help"
@@ -317,16 +388,23 @@ function PriceForm({ ticket, wallet, onContractChain, chainName, onSwitchNetwork
             collectible={!terms.capApplies}
             beforeEvent
           />
-          {inputError && <p className="pt-2 type-body-sm text-destructive">{inputError}</p>}
+          {/* Unfolds under the bar and folds away once the price is fixed (#368) */}
+          <Unfold open={inputError !== null}>{shownError !== null && <p className="pt-2 type-body-sm text-destructive">{shownError}</p>}</Unfold>
         </div>
       </div>
 
       <dl className="flex flex-col gap-2.5 rounded-md bg-background px-4 py-4">
-        <SummaryRow label="Buyer pays" value={usdc(price)} />
-        <SummaryRow label={`Organizer royalty (${formatBps(terms.royaltyBps)})`} value={`-${usdc(split.royalty)}`} />
+        {/* The numbers count to their new value as you type (#368) */}
+        <SummaryRow label="Buyer pays" value={<CountUp value={toNumber(price, decimals)} ms={160} format={usdcText} />} />
+        <SummaryRow
+          label={`Organizer royalty (${formatBps(terms.royaltyBps)})`}
+          value={<CountUp value={toNumber(split.royalty, decimals)} ms={160} format={(n) => `-${usdcText(n)}`} />}
+        />
         <div className="mt-1 flex items-center justify-between gap-3 border-t border-border pt-3">
           <dt className="type-body-md-strong text-foreground">You receive</dt>
-          <dd className="font-mono text-xl font-bold text-primary">{usdc(split.sellerReceives)}</dd>
+          <dd className="font-mono text-xl font-bold text-primary">
+            <CountUp value={toNumber(split.sellerReceives, decimals)} ms={160} format={usdcText} />
+          </dd>
         </div>
       </dl>
 
@@ -337,7 +415,7 @@ function PriceForm({ ticket, wallet, onContractChain, chainName, onSwitchNetwork
         </Alert>
       )}
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col">
         {!onContractChain ? (
           <Button size="lg" className="w-full normal-case tracking-normal" onClick={onSwitchNetwork}>
             Switch to {chainName}
@@ -347,14 +425,19 @@ function PriceForm({ ticket, wallet, onContractChain, chainName, onSwitchNetwork
             {listTx.isBusy ? busyLabel(listTx.state.phase) : listedPrice !== null ? "Update price" : "List ticket"}
           </Button>
         )}
-        {listedPrice !== null && onContractChain && (
-          <Button variant="ghost" className="w-full normal-case tracking-normal" onClick={cancel} disabled={listTx.isBusy} loading={cancelTx.isBusy}>
-            {cancelTx.isBusy ? busyLabel(cancelTx.state.phase) : "Cancel listing"}
-          </Button>
-        )}
-        <p className="text-center type-body-sm text-muted-foreground">Your wallet will ask you to confirm. You can cancel the listing anytime.</p>
+        {/* Folds with the "Listed for" message when you pick a listed ticket or one that isn't (#368) */}
+        <Unfold open={showCancel}>
+          {shownCancel !== null && (
+            <div className="pt-2">
+              <Button variant="ghost" className="w-full normal-case tracking-normal" onClick={cancel} disabled={listTx.isBusy} loading={cancelTx.isBusy}>
+                {cancelTx.isBusy ? busyLabel(cancelTx.state.phase) : "Cancel listing"}
+              </Button>
+            </div>
+          )}
+        </Unfold>
+        <p className="pt-2 text-center type-body-sm text-muted-foreground">Your wallet will ask you to confirm. You can cancel the listing anytime.</p>
         {(listTx.state.phase === "confirming" || cancelTx.state.phase === "confirming") && (listTx.state.hash ?? cancelTx.state.hash) && (
-          <TxHash hash={(listTx.state.hash ?? cancelTx.state.hash)!} explorerUrl={listTx.explorerUrl} />
+          <TxHash hash={(listTx.state.hash ?? cancelTx.state.hash)!} explorerUrl={listTx.explorerUrl} className="pt-2" />
         )}
       </div>
     </div>
@@ -367,3 +450,24 @@ function busyLabel(phase: string): string {
   if (phase === "stillPending") return "Waiting for confirmation…";
   return "Preparing…";
 }
+
+// `value`, or for `ms` after it turns null the last value it had: a block folding away keeps what it
+// said until it's closed, then it goes (out of the page and the accessibility tree)
+function useLastShown<T>(value: T | null, ms: number): T | null {
+  const [last, setLast] = useState<T | null>(value);
+  if (value !== null && value !== last) setLast(value);
+  useEffect(() => {
+    if (value !== null || last === null) return;
+    const timer = window.setTimeout(() => setLast(null), ms);
+    return () => window.clearTimeout(timer);
+  }, [value, last, ms]);
+  return value ?? last;
+}
+
+// The terms as text, to notice when a read brings different ones
+const termsKey = (t: ResaleTerms) =>
+  [t.listing.seller, t.listing.price, t.listing.royaltyBps, t.capApplies, t.maxPrice, t.faceValue, t.royaltyBps, t.perWalletLimit].join(":");
+
+// For counting: an amount as a plain number, and back to "22.00 USDC" like formatUsdc
+const toNumber = (value: bigint, decimals: number) => Number(value) / 10 ** decimals;
+const usdcText = (value: number) => `${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC`;

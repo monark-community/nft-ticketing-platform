@@ -662,6 +662,92 @@
 @utility stub-tear { animation: stub-tear 220ms var(--ease-snap) 580ms both; }
 @utility paper-bit { opacity: 0; animation: paper-bit 360ms ease-out 580ms; }
 
+/* ---------------------------------------------------------------------------
+   Marketplace (#368)
+   --------------------------------------------------------------------------- */
+/* Over the cap, the bar presses against the post */
+@keyframes cap-press { 40% { transform: scaleX(1.025); } }
+/* The price changed: the bar slides from the old share of the cap (--cap-from) to the new one */
+@keyframes cap-slide { from { width: var(--cap-from); } }
+/* Sorting: a card that moves is picked up (a little bigger, with a shadow) and put down again */
+@keyframes shuffle-lift { 50% { scale: 1.03; filter: drop-shadow(0 14px 18px rgb(0 0 0 / 50%)); } }
+/* A cancelled listing tears off along a jagged right edge */
+@utility torn-edge {
+  mask:
+    linear-gradient(#000 0 0) left / calc(100% - 8px) 100% no-repeat,
+    conic-gradient(from 45deg at left, #000 90deg, transparent 0) right / 8px 12px repeat-y;
+}
+/* A message slides in under the field it's about */
+@keyframes slide-down-in { from { transform: translateY(-4px); opacity: 0; } }
+/* "was 22.00": the line through the old price draws itself */
+@keyframes strike-draw { from { transform: scaleX(0); } }
+
+/* ---------------------------------------------------------------------------
+   My Tickets (#369)
+   --------------------------------------------------------------------------- */
+/* Grid ↔ list: the new layout's cards rise in (the card sets the delay) */
+@keyframes deal-in { from { opacity: 0; translate: 0 10px; } }
+/* A holographic foil over the picture, where the pointer is on the card (--fx and --fy, 0 to 1) */
+@utility ticket-foil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  mix-blend-mode: screen;
+  background:
+    linear-gradient(115deg, transparent 24%, rgb(249 115 22 / 38%) 38%, rgb(110 200 255 / 32%) 50%, rgb(200 120 255 / 32%) 60%, transparent 74%),
+    repeating-linear-gradient(115deg, rgb(255 255 255 / 6%) 0 2px, transparent 2px 6px);
+  background-size: 300% 300%, auto;
+  background-position: calc(var(--fx, 0.5) * 100%) calc(var(--fy, 0.5) * 100%), 0 0;
+  transition: opacity 160ms;
+}
+/* ...and the card tilts toward the pointer, up to 2.5° each way. Mouse and pen only. The fade is
+   for switching the layout. */
+@utility ticket-tilt {
+  transition: transform 120ms ease-out, opacity 200ms ease-in;
+  @media (hover: hover) and (pointer: fine) {
+    &:hover { transform: perspective(800px) rotateX(calc((0.5 - var(--fy, 0.5)) * 5deg)) rotateY(calc((var(--fx, 0.5) - 0.5) * 5deg)); }
+    &:hover .ticket-foil { opacity: 0.95; }
+  }
+  /* Reduced motion: no tilt, and the foil stays still */
+  @media (prefers-reduced-motion: reduce) {
+    &:hover { transform: none; }
+    & .ticket-foil { background-position: 50% 50%, 0 0; }
+  }
+}
+/* An expired code's "Regenerate code" glows once */
+@keyframes glow-once {
+  from { box-shadow: 0 0 0 0 rgb(249 115 22 / 70%); }
+  to { box-shadow: 0 0 0 14px rgb(249 115 22 / 0%); }
+}
+/* How it works: a dashed line joins the steps when they're in a row (the cards cover it) */
+@utility steps-line {
+  position: relative;
+  @media (width >= 48rem) {
+    &::before {
+      content: "";
+      position: absolute;
+      inset-inline: 16%;
+      top: 42px;
+      border-top: 1.5px dashed rgb(249 115 22 / 45%);
+      transform-origin: left;
+      animation: bar-grow 420ms linear backwards;
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Profile (#370)
+   --------------------------------------------------------------------------- */
+/* After saving, an orange line sweeps under each changed field, then fades */
+@keyframes save-sweep {
+  from { transform: scaleX(0); opacity: 1; }
+  45% { transform: scaleX(1); opacity: 1; }
+  to { transform: scaleX(1); opacity: 0; }
+}
+/* Request access: the paper plane flies up and out of the button */
+@keyframes plane-fly { to { transform: translate(34px, -22px) rotate(-14deg); opacity: 0; } }
+
 /* Respect reduced motion everywhere: animations and transitions jump to their end, without delay */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
