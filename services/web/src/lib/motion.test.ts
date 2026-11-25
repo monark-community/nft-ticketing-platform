@@ -6,6 +6,7 @@ import {
   dotWave,
   firstNumber,
   flapCells,
+  flapZeros,
   flipFrom,
   motionDuration,
   placeholderStep,
@@ -177,6 +178,21 @@ describe("flapCells (FlapText)", () => {
 
   it("flips every cell when the text arrives for the first time", () => {
     expect(changed("", "1,204").join("")).toBe("xxxxx");
+  });
+});
+
+describe("flapZeros (FlapText)", () => {
+  it("sets every digit to 0 and keeps the rest", () => {
+    expect(flapZeros("1,234.50 USDC")).toBe("0,000.00 USDC");
+    expect(flapZeros("396")).toBe("000");
+    expect(flapZeros("0")).toBe("0");
+  });
+
+  it("makes an arriving number flip only its digits that aren't 0", () => {
+    const changed = (to: string) => flapCells(flapZeros(to), to).map((cell) => (cell.changed ? "x" : ".")).join("");
+    expect(changed("50.00 USDC")).toBe("x.........");
+    expect(changed("1,204")).toBe("x.x.x");
+    expect(changed("0")).toBe(".");
   });
 });
 
