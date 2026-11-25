@@ -748,6 +748,59 @@
 /* Request access: the paper plane flies up and out of the button */
 @keyframes plane-fly { to { transform: translate(34px, -22px) rotate(-14deg); opacity: 0; } }
 
+/* ---------------------------------------------------------------------------
+   Sign in and sign up (#371)
+   --------------------------------------------------------------------------- */
+/* Connect wallet: hovering (or focusing) the button tips the wallet open and its dot glows */
+[data-wallet-icon] > svg { transition: rotate 160ms var(--ease-arrive), translate 160ms var(--ease-arrive); }
+[data-wallet-dot] { transition: box-shadow 160ms; }
+[data-connect-card]:has([data-connect]:hover, [data-connect]:focus-visible) [data-wallet-icon] > svg { rotate: -12deg; translate: 0 -1px; }
+[data-connect-card]:has([data-connect]:hover, [data-connect]:focus-visible) [data-wallet-dot] { box-shadow: 0 0 10px 2px rgb(249 115 22 / 60%); }
+
+/* Waiting for your signature: a dashed line from your wallet to NFTokenPass, dots travelling along
+   it. Signed joins it in green; cancelled breaks it in two. */
+@utility handshake-half {
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, var(--muted-foreground) 0 4px, transparent 4px 8px);
+  transition: transform 200ms var(--ease-arrive), background 200ms;
+}
+[data-handshake="signed"] [data-half] { background: var(--success); }
+[data-handshake="failed"] [data-half] { background: var(--destructive); }
+[data-handshake="failed"] [data-half="left"] { transform: translateX(-8px) rotate(-6deg); }
+[data-handshake="failed"] [data-half="right"] { transform: translateX(8px) rotate(6deg); }
+@keyframes handshake-travel {
+  0% { left: 0; opacity: 0; }
+  15%, 85% { opacity: 1; }
+  100% { left: calc(100% - 6px); opacity: 0; }
+}
+@utility handshake-dot {
+  position: absolute;
+  top: -2px;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--primary);
+  opacity: 0;
+  animation: handshake-travel 1.4s linear infinite;
+}
+
+/* Choosing Attendee or Organizer: one orange frame slides to the chosen option */
+@utility choice-frame {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: 1;
+  pointer-events: none;
+  border: 1px solid rgb(249 115 22 / 40%);
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 16px var(--primary-tint);
+  transition: translate 180ms var(--ease-arrive), height 180ms var(--ease-arrive);
+}
+
 /* Respect reduced motion everywhere: animations and transitions jump to their end, without delay */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

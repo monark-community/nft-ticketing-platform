@@ -6,6 +6,7 @@ import {
   dotWave,
   firstNumber,
   flapCells,
+  flipFrom,
   motionDuration,
   placeholderStep,
   prefersReducedMotion,
@@ -209,5 +210,18 @@ describe("dotWave (DotField)", () => {
 
   it("is nothing before the click", () => {
     expect(dotWave(0, -0.1)).toBe(0);
+  });
+});
+
+describe("flipFrom (sign-in steps)", () => {
+  it("moves the centre back to where the old box was", () => {
+    expect(flipFrom({ left: 0, top: 0, width: 64, height: 64 }, { left: 100, top: 20, width: 64, height: 64 })).toEqual({ dx: -100, dy: -20, scale: 1 });
+  });
+
+  it("scales by the smaller ratio, kept between 0.45 and 1.6", () => {
+    expect(flipFrom({ left: 0, top: 0, width: 64, height: 64 }, { left: 0, top: 0, width: 160, height: 32 }).scale).toBeCloseTo(0.45);
+    expect(flipFrom({ left: 0, top: 0, width: 150, height: 30 }, { left: 0, top: 0, width: 100, height: 20 }).scale).toBe(1.5);
+    expect(flipFrom({ left: 0, top: 0, width: 400, height: 400 }, { left: 0, top: 0, width: 100, height: 100 }).scale).toBe(1.6);
+    expect(flipFrom({ left: 0, top: 0, width: 10, height: 10 }, { left: 0, top: 0, width: 0, height: 0 }).scale).toBe(1);
   });
 });

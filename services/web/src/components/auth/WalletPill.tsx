@@ -7,7 +7,8 @@ import { CopyLiftOff } from "@/components/motion/CopyLiftOff";
 import { DrawnCheck } from "@/components/motion/DrawnCheck";
 import { shortAddress } from "@/lib/format";
 
-// Connected wallet with a green dot and a copy button (Figma: Sign in / Confirm signature)
+// Connected wallet with a green dot and a copy button (Figma: Sign in / Confirm signature).
+// It's the wallet that moves between the sign-in steps (data-auth-share, #371).
 export function WalletPill({ address }: { address: string }) {
   const [copied, setCopied] = useState(false);
   const [copies, setCopies] = useState(0);
@@ -24,7 +25,7 @@ export function WalletPill({ address }: { address: string }) {
   }
 
   return (
-    <span className="inline-flex items-center gap-2 rounded-full bg-background py-1.5 pr-2.5 pl-3 shadow-[0_2px_4px_rgb(0_0_0/40%)]">
+    <span className="inline-flex items-center gap-2 rounded-full bg-background py-1.5 pr-2.5 pl-3 shadow-[0_2px_4px_rgb(0_0_0/40%)]" data-auth-share>
       <span className="relative flex size-2" aria-hidden="true">
         <span className="absolute inset-0 rounded-full bg-success opacity-75 animate-pulse-dot" />
         <span className="relative size-2 rounded-full bg-success" />
