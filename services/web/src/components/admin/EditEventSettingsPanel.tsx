@@ -2,9 +2,10 @@
 
 import { Dialog } from "@base-ui/react/dialog";
 import { ArrowRight, Info, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useAccount, useChains, useReadContracts, useSwitchChain } from "wagmi";
 
+import { FoldAway } from "@/components/motion";
 import { TransactionStatus } from "@/components/TransactionStatus";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -39,15 +40,26 @@ const nft = { address: TICKET_NFT_ADDRESS, abi: ticketNftAbi, chainId: TICKET_NF
 
 interface EditEventSettingsPanelProps {
   event: AdminEvent; // a live event: it has a contract_event_id
+  /** The Edit settings button's place, as a clip-path of the panel: it grows from there (#374) */
+  growFrom: string;
   hasAdminRole: boolean | undefined;
-  onClose: () => void;
+  onClose: () => void; // after the panel has shrunk back
   onSaved: (settings: EventSettings) => void; // the transaction confirmed
 }
 
 // Side panel of the admin Events tab (Figma "Admin / Events – Edit settings open", #296): royalty,
 // resale cap, per-wallet limit and sales end. Saving calls adminUpdateEventSettings() (#294) from
 // the admin's wallet; the listener then copies the new settings to the API.
-export function EditEventSettingsPanel({ event, hasAdminRole, onClose, onSaved }: EditEventSettingsPanelProps) {
+// Motion (#374): the panel grows out of the Edit settings button (240 ms) and shrinks back into it.
+// Once it has grown, an orange light runs round its edge until it closes.
+export function EditEventSettingsPanel({ event, growFrom, hasAdminRole, onClose, onSaved }: EditEventSettingsPanelProps) {
+  // Mounted closed and opened on the next frame: the dialog only animates a change from closed to open
+  const [open, setOpen] = useState(false);
+  const [grown, setGrown] = useState(false);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setOpen(true));
+    return () => cancelAnimationFrame(frame);
+  }, []);
   const eventId = BigInt(event.contract_event_id ?? 0);
 
   // The call replaces all four settings, so start from the contract's values of this moment, not
@@ -67,15 +79,30 @@ export function EditEventSettingsPanel({ event, hasAdminRole, onClose, onSaved }
 
   return (
     <Dialog.Root
-      open
+      open={open}
       onOpenChange={(next) => {
         // Never hide a transaction that is still in progress
-        if (!next && !transaction.isBusy) onClose();
+        if (!next && !transaction.isBusy) setOpen(false);
+      }}
+      onOpenChangeComplete={(next) => {
+        if (next) setGrown(true);
+        else onClose();
       }}
     >
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-background/60 backdrop-blur-[2px] transition-opacity duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
-        <Dialog.Popup className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[480px] flex-col border-l border-border bg-card shadow-[-24px_0_48px_rgb(0_0_0/0.35)] outline-none transition-transform duration-200 data-[ending-style]:translate-x-full data-[starting-style]:translate-x-full">
+        <Dialog.Popup
+          className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[480px] flex-col border-l border-border bg-card shadow-[-24px_0_48px_rgb(0_0_0/0.35)] outline-none [clip-path:inset(0_0_0_0_round_0px)] transition-[clip-path] duration-[240ms] ease-[var(--ease-arrive)] data-[ending-style]:[clip-path:var(--grow-from)] data-[ending-style]:ease-in data-[starting-style]:[clip-path:var(--grow-from)]"
+          style={{ "--grow-from": growFrom } as CSSProperties}
+        >
+          {/* The light on the edge (globals.css): it fades in once the panel has grown, and fades
+              out, still running, as the panel shrinks back */}
+          <span aria-hidden="true" className="panel-light" data-light={grown ? (open ? "on" : "out") : undefined}>
+            <span className="panel-light-glow">
+              <span />
+            </span>
+            <span className="panel-light-edge" />
+          </span>
           <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-6 sm:px-8">
             <div className="flex min-w-0 flex-col gap-2">
               <Badge tone="warning" className="max-w-full type-mono-tag">
@@ -130,7 +157,7 @@ export function EditEventSettingsPanel({ event, hasAdminRole, onClose, onSaved }
               current={current}
               hasAdminRole={hasAdminRole}
               transaction={transaction}
-              onClose={onClose}
+              onClose={() => setOpen(false)}
               onSaved={onSaved}
             />
           )}
@@ -289,12 +316,16 @@ function SettingsFormBody({ event, current, hasAdminRole, transaction, onClose, 
           )
         )}
 
-        <TransactionStatus
-          state={transaction.state}
-          explorerUrl={transaction.explorerUrl}
-          successMessage="Settings updated on-chain. The organizer and ticket holders see them now."
-          onStopWaiting={transaction.stopWaiting}
-        />
+        {transaction.state.phase !== "idle" && (
+          <FoldAway>
+            <TransactionStatus
+              state={transaction.state}
+              explorerUrl={transaction.explorerUrl}
+              successMessage="Settings updated on-chain. The organizer and ticket holders see them now."
+              onStopWaiting={transaction.stopWaiting}
+            />
+          </FoldAway>
+        )}
       </div>
 
       <div className="flex flex-col gap-3 border-t border-border bg-background/40 px-6 py-5 sm:px-8">

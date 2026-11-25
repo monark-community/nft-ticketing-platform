@@ -199,3 +199,35 @@ export function flipFrom(from: Box, to: Box): { dx: number; dy: number; scale: n
   const scale = Math.max(0.45, Math.min(1.6, Number.isFinite(ratio) ? ratio : 1));
   return { dx, dy, scale };
 }
+
+// ---------------------------------------------------------------------------------------------
+// Table rows that fold away and open in (the admin page, #374)
+
+/** A row that left the list: where it was, and the row it followed */
+export interface LeftRow {
+  key: string;
+  index: number;
+  after: string | null;
+}
+
+/** What changed between two lists of row keys: the rows that left (and where they were), and the new ones */
+export function rowChanges(before: string[], after: string[]): { gone: LeftRow[]; added: string[] } {
+  const now = new Set(after);
+  const had = new Set(before);
+  const gone = before.flatMap((key, index) => (now.has(key) ? [] : [{ key, index, after: index > 0 ? before[index - 1] : null }]));
+  return { gone, added: after.filter((key) => !had.has(key)) };
+}
+
+/**
+ * The rows to draw: the list as it is, with the rows still folding away kept where they were (just
+ * below the row they followed, or at their old place if that row is gone too).
+ */
+export function withLeavingRows(keys: string[], leaving: LeftRow[]): string[] {
+  const rows = [...keys];
+  for (const row of leaving) {
+    if (rows.includes(row.key)) continue;
+    const after = row.after === null ? 0 : rows.indexOf(row.after) + 1;
+    rows.splice(row.after === null || after > 0 ? after : Math.min(row.index, rows.length), 0, row.key);
+  }
+  return rows;
+}

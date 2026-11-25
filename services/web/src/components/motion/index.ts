@@ -5,6 +5,7 @@ export { CountUp } from "./CountUp";
 export { DotField } from "./DotField";
 export { DrawnCheck } from "./DrawnCheck";
 export { FlapText } from "./FlapText";
+export { FoldAway } from "./FoldAway";
 export { MotionProvider } from "./MotionProvider";
 export { PrintIn } from "./PrintIn";
 export { RollingNumber } from "./RollingNumber";

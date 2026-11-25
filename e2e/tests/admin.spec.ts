@@ -455,7 +455,16 @@ test.describe('organizers', () => {
     const confirm = answerConfirm(page, true);
     await rowOf(organizersSection(page), account).getByRole('button', { name: 'Revoke' }).click();
     expect(await confirm).toBe(`Revoke organizer access for ${name}?`);
-    await expect(page.getByText('Organizer access revoked', { exact: true })).toBeVisible();
+    const notice = page.getByText('Organizer access revoked', { exact: true });
+    await expect(notice).toBeVisible();
+
+    // The notice and the receipt belong to this tab: moving to another one clears them
+    const receipt = page.locator('[data-slot="transaction-status"]');
+    await expect(receipt).toContainText('Confirmed');
+    await tab(page, 'Events').click();
+    await expect(notice).toHaveCount(0);
+    await expect(receipt).toHaveCount(0);
+    await tab(page, 'Organizers').click();
 
     expect(sentTransactions(wallet)).toBe(sent + 1);
     expect(await hasOrganizerRole(account)).toBe(false);

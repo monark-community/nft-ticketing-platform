@@ -473,8 +473,10 @@
   & [data-slot="alert-edge"] { transform-origin: top; animation: edge-draw 100ms ease-out backwards; }
   & [data-slot="alert-body"] > * { animation: fade-in 140ms ease-out 110ms backwards; }
 }
-/* The copy of a message that folds away after the message is gone: nothing in it animates again */
+/* The copy of a message that folds away after the message is gone: nothing in it animates again,
+   and what doesn't fit any more is hidden as it closes */
 .folding-away, .folding-away * { animation: none !important; }
+.folding-away > * { overflow: hidden; }
 
 /* Transaction receipt: each step prints a new line from left to right (160 ms) */
 @keyframes print-across { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
@@ -839,6 +841,66 @@
 @keyframes wait-fill {
   from { scale: 0 1; }
   to { scale: 0.9 1; }
+}
+
+/* ---------------------------------------------------------------------------
+   Admin (#374)
+   --------------------------------------------------------------------------- */
+/* Switching tabs: the panel slides 12 px in from the side you moved towards (--tab-dir: 1 or -1) */
+@keyframes tab-in { from { opacity: 0; translate: calc(var(--tab-dir, 1) * 12px) 0; } }
+/* Table rows (MotionRows): a row folds away or opens as its cells' padding and content close up */
+@keyframes cell-fold { to { padding-top: 0; padding-bottom: 0; opacity: 0; } }
+@keyframes cell-fold-inner { to { grid-template-rows: 0fr; } }
+@keyframes cell-open { from { padding-top: 0; padding-bottom: 0; opacity: 0; } }
+@keyframes cell-open-inner { from { grid-template-rows: 0fr; } }
+tr[data-row="folding"] > td { animation: cell-fold 200ms ease-in forwards; }
+tr[data-row="folding"] > td > div { animation: cell-fold-inner 200ms ease-in forwards; }
+tr:is([data-row="opening"], [data-row="printing"]) > td { animation: cell-open 300ms var(--ease-arrive) backwards; }
+tr:is([data-row="opening"], [data-row="printing"]) > td > div { animation: cell-open-inner 300ms var(--ease-arrive) backwards; }
+tr[data-row] > td > div > div { overflow: hidden; }
+/* A decision prints into its table like a receipt line, after it opens */
+tr[data-row="printing"] > td > div > div { animation: print-in 400ms linear 120ms backwards; }
+/* Refresh: the arrows turn once */
+@keyframes spin-once { to { rotate: 360deg; } }
+
+/* Edit settings panel: while it's open, an orange light runs clockwise round its edge (5 s a lap,
+   from the middle of the side facing the page) over a faint orange edge, and glows into the panel
+   as it passes. It fades in once the panel has grown and fades out, still running, as it shrinks
+   back. The glow sits under the panel's content and the edge over it; neither takes the pointer.
+   With reduced motion only the faint edge shows. */
+@property --light-turn { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
+@keyframes light-lap { to { --light-turn: 1turn; } }
+.panel-light {
+  --light-faint: color-mix(in oklab, var(--primary) 30%, transparent);
+  /* The tail starts 110° behind the head; the head starts on the left, at 270° */
+  --light-tail: from calc(160deg + var(--light-turn));
+  position: absolute;
+  inset: 0 0 0 -1px; /* over the panel's left border too */
+  pointer-events: none;
+  animation: light-lap 5s linear infinite paused;
+}
+.panel-light[data-light] { animation-play-state: running; }
+.panel-light > * { position: absolute; inset: 0; opacity: 0; transition: opacity 240ms ease-in; }
+.panel-light[data-light="on"] > * { opacity: 1; transition: opacity 400ms var(--ease-arrive); }
+/* A ring: the box with its padding box cut out of the middle */
+.panel-light-edge, .panel-light-glow > span {
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+.panel-light-edge {
+  z-index: 1;
+  padding: 1.5px;
+  background: conic-gradient(var(--light-tail), var(--light-faint) 0deg, var(--primary) 104deg, #fed7aa 109deg, var(--light-faint) 110deg);
+}
+.panel-light-glow { z-index: -1; filter: blur(10px); }
+.panel-light-glow > span {
+  position: absolute;
+  inset: 0;
+  padding: 8px;
+  background: conic-gradient(var(--light-tail), transparent 30deg, color-mix(in oklab, var(--primary) 60%, transparent) 106deg, transparent 112deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel-light-edge { background: var(--light-faint); }
+  .panel-light-glow { display: none; }
 }
 
 /* Respect reduced motion everywhere: animations and transitions jump to their end, without delay */
