@@ -778,7 +778,8 @@ function WalletChip({ wallet }: { wallet: string }) {
       onClick={() => void copy()}
       className="inline-flex items-center gap-1.5 rounded-xs border border-border bg-muted px-2 py-1 type-mono-address text-secondary-foreground transition-colors hover:border-border-accent hover:text-foreground"
       title={copied ? "Copied" : `Copy ${wallet}`}
-      aria-label={copied ? "Wallet address copied" : `Copy wallet address ${wallet}`}
+      // Starts with the visible address, so saying it reaches the chip (#417)
+      aria-label={copied ? `${shortAddress(wallet)}: wallet address copied` : `${shortAddress(wallet)}: copy wallet address ${wallet}`}
     >
       {shortAddress(wallet)}
       {copied ? <Check className="size-3 text-success" aria-hidden="true" /> : <Copy className="size-3" aria-hidden="true" />}

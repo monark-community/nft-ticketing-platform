@@ -231,7 +231,8 @@ function SellLink({ group }: { group: TicketGroup }) {
     <Link
       href={`${ROUTES.marketplace}?sell=${tokenId}`}
       className="group flex items-center justify-center gap-1.5 rounded-xs py-1 font-mono text-xs leading-4 text-secondary-foreground transition-colors duration-[140ms] outline-none hover:text-primary focus-visible:text-primary focus-visible:ring-3 focus-visible:ring-ring/50"
-      aria-label={`Sell ticket #${tokenId} to ${group.title} on the Marketplace`}
+      // Starts with the visible text, so saying "Sell on Marketplace" reaches it (#417)
+      aria-label={`Sell on Marketplace: ticket #${tokenId}, ${group.title}`}
     >
       Sell on Marketplace
       {/* Steps forward on hover */}

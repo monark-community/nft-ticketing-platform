@@ -127,7 +127,7 @@ export function ListingCard({ listing, mine, onBuy, onEdit }: ListingCardProps) 
             {mine ? "You" : shortAddress(listing.seller_wallet)}
           </span>
           {mine ? (
-            <Button variant="outline" size="sm" onClick={onEdit} aria-label={`Change the price of your ticket #${listing.token_id}`}>
+            <Button variant="outline" size="sm" onClick={onEdit} aria-label={`Edit the price of your ticket #${listing.token_id}`}>
               <Pencil aria-hidden="true" />
               Edit
             </Button>

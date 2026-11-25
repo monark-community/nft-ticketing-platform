@@ -518,7 +518,7 @@ test.describe('selling', () => {
     // The page reads the listings again as the listener catches up
     await expect(card(page, token)).toContainText('25.00 USDC', { timeout: 20_000 });
     await expect(card(page, token)).toContainText('You');
-    await expect(card(page, token).getByRole('button', { name: `Change the price of your ticket #${token}` })).toBeVisible();
+    await expect(card(page, token).getByRole('button', { name: `Edit the price of your ticket #${token}` })).toBeVisible();
     await expect(yourRow(page, token)).toContainText('Listed for 25.00 USDC');
   });
 
@@ -813,7 +813,7 @@ test.describe('buying', () => {
 
     await expect(card(page, token)).toContainText('You');
     await expect(buyOn(page, token)).toHaveCount(0);
-    await expect(card(page, token).getByRole('button', { name: `Change the price of your ticket #${token}` })).toBeVisible();
+    await expect(card(page, token).getByRole('button', { name: `Edit the price of your ticket #${token}` })).toBeVisible();
     await expect(chain.ticketNft(accounts.alex).buyResaleTicket.staticCall(token, chain.usdc(25))).rejects.toThrow('Cannot buy your own ticket');
   });
 
