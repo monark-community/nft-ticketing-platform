@@ -305,7 +305,7 @@ test('the demo journey: organizer request, approval, event, sale, check-in, resa
 
   // --- 10 --------------------------------------------------------------------------------------
   await test.step('A lists ticket 2 on the Marketplace', async () => {
-    await a.page.getByRole('link', { name: `Sell ticket #${ticket2} to ${title} on the Marketplace` }).click();
+    await a.page.getByRole('link', { name: `Sell on Marketplace: ticket #${ticket2}, ${title}` }).click();
     const sell = a.page.getByRole('dialog', { name: 'Sell a ticket' });
     await sell.getByLabel('Set your price').fill(String(RESALE_PRICE));
     await sell.getByRole('button', { name: 'List ticket' }).click();
@@ -349,7 +349,7 @@ test('the demo journey: organizer request, approval, event, sale, check-in, resa
 
     await a.page.goto('/my-tickets');
     await expect(a.page.getByText(/^Checked in on /)).toBeVisible(); // ticket 1 stays, as a collectible
-    await expect(a.page.getByRole('link', { name: `Sell ticket #${ticket2} to ${title} on the Marketplace` })).toHaveCount(0);
+    await expect(a.page.getByRole('link', { name: `Sell on Marketplace: ticket #${ticket2}, ${title}` })).toHaveCount(0);
 
     await b.page.goto('/my-tickets');
     await expect(b.page.getByRole('button', { name: `Show entry QR for ${title}` })).toBeVisible();
