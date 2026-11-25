@@ -989,10 +989,8 @@ test.describe('while the Buy popup is open', () => {
     await expect(chain.ticketNft(accounts.jordan).buyResaleTicket.staticCall(token, chain.usdc(25))).rejects.toThrow('Royalty changed since listing');
   });
 
-  // TODO(418): the popup's last check before the wallet opens compares the price and the seller,
-  // not the royalty, so Buy first sends the USDC approval and only then says the royalty changed.
-  // Turn on once that check includes the royalty.
-  test.fixme('the admin changes the event\'s royalty: nothing is sent', async ({ page, signIn, wallet }) => {
+  // The popup's last check before the wallet opens reads the royalty too (#418)
+  test('the admin changes the event\'s royalty: nothing is sent', async ({ page, signIn, wallet }) => {
     await royaltyChangedUnderBuyer(page, signIn, 'Royalty Changed Nothing Sent');
     const sent = wallet.requests.length;
 
