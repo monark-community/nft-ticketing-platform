@@ -638,6 +638,27 @@ test.describe('buying', () => {
     await expect(success(page)).toBeVisible();
   });
 
+  test('switching account after a failed purchase: its error stays with the account that had it', async ({ page, signIn, wallet }) => {
+    const event = await createPublishedEvent({ title: 'Switched After Cancel', ticketTypes: [{ name: 'General Admission', price: 20, supply: 50 }] });
+    await approve(accounts.jordan, chain.usdc(20));
+    await approve(accounts.alex, 0n);
+    await openSignedIn(page, signIn, accounts.jordan, event);
+
+    wallet.rejectNext('send');
+    await buyButton(page).click();
+    await expect(errorAlert(page)).toHaveText('The purchase was cancelled in your wallet. You were not charged.');
+
+    // Jordan's cancelled purchase isn't Alex's: Alex gets the order form, with no error (#396)
+    await wallet.switchAccount(accounts.alex);
+    await expect(errorAlert(page)).toHaveCount(0);
+    await expect(buyButton(page)).toBeEnabled();
+    await expectSteps(page, 'Not started', 'Not started');
+
+    // Back on Jordan's account, its error shows again
+    await wallet.switchAccount(accounts.jordan);
+    await expect(errorAlert(page)).toHaveText('The purchase was cancelled in your wallet. You were not charged.');
+  });
+
   test('disconnecting mid-purchase: nothing is sent', async ({ page, signIn, wallet }) => {
     const event = await createPublishedEvent({ title: 'Disconnected Mid Purchase', ticketTypes: [{ name: 'General Admission', price: 20, supply: 50 }] });
     await openSignedIn(page, signIn, accounts.jordan, event);

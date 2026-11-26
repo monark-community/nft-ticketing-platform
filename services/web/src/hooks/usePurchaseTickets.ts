@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { erc20Abi, type Address } from "viem";
 import { TICKET_NFT_ADDRESS, ticketNftAbi } from "@/lib/contracts/ticket-nft";
-import { getPurchaseErrorMessage } from "@/lib/purchase-errors";
+import { getPurchaseErrorMessage, PURCHASE_ERRORS } from "@/lib/purchase-errors";
 import { APPROVE_STEP_LABEL, BUY_STEP_LABEL, getPurchaseSteps } from "@/lib/purchase-steps";
 import { IDLE_TX_STATE, type TxStep } from "@/lib/transactions/types";
 import { useTransaction } from "./useTransaction";
@@ -58,9 +58,13 @@ export function usePurchaseTickets({ contractEventId, typeId, quantity, unitPric
     return succeeded;
   }
 
-  // A purchase that went through belongs to the account that made it: once the wallet is on another
-  // account, the page shows a new order for that one instead of "You're going!" (#396)
-  const state = tx.accountChanged && tx.state.phase === "success" ? IDLE_TX_STATE : tx.state;
+  // What a run did belongs to the account that ran it: once the wallet is on another account, the
+  // page shows a new order for that one instead of "You're going!" or the other account's error.
+  // Only the message that the wallet switched mid-purchase stays (#396).
+  const fromAnotherAccount =
+    tx.accountChanged &&
+    (tx.state.phase === "success" || (tx.state.phase === "error" && tx.state.error !== PURCHASE_ERRORS.accountChanged));
+  const state = fromAnotherAccount ? IDLE_TX_STATE : tx.state;
 
   return {
     buy,
