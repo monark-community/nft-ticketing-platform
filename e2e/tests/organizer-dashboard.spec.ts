@@ -386,6 +386,29 @@ test.describe('event details', () => {
     await expect(row(free)).toBeVisible();
   });
 
+  test('on a phone the tickets table scrolls sideways with the keyboard; on a desktop it fits and is no Tab stop', async ({ page, signIn }) => {
+    const event = await createPublishedEvent({ title: 'Dashboard Table Night', ticketTypes: [{ name: 'General Admission', price: 20, supply: 100 }] });
+    await chain.buyTickets(accounts.alex, { eventId: event.contractId });
+    await waitForSync();
+    await openManage(page, signIn, event);
+    const tickets = card(page, 'Tickets');
+    await expect(tickets.locator('tbody tr').first()).toBeVisible();
+    const table = tickets.getByRole('region', { name: 'Tickets' });
+
+    // Tab from the last filter goes to the table's scroll box when it scrolls, past it when it doesn't (#420)
+    await tickets.getByLabel('Ticket type').focus();
+    await page.keyboard.press('Tab');
+    if (test.info().project.name === 'phone') {
+      await expect(table).toBeFocused();
+      await expect(table).not.toHaveCSS('box-shadow', 'none');
+      await page.keyboard.press('ArrowRight');
+      await expect.poll(() => table.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    } else {
+      await expect(table).not.toHaveAttribute('tabindex');
+      await expect(table).not.toBeFocused();
+    }
+  });
+
   test('publishing checks the event is set up on-chain by this organizer', async () => {
     await promote(accounts.jordan);
     // Not set up on-chain at all

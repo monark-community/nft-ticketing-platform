@@ -10,6 +10,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { Select } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { TICKETS_REFRESH_MS, useEventTickets } from "@/hooks/useEventTickets";
+import { useScrollsSideways } from "@/hooks/useScrollsSideways";
 import type { ApiTicketType } from "@/lib/event-details";
 import { sortTicketTypes } from "@/lib/event-details";
 import { shortAddress } from "@/lib/format";
@@ -36,6 +37,7 @@ interface Props {
 // Every ticket of the event with its current owner and check-in state (#190). Resales and
 // check-ins are written by the listener, so the table refreshes on its own every 15 seconds.
 export function TicketsCard({ eventId, ticketTypes, usdcDecimals, explorerUrl, refreshSignal }: Props) {
+  const [setTableBox, tableScrolls] = useScrollsSideways<HTMLDivElement>();
   const [status, setStatus] = useState<"" | "VALID" | "USED">("");
   const [kind, setKind] = useState<"" | "sale" | "issued">("");
   const [typeId, setTypeId] = useState("");
@@ -167,7 +169,15 @@ export function TicketsCard({ eventId, ticketTypes, usdcDecimals, explorerUrl, r
         <EmptyState title="No tickets match these filters" text="Clear a filter to see the event's other tickets." stamp />
       ) : (
         <>
-          <div className="overflow-x-auto rounded-md border border-border">
+          {/* On a phone the table scrolls sideways: the box then takes the focus, so the arrow keys
+              can scroll it (#420). Where the table fits, it's no Tab stop. */}
+          <div
+            ref={setTableBox}
+            role="region"
+            aria-label="Tickets"
+            tabIndex={tableScrolls ? 0 : undefined}
+            className="overflow-x-auto rounded-md border border-border outline-none focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20"
+          >
             <table className="w-full min-w-[760px] text-left">
               <caption className="sr-only">Tickets of this event</caption>
               <thead className="border-b border-border bg-background/50">
