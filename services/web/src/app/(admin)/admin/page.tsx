@@ -14,14 +14,17 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useReducedMotion } from "motion/react";
+import * as m from "motion/react-m";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type FocusEvent } from "react";
 import { keccak256, stringToHex, zeroHash } from "viem";
 import { useAccount, useChains, useReadContract, useSwitchChain } from "wagmi";
 
 import { Footer } from "@/components/Footer";
 import { Navbar } from "@/components/Navbar";
 import { AdminEventsTab } from "@/components/admin/AdminEventsTab";
-import { EmptyState, TableShell, Td, Th } from "@/components/admin/AdminTable";
+import { EmptyState, MotionRows, TableShell, Td, Th } from "@/components/admin/AdminTable";
+import { CopyLiftOff, DrawnCheck, FoldAway, RollingNumber, Stamp } from "@/components/motion";
 import { TransactionStatus } from "@/components/TransactionStatus";
 import { ConnectWalletButton } from "@/components/WalletConnectButton";
 import { Alert } from "@/components/ui/alert";
@@ -49,6 +52,7 @@ import {
 import { apiClient } from "@/lib/api";
 import { shortAddress } from "@/lib/format";
 import { TICKET_NFT_ADDRESS, TICKET_NFT_CHAIN_ID, ticketNftAbi } from "@/lib/contracts/ticket-nft";
+import { animate, EASE } from "@/lib/motion";
 import { getTransactionErrorMessage } from "@/lib/transactions/errors";
 import { cn } from "@/lib/utils";
 
@@ -62,13 +66,24 @@ const ADMIN_ROLE_ERROR =
 const ADMIN_ACCOUNT_ERROR = "This account isn't an admin. Sign in with the platform's admin wallet.";
 
 type Tab = "requests" | "organizers" | "events";
+const TABS: Tab[] = ["requests", "organizers", "events"];
 type Notice = { tone: "success" | "warning" | "error"; title: string; message?: string };
+// How long a confirmation and its receipt stay before they fold away. Warnings and errors stay.
+const NOTICE_MS = 6000;
 type ActiveAction = { type: "approve" | "reject" | "revoke"; id: string };
+// A request just approved or rejected (#374): stamped on its row, which then folds away
+type Decided = { request: OrganizerRequest; status: "APPROVED" | "REJECTED"; index: number; folding: boolean };
+
+const STAMP_HOLD_MS = 800; // the stamp lands (220 ms) and stays about half a second
+const ROW_FOLD_MS = 260; // the row folds (200 ms), then the decision prints in Recent decisions
 
 // Admin page (#198): organizer requests and organizer access, built from the
 // Figma "Admin/Requests page" and "Admin/Organizer Page" (#282). Approval and
 // revocation are on-chain from the admin's wallet; the API only records them.
 // The Events tab (#296) lists every event and lets the admin change its sale settings.
+// Motion (#374): tabs share a sliding underline and their panels slide in from the side you moved
+// towards; counts roll. A decision is stamped on its row, which folds away before the decision
+// prints into Recent decisions. Refresh turns its arrows once, then says "Updated".
 export default function AdminPage() {
   const hasMounted = useHasMounted();
   const { address, isConnected, chainId } = useAccount();
@@ -77,14 +92,18 @@ export default function AdminPage() {
   const contractChain = chains.find((chain) => chain.id === TICKET_NFT_CHAIN_ID);
   const { switchChain, isPending: switchingNetwork } = useSwitchChain();
 
-  const [tab, setTab] = useState<Tab>("requests");
+  const [tab, setTabState] = useState<{ id: Tab; dir: number }>({ id: "requests", dir: 0 });
   const [requests, setRequests] = useState<OrganizerRequest[]>([]);
   const [organizers, setOrganizers] = useState<Organizer[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false); // the requests and organizers came at least once
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [activeAction, setActiveAction] = useState<ActiveAction | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [decided, setDecided] = useState<Decided | null>(null);
+  const [printed, setPrinted] = useState<string | null>(null); // the decision that last reached Recent decisions
+  const reduced = useReducedMotion();
   const adminEvents = useAdminEvents(user?.role === "ADMIN");
 
   const transaction = useTransaction({
@@ -96,6 +115,35 @@ export default function AdminPage() {
         },
       }),
   });
+
+  // What the last action left above the tabs, its notice and its receipt, goes when the next action
+  // starts and when the admin moves to another tab. A confirmation and its receipt also fold away by
+  // themselves NOTICE_MS after they show, or after the pointer or the focus leaves them, so the
+  // receipt's explorer link can be opened. A transaction still in progress always stays (reset() keeps it).
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const holdOutcome = {
+    onPointerEnter: () => setHovered(true),
+    onPointerLeave: () => setHovered(false),
+    onFocus: () => setFocused(true),
+    onBlur: (event: FocusEvent<HTMLDivElement>) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+    },
+  };
+  function clearOutcome() {
+    setNotice(null);
+    transaction.reset();
+    // Gone from under the pointer and the focus, so the next confirmation's timer runs
+    setHovered(false);
+    setFocused(false);
+  }
+  const confirmationShown = useEffectEvent(() => clearOutcome());
+  const held = hovered || focused;
+  useEffect(() => {
+    if (notice?.tone !== "success" || held) return;
+    const timer = window.setTimeout(() => confirmationShown(), NOTICE_MS);
+    return () => window.clearTimeout(timer);
+  }, [notice, held]);
 
   // Read the contract's admin role before showing the actions, so a non-admin
   // wallet gets the explanation before it opens a transaction that would revert.
@@ -127,6 +175,7 @@ export default function AdminPage() {
       ]);
       setRequests(nextRequests);
       setOrganizers(nextOrganizers);
+      setLoaded(true);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Could not load the admin data.");
     } finally {
@@ -141,7 +190,45 @@ export default function AdminPage() {
   const pending = useMemo(() => pendingOrganizerRequests(requests), [requests]);
   const recentDecisions = useMemo(() => recentOrganizerDecisions(requests), [requests]);
 
+  // While its stamp shows, a decided request stays in its place; it reaches Recent decisions after
+  // its row has folded away. The data itself is never held back.
+  const pendingShown = useMemo(() => {
+    if (!decided || decided.folding || pending.some((r) => r.id === decided.request.id)) return pending;
+    const list = [...pending];
+    list.splice(Math.min(decided.index, list.length), 0, decided.request);
+    return list;
+  }, [pending, decided]);
+  const recentShown = useMemo(
+    () => (decided ? recentDecisions.filter((r) => r.id !== decided.request.id) : recentDecisions),
+    [recentDecisions, decided],
+  );
+
+  function showDecision(request: OrganizerRequest, status: Decided["status"]) {
+    if (reduced) return;
+    const index = pending.findIndex((r) => r.id === request.id);
+    setDecided({ request, status, index: Math.max(index, 0), folding: false });
+    const same = (d: Decided | null) => d?.request.id === request.id;
+    window.setTimeout(() => setDecided((d) => (d && same(d) ? { ...d, folding: true } : d)), STAMP_HOLD_MS);
+    window.setTimeout(() => {
+      setDecided((d) => (same(d) ? null : d));
+      setPrinted(request.id);
+    }, STAMP_HOLD_MS + ROW_FOLD_MS);
+    // Only for this arrival: a table shown again later (another tab and back) doesn't print it again
+    window.setTimeout(() => setPrinted((id) => (id === request.id ? null : id)), STAMP_HOLD_MS + ROW_FOLD_MS + 700);
+  }
+
+  // Refresh turns its arrows once while it reloads, then says "Updated" for a moment
+  const [refresh, setRefresh] = useState<{ turns: number; updated: boolean }>({ turns: 0, updated: false });
+  async function reloadAll() {
+    setRefresh((r) => ({ turns: r.turns + 1, updated: false }));
+    // "Updated" waits for the arrows' one turn (600 ms), never for more than the reload
+    await Promise.all([loadData(), adminEvents.reload(), new Promise((done) => window.setTimeout(done, reduced ? 0 : 600))]);
+    setRefresh((r) => ({ ...r, updated: true }));
+    window.setTimeout(() => setRefresh((r) => ({ ...r, updated: false })), 1600);
+  }
+
   async function approve(request: OrganizerRequest) {
+    clearOutcome();
     if (!onContractChain) {
       setNotice({ tone: "error", title: "Switch network first", message: `Switch to ${networkName} to approve organizers.` });
       return;
@@ -151,8 +238,6 @@ export default function AdminPage() {
       return;
     }
 
-    setNotice(null);
-    transaction.reset();
     setActiveAction({ type: "approve", id: request.id });
 
     const granted = await transaction.run([
@@ -176,6 +261,7 @@ export default function AdminPage() {
     setSyncing(true);
     try {
       await apiClient(organizerPath(request.wallet), { method: "POST", data: {} });
+      showDecision(request, "APPROVED");
       setNotice({
         tone: "success",
         title: "Organizer approved",
@@ -197,11 +283,11 @@ export default function AdminPage() {
   async function reject(request: OrganizerRequest) {
     if (!window.confirm(`Reject ${organizerDisplayName(request)}'s organizer request?`)) return;
 
-    setNotice(null);
-    transaction.reset();
+    clearOutcome();
     setActiveAction({ type: "reject", id: request.id });
     try {
       await apiClient(rejectOrganizerRequestPath(request.id), { method: "POST", data: {} });
+      showDecision(request, "REJECTED");
       setNotice({
         tone: "success",
         title: "Request rejected",
@@ -221,17 +307,18 @@ export default function AdminPage() {
 
   async function revoke(organizer: Organizer) {
     if (!onContractChain) {
+      clearOutcome();
       setNotice({ tone: "error", title: "Switch network first", message: `Switch to ${networkName} to revoke organizer access.` });
       return;
     }
     if (!canActOnChain) {
+      clearOutcome();
       setNotice({ tone: "error", title: "Admin wallet required", message: ADMIN_ROLE_ERROR });
       return;
     }
     if (!window.confirm(`Revoke organizer access for ${organizerAccountName(organizer)}?`)) return;
 
-    setNotice(null);
-    transaction.reset();
+    clearOutcome();
     setActiveAction({ type: "revoke", id: organizer.wallet });
 
     const revoked = await transaction.run([
@@ -285,6 +372,13 @@ export default function AdminPage() {
   }
 
   const busy = activeAction !== null || transaction.isBusy || syncing;
+
+  function setTab(next: Tab) {
+    if (next === tab.id) return;
+    setTabState({ id: next, dir: TABS.indexOf(next) > TABS.indexOf(tab.id) ? 1 : -1 });
+    // The last action's outcome belongs to the tab it was taken on, unless it's still going
+    if (!busy) clearOutcome();
+  }
 
   function actionLabel(action: ActiveAction | null, id: string): string | null {
     if (!action || action.id !== id || action.type === "reject") return null;
@@ -360,17 +454,17 @@ export default function AdminPage() {
             Review organizer requests, manage organizer access and see all events.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            void loadData();
-            void adminEvents.reload();
-          }}
-          loading={loading || adminEvents.loading}
-          disabled={busy}
-        >
-          <RefreshCw aria-hidden="true" /> Refresh
+        <Button variant="outline" size="sm" onClick={() => void reloadAll()} disabled={busy || loading || adminEvents.loading} aria-busy={loading || adminEvents.loading}>
+          {refresh.updated ? (
+            <>
+              <DrawnCheck className="text-success" /> Updated
+            </>
+          ) : (
+            <>
+              <RefreshCw key={refresh.turns} className={cn(refresh.turns > 0 && "motion-safe:animate-[spin-once_600ms_var(--ease-arrive)]")} aria-hidden="true" />{" "}
+              Refresh
+            </>
+          )}
         </Button>
       </div>
 
@@ -400,76 +494,244 @@ export default function AdminPage() {
       )}
 
       {notice && (
-        <Alert tone={notice.tone} title={notice.title}>
+        <Alert tone={notice.tone} title={notice.title} {...holdOutcome}>
           {notice.message}
         </Alert>
       )}
 
-      <TransactionStatus
-        state={transaction.state}
-        explorerUrl={transaction.explorerUrl}
-        successMessage="Role updated on-chain."
-        onStopWaiting={transaction.stopWaiting}
-      />
+      {transaction.state.phase !== "idle" && (
+        <FoldAway {...holdOutcome}>
+          <TransactionStatus
+            state={transaction.state}
+            explorerUrl={transaction.explorerUrl}
+            successMessage="Role updated on-chain."
+            onStopWaiting={transaction.stopWaiting}
+          />
+        </FoldAway>
+      )}
 
       <div role="tablist" aria-label="Admin sections" className="flex gap-3 overflow-x-auto border-b border-border sm:gap-6">
         <TabButton
-          active={tab === "requests"}
+          active={tab.id === "requests"}
           onClick={() => setTab("requests")}
           icon={<Inbox aria-hidden="true" />}
           label="Organizer requests"
           count={pending.length}
+          ready={loaded}
         />
         <TabButton
-          active={tab === "organizers"}
+          active={tab.id === "organizers"}
           onClick={() => setTab("organizers")}
           icon={<Users aria-hidden="true" />}
           label="Organizers"
           count={organizers.length}
+          ready={loaded}
         />
         <TabButton
-          active={tab === "events"}
+          active={tab.id === "events"}
           onClick={() => setTab("events")}
           icon={<Ticket aria-hidden="true" />}
           label="Events"
           count={adminEvents.allTotal}
+          ready={adminEvents.loaded}
         />
       </div>
 
-      {tab === "events" ? (
-        <AdminEventsTab events={adminEvents} hasAdminRole={adminRoleError ? undefined : onChainAdminRole} />
-      ) : loading ? (
-        <Panel className="items-center py-12">
-          <Spinner className="size-6 text-primary" label="Loading admin data" />
-        </Panel>
-      ) : loadError ? (
-        <Alert
-          tone="error"
-          title="Could not load the admin data"
-          action={
-            <Button size="sm" variant="outline" onClick={() => void loadData()}>
-              Try again
-            </Button>
-          }
-        >
-          {loadError}
-        </Alert>
-      ) : tab === "requests" ? (
-        <div className="flex flex-col gap-6">
+      {/* The panel slides in from the side of the tab you moved to */}
+      <div
+        key={tab.id}
+        className={cn("flex flex-col", tab.dir !== 0 && "motion-safe:animate-[tab-in_200ms_var(--ease-arrive)_backwards]")}
+        style={{ "--tab-dir": tab.dir } as CSSProperties}
+      >
+        {tab.id === "events" ? (
+          <AdminEventsTab events={adminEvents} hasAdminRole={adminRoleError ? undefined : onChainAdminRole} />
+        ) : loading && !loaded ? (
+          // Only the first load: reloads keep the tables on screen, so their rows can move (#374)
+          <Panel className="items-center py-12">
+            <Spinner className="size-6 text-primary" label="Loading admin data" />
+          </Panel>
+        ) : loadError ? (
+          <Alert
+            tone="error"
+            title="Could not load the admin data"
+            action={
+              <Button size="sm" variant="outline" onClick={() => void loadData()}>
+                Try again
+              </Button>
+            }
+          >
+            {loadError}
+          </Alert>
+        ) : tab.id === "requests" ? (
+          <div className="flex flex-col gap-6">
+            <section className="flex flex-col gap-3">
+              <div>
+                <h2 className="type-heading-sm text-foreground">Pending requests</h2>
+                <p className="type-body-sm text-muted-foreground">
+                  Approving grants the organizer role on-chain. Your wallet will ask you to confirm the transaction, and
+                  the database updates after it confirms.
+                </p>
+              </div>
+
+              {pendingShown.length === 0 && !decided ? (
+                <EmptyState
+                  icon={<Inbox className="size-8" aria-hidden="true" />}
+                  title="No pending requests"
+                  description="New organizer requests will appear here."
+                />
+              ) : (
+                <TableShell>
+                  <table className="w-full min-w-[780px] text-left">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <Th>Name</Th>
+                        <Th>Email</Th>
+                        <Th>Wallet</Th>
+                        <Th>Requested</Th>
+                        <Th align="right">Actions</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <MotionRows items={pendingShown} itemKey={(request) => request.id} rowClassName="border-b border-border last:border-0">
+                        {(request) => {
+                          const approving = activeAction?.type === "approve" && activeAction.id === request.id;
+                          const rejecting = activeAction?.type === "reject" && activeAction.id === request.id;
+                          const label = actionLabel(activeAction, request.id);
+                          const stamp = decided?.request.id === request.id ? decided.status : null;
+
+                          return (
+                            <>
+                              <Td>
+                                <NameCell name={organizerDisplayName(request)} wallet={request.wallet}>
+                                  {request.message && (
+                                    <span className="line-clamp-1 type-body-sm text-muted-foreground">{request.message}</span>
+                                  )}
+                                </NameCell>
+                              </Td>
+                              <Td className="type-body-md text-secondary-foreground">{request.user?.email ?? "—"}</Td>
+                              <Td>
+                                <WalletChip wallet={request.wallet} />
+                              </Td>
+                              <Td className="type-body-md text-secondary-foreground">{formatRequestDate(request.created_at)}</Td>
+                              <Td align="right">
+                                {stamp ? (
+                                  <Stamp tone={stamp === "APPROVED" ? "green" : "red"} className="mr-1">
+                                    {stamp === "APPROVED" ? "Approved" : "Rejected"}
+                                  </Stamp>
+                                ) : label ? (
+                                  <span className="inline-flex items-center gap-2 type-body-sm text-primary">
+                                    <Spinner /> {label}
+                                  </span>
+                                ) : (
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => void approve(request)}
+                                      loading={approving}
+                                      disabled={!canActOnChain || busy}
+                                    >
+                                      <Check aria-hidden="true" /> Approve
+                                    </Button>
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      onClick={() => void reject(request)}
+                                      loading={rejecting}
+                                      disabled={busy}
+                                    >
+                                      <X aria-hidden="true" /> Reject
+                                    </Button>
+                                  </div>
+                                )}
+                              </Td>
+                            </>
+                          );
+                        }}
+                      </MotionRows>
+                    </tbody>
+                  </table>
+                </TableShell>
+              )}
+            </section>
+
+            <section className="flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <h2 className="type-heading-sm text-foreground">Recent decisions</h2>
+                <Badge tone="neutral">Past 30 days</Badge>
+              </div>
+
+              {recentShown.length === 0 ? (
+                <EmptyState
+                  icon={<CalendarDays className="size-8" aria-hidden="true" />}
+                  title="No decisions in the past 30 days"
+                  description="Decisions will appear here after you approve or reject a request."
+                />
+              ) : (
+                <TableShell>
+                  <table className="w-full min-w-[680px] text-left">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <Th>Name</Th>
+                        <Th>Wallet</Th>
+                        <Th>Decision</Th>
+                        <Th>Decided</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <MotionRows
+                        items={recentShown}
+                        itemKey={(request) => request.id}
+                        arrive="print"
+                        arriving={printed ? [printed] : undefined}
+                        rowClassName="border-b border-border last:border-0"
+                      >
+                        {(request) => (
+                          <>
+                            <Td>
+                              <NameCell name={organizerDisplayName(request)} wallet={request.wallet}>
+                                {request.status === "REJECTED" && request.rejection_reason && (
+                                  <span className="line-clamp-1 type-body-sm text-muted-foreground">{request.rejection_reason}</span>
+                                )}
+                              </NameCell>
+                            </Td>
+                            <Td>
+                              <WalletChip wallet={request.wallet} />
+                            </Td>
+                            <Td>
+                              {request.status === "APPROVED" ? (
+                                <Badge tone="success">
+                                  <CheckCircle2 className="size-3" aria-hidden="true" /> Approved
+                                </Badge>
+                              ) : (
+                                <Badge tone="danger">
+                                  <XCircle className="size-3" aria-hidden="true" /> Rejected
+                                </Badge>
+                              )}
+                            </Td>
+                            <Td className="type-body-md text-secondary-foreground">{formatRequestDate(request.reviewed_at)}</Td>
+                          </>
+                        )}
+                      </MotionRows>
+                    </tbody>
+                  </table>
+                </TableShell>
+              )}
+            </section>
+          </div>
+        ) : (
           <section className="flex flex-col gap-3">
             <div>
-              <h2 className="type-heading-sm text-foreground">Pending requests</h2>
+              <h2 className="type-heading-sm text-foreground">Organizers</h2>
               <p className="type-body-sm text-muted-foreground">
-                Approving grants the organizer role on-chain. Your wallet will ask you to confirm the transaction, and
-                the database updates after it confirms.
+                Revoking removes the organizer role on-chain. Your wallet will ask you to confirm the transaction.
               </p>
             </div>
 
-            {pending.length === 0 ? (
+            {organizers.length === 0 ? (
               <EmptyState
-                icon={<Inbox className="size-8" aria-hidden="true" />}
-                title="No pending requests"
-                description="New organizer requests will appear here."
+                icon={<Users className="size-8" aria-hidden="true" />}
+                title="No organizers yet"
+                description="Approve a request to give someone organizer access."
               />
             ) : (
               <TableShell>
@@ -479,192 +741,56 @@ export default function AdminPage() {
                       <Th>Name</Th>
                       <Th>Email</Th>
                       <Th>Wallet</Th>
-                      <Th>Requested</Th>
+                      <Th>Events</Th>
+                      <Th>Approved on</Th>
                       <Th align="right">Actions</Th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pending.map((request) => {
-                      const approving = activeAction?.type === "approve" && activeAction.id === request.id;
-                      const rejecting = activeAction?.type === "reject" && activeAction.id === request.id;
-                      const label = actionLabel(activeAction, request.id);
+                    <MotionRows items={organizers} itemKey={(organizer) => organizer.wallet} rowClassName="border-b border-border last:border-0">
+                      {(organizer) => {
+                        const revoking = activeAction?.type === "revoke" && activeAction.id === organizer.wallet;
+                        const label = actionLabel(activeAction, organizer.wallet);
 
-                      return (
-                        <tr key={request.id} className="border-b border-border last:border-0">
-                          <Td>
-                            <NameCell name={organizerDisplayName(request)} wallet={request.wallet}>
-                              {request.message && (
-                                <span className="line-clamp-1 type-body-sm text-muted-foreground">{request.message}</span>
-                              )}
-                            </NameCell>
-                          </Td>
-                          <Td className="type-body-md text-secondary-foreground">{request.user?.email ?? "—"}</Td>
-                          <Td>
-                            <WalletChip wallet={request.wallet} />
-                          </Td>
-                          <Td className="type-body-md text-secondary-foreground">{formatRequestDate(request.created_at)}</Td>
-                          <Td align="right">
-                            {label ? (
-                              <span className="inline-flex items-center gap-2 type-body-sm text-primary">
-                                <Spinner /> {label}
-                              </span>
-                            ) : (
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  size="sm"
-                                  onClick={() => void approve(request)}
-                                  loading={approving}
-                                  disabled={!canActOnChain || busy}
-                                >
-                                  <Check aria-hidden="true" /> Approve
-                                </Button>
+                        return (
+                          <>
+                            <Td>
+                              <NameCell name={organizerAccountName(organizer)} wallet={organizer.wallet} />
+                            </Td>
+                            <Td className="type-body-md text-secondary-foreground">{organizer.email ?? "—"}</Td>
+                            <Td>
+                              <WalletChip wallet={organizer.wallet} />
+                            </Td>
+                            <Td className="type-body-md text-secondary-foreground">{organizer.event_count}</Td>
+                            <Td className="type-body-md text-secondary-foreground">{formatRequestDate(organizer.approved_at)}</Td>
+                            <Td align="right">
+                              {label ? (
+                                <span className="inline-flex items-center gap-2 type-body-sm text-primary">
+                                  <Spinner /> {label}
+                                </span>
+                              ) : (
                                 <Button
                                   variant="destructive"
                                   size="sm"
-                                  onClick={() => void reject(request)}
-                                  loading={rejecting}
-                                  disabled={busy}
+                                  onClick={() => void revoke(organizer)}
+                                  loading={revoking}
+                                  disabled={!canActOnChain || busy}
                                 >
-                                  <X aria-hidden="true" /> Reject
+                                  <X aria-hidden="true" /> Revoke
                                 </Button>
-                              </div>
-                            )}
-                          </Td>
-                        </tr>
-                      );
-                    })}
+                              )}
+                            </Td>
+                          </>
+                        );
+                      }}
+                    </MotionRows>
                   </tbody>
                 </table>
               </TableShell>
             )}
           </section>
-
-          <section className="flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <h2 className="type-heading-sm text-foreground">Recent decisions</h2>
-              <Badge tone="neutral">Past 30 days</Badge>
-            </div>
-
-            {recentDecisions.length === 0 ? (
-              <EmptyState
-                icon={<CalendarDays className="size-8" aria-hidden="true" />}
-                title="No decisions in the past 30 days"
-                description="Decisions will appear here after you approve or reject a request."
-              />
-            ) : (
-              <TableShell>
-                <table className="w-full min-w-[680px] text-left">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <Th>Name</Th>
-                      <Th>Wallet</Th>
-                      <Th>Decision</Th>
-                      <Th>Decided</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentDecisions.map((request) => (
-                      <tr key={request.id} className="border-b border-border last:border-0">
-                        <Td>
-                          <NameCell name={organizerDisplayName(request)} wallet={request.wallet}>
-                            {request.status === "REJECTED" && request.rejection_reason && (
-                              <span className="line-clamp-1 type-body-sm text-muted-foreground">{request.rejection_reason}</span>
-                            )}
-                          </NameCell>
-                        </Td>
-                        <Td>
-                          <WalletChip wallet={request.wallet} />
-                        </Td>
-                        <Td>
-                          {request.status === "APPROVED" ? (
-                            <Badge tone="success">
-                              <CheckCircle2 className="size-3" aria-hidden="true" /> Approved
-                            </Badge>
-                          ) : (
-                            <Badge tone="danger">
-                              <XCircle className="size-3" aria-hidden="true" /> Rejected
-                            </Badge>
-                          )}
-                        </Td>
-                        <Td className="type-body-md text-secondary-foreground">{formatRequestDate(request.reviewed_at)}</Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableShell>
-            )}
-          </section>
-        </div>
-      ) : (
-        <section className="flex flex-col gap-3">
-          <div>
-            <h2 className="type-heading-sm text-foreground">Organizers</h2>
-            <p className="type-body-sm text-muted-foreground">
-              Revoking removes the organizer role on-chain. Your wallet will ask you to confirm the transaction.
-            </p>
-          </div>
-
-          {organizers.length === 0 ? (
-            <EmptyState
-              icon={<Users className="size-8" aria-hidden="true" />}
-              title="No organizers yet"
-              description="Approve a request to give someone organizer access."
-            />
-          ) : (
-            <TableShell>
-              <table className="w-full min-w-[780px] text-left">
-                <thead>
-                  <tr className="border-b border-border">
-                    <Th>Name</Th>
-                    <Th>Email</Th>
-                    <Th>Wallet</Th>
-                    <Th>Events</Th>
-                    <Th>Approved on</Th>
-                    <Th align="right">Actions</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {organizers.map((organizer) => {
-                    const revoking = activeAction?.type === "revoke" && activeAction.id === organizer.wallet;
-                    const label = actionLabel(activeAction, organizer.wallet);
-
-                    return (
-                      <tr key={organizer.wallet} className="border-b border-border last:border-0">
-                        <Td>
-                          <NameCell name={organizerAccountName(organizer)} wallet={organizer.wallet} />
-                        </Td>
-                        <Td className="type-body-md text-secondary-foreground">{organizer.email ?? "—"}</Td>
-                        <Td>
-                          <WalletChip wallet={organizer.wallet} />
-                        </Td>
-                        <Td className="type-body-md text-secondary-foreground">{organizer.event_count}</Td>
-                        <Td className="type-body-md text-secondary-foreground">{formatRequestDate(organizer.approved_at)}</Td>
-                        <Td align="right">
-                          {label ? (
-                            <span className="inline-flex items-center gap-2 type-body-sm text-primary">
-                              <Spinner /> {label}
-                            </span>
-                          ) : (
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => void revoke(organizer)}
-                              loading={revoking}
-                              disabled={!canActOnChain || busy}
-                            >
-                              <X aria-hidden="true" /> Revoke
-                            </Button>
-                          )}
-                        </Td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </TableShell>
-          )}
-        </section>
-      )}
+        )}
+      </div>
     </PageShell>
   );
 }
@@ -710,13 +836,27 @@ function TabButton({
   icon,
   label,
   count,
+  ready,
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
   count: number;
+  ready: boolean; // the count is known (not the 0 shown while loading)
 }) {
+  // The count rolls over when it changes, with a quick punch when it goes up after loading
+  const chip = useRef<HTMLSpanElement>(null);
+  const [seen, setSeen] = useState({ count, ready });
+  const [ups, setUps] = useState(0);
+  if (count !== seen.count || ready !== seen.ready) {
+    if (seen.ready && count > seen.count) setUps(ups + 1);
+    setSeen({ count, ready });
+  }
+  useEffect(() => {
+    if (ups > 0) animate(chip.current, [{ scale: 1 }, { scale: 1.25 }, { scale: 1 }], { duration: 220, easing: EASE.snap });
+  }, [ups]);
+
   return (
     <button
       type="button"
@@ -724,15 +864,24 @@ function TabButton({
       aria-selected={active}
       onClick={onClick}
       className={cn(
-        "flex shrink-0 items-center gap-2 border-b-2 pb-3 type-body-md-strong whitespace-nowrap transition-colors",
-        active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+        "relative flex shrink-0 items-center gap-2 border-b-2 border-transparent pb-3 type-body-md-strong whitespace-nowrap transition-colors",
+        active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
       )}
     >
       <span className="hidden sm:inline [&_svg]:size-4">{icon}</span>
       {label}
-      <span className={cn("rounded-xs px-1.5 py-0.5 type-label-sm", active ? "bg-primary-tint text-primary" : "bg-muted")}>
-        {count}
+      <span ref={chip} className={cn("rounded-xs px-1.5 py-0.5 type-label-sm", active ? "bg-primary-tint text-primary" : "bg-muted")}>
+        <RollingNumber value={count} />
       </span>
+      {/* One underline for all the tabs: it glides to the tab you pick (like the navbar's) */}
+      {active && (
+        <m.span
+          layoutId="admin-tab-underline"
+          className="absolute inset-x-0 -bottom-0.5 h-0.5 bg-primary"
+          transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+          aria-hidden="true"
+        />
+      )}
     </button>
   );
 }
@@ -756,6 +905,7 @@ function NameCell({ name, wallet, children }: { name: string; wallet: string; ch
 
 function WalletChip({ wallet }: { wallet: string }) {
   const [copied, setCopied] = useState(false);
+  const [copies, setCopies] = useState(0);
 
   useEffect(() => {
     if (!copied) return;
@@ -767,6 +917,7 @@ function WalletChip({ wallet }: { wallet: string }) {
     try {
       await navigator.clipboard.writeText(wallet);
       setCopied(true);
+      setCopies((n) => n + 1);
     } catch {
       // Clipboard access can be denied; the address is still visible in the chip.
     }
@@ -781,8 +932,9 @@ function WalletChip({ wallet }: { wallet: string }) {
       // Starts with the visible address, so saying it reaches the chip (#417)
       aria-label={copied ? `${shortAddress(wallet)}: wallet address copied` : `${shortAddress(wallet)}: copy wallet address ${wallet}`}
     >
-      {shortAddress(wallet)}
-      {copied ? <Check className="size-3 text-success" aria-hidden="true" /> : <Copy className="size-3" aria-hidden="true" />}
+      {/* A copy of the address lifts off towards the clipboard, and the tick draws itself */}
+      <CopyLiftOff copies={copies}>{shortAddress(wallet)}</CopyLiftOff>
+      {copied ? <DrawnCheck className="size-3 text-success" /> : <Copy className="size-3" aria-hidden="true" />}
     </button>
   );
 }
