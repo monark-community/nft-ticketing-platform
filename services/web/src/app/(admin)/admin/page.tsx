@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import * as m from "motion/react-m";
-import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type CSSProperties, type FocusEvent } from "react";
 import { keccak256, stringToHex, zeroHash } from "viem";
 import { useAccount, useChains, useReadContract, useSwitchChain } from "wagmi";
 
@@ -118,17 +118,32 @@ export default function AdminPage() {
 
   // What the last action left above the tabs, its notice and its receipt, goes when the next action
   // starts and when the admin moves to another tab. A confirmation and its receipt also fold away by
-  // themselves after NOTICE_MS. A transaction still in progress always stays (reset() keeps it).
+  // themselves NOTICE_MS after they show, or after the pointer or the focus leaves them, so the
+  // receipt's explorer link can be opened. A transaction still in progress always stays (reset() keeps it).
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const holdOutcome = {
+    onPointerEnter: () => setHovered(true),
+    onPointerLeave: () => setHovered(false),
+    onFocus: () => setFocused(true),
+    onBlur: (event: FocusEvent<HTMLDivElement>) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+    },
+  };
   function clearOutcome() {
     setNotice(null);
     transaction.reset();
+    // Gone from under the pointer and the focus, so the next confirmation's timer runs
+    setHovered(false);
+    setFocused(false);
   }
   const confirmationShown = useEffectEvent(() => clearOutcome());
+  const held = hovered || focused;
   useEffect(() => {
-    if (notice?.tone !== "success") return;
+    if (notice?.tone !== "success" || held) return;
     const timer = window.setTimeout(() => confirmationShown(), NOTICE_MS);
     return () => window.clearTimeout(timer);
-  }, [notice]);
+  }, [notice, held]);
 
   // Read the contract's admin role before showing the actions, so a non-admin
   // wallet gets the explanation before it opens a transaction that would revert.
@@ -479,13 +494,13 @@ export default function AdminPage() {
       )}
 
       {notice && (
-        <Alert tone={notice.tone} title={notice.title}>
+        <Alert tone={notice.tone} title={notice.title} {...holdOutcome}>
           {notice.message}
         </Alert>
       )}
 
       {transaction.state.phase !== "idle" && (
-        <FoldAway>
+        <FoldAway {...holdOutcome}>
           <TransactionStatus
             state={transaction.state}
             explorerUrl={transaction.explorerUrl}
