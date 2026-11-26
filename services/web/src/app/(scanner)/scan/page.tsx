@@ -20,7 +20,7 @@ import { useHasMounted } from "@/hooks/useHasMounted";
 import { useScannableEvents } from "@/hooks/useScannableEvents";
 import { useScannedTicketDetails } from "@/hooks/useScannedTicketDetails";
 import { TICKET_NFT_ADDRESS, TICKET_NFT_CHAIN_ID } from "@/lib/contracts/ticket-nft";
-import { playSignal, readSoundOn, rememberSoundOn, unlockSound } from "@/lib/scan-signals";
+import { playSignal, readSoundOn, rememberSoundOn, signalFor, unlockSound } from "@/lib/scan-signals";
 import { cameraErrorMessage, canResumeCamera, codeFrame, pickEventId, scanView, wrongEventReason } from "@/lib/scanner";
 import { cn } from "@/lib/utils";
 import { verifyTicketQR, type TicketVerification } from "@/lib/verify-ticket";
@@ -107,11 +107,12 @@ export default function ScanPage() {
       window.removeEventListener("keydown", unlockSound);
     };
   }, []);
-  // A confirmed check-in beeps like a valid ticket
-  const phase = checkIn.transaction.phase;
+  // Each result signals as it appears (signalFor): a valid ticket and a confirmed check-in beep,
+  // "Do not admit" buzzes. scannedAt tells two scans with the same result apart.
   useEffect(() => {
-    if (phase === "success") playSignal("ok");
-  }, [phase]);
+    const signal = view && signalFor(view);
+    if (signal) playSignal(signal);
+  }, [view, scannedAt]);
 
   function toggleSound() {
     const next = !soundOn;
@@ -163,7 +164,6 @@ export default function ScanPage() {
     setScannedAt(Date.now());
     setResult(verification);
     setVerifying(false);
-    playSignal(verification.ok ? "ok" : "bad");
   }
 
   function resetScan() {
