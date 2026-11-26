@@ -239,6 +239,9 @@ export function usePublishEvent({ event, image, onEventChange }: Options) {
     current = { stage: apiStep.stage, failed: apiStep.error !== null };
   } else if (tx.state.phase !== "idle" && tx.state.phase !== "success" && tx.state.steps.length > 0) {
     current = { stage: stageForTxLabel(tx.state.steps[tx.state.stepIndex]), failed: tx.state.phase === "error" || tx.state.phase === "stoppedWaiting" };
+  } else if (running && tx.state.phase === "success") {
+    // The wallet's transactions went through, and publishing in the API is all that's left
+    current = { stage: "publish", failed: false };
   }
 
   return {

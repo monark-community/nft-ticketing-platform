@@ -1,8 +1,9 @@
 "use client";
 
 import { ArrowRight, RotateCw } from "lucide-react";
+import { useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useSwitchChain } from "wagmi";
 
 import { DetailsStep } from "@/components/create-event/DetailsStep";
@@ -11,6 +12,8 @@ import { ReviewStep } from "@/components/create-event/ReviewStep";
 import { SaleRulesStep } from "@/components/create-event/SaleRulesStep";
 import { TicketTypesStep } from "@/components/create-event/TicketTypesStep";
 import { TxHash } from "@/components/event/TxHash";
+import { DrawnCheck, RollingNumber, TearOff } from "@/components/motion";
+import { useReshape } from "@/components/motion/useReshape";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { usePublishEvent } from "@/hooks/usePublishEvent";
@@ -36,8 +39,10 @@ import {
 } from "@/lib/create-event";
 import { describeSaveError, fetchDraft, saveDetails, syncTicketTypes, type DraftEvent } from "@/lib/create-event-api";
 import { getStoredSaleRules, setStoredSaleRules } from "@/lib/create-event-storage";
+import { MOTION } from "@/lib/motion";
 import { ROUTES } from "@/lib/nav";
 import { saleRulesFromChain, stageForTxLabel, stageStatuses, type PublishPlan, type PublishStage } from "@/lib/publish-event";
+import { cn } from "@/lib/utils";
 
 interface DraftEditorProps {
   event: DraftEvent | null; // null until the details are saved the first time
@@ -49,6 +54,9 @@ interface DraftEditorProps {
   onEventChange: (event: DraftEvent) => void;
   goTo: (step: FormStep) => void;
   justCreated?: boolean; // remounted right after "Save draft" created the draft: say it was saved
+  /** Just published: the publish steps tear off, then onTorn shows "Your event is live" (#372) */
+  tearing?: boolean;
+  onTorn?: () => void;
 }
 
 const NO_ERRORS_SHOWN: Record<FormStep, boolean> = { details: false, "ticket-types": false, "sale-rules": false, review: false };
@@ -70,11 +78,47 @@ const isBlank = (t: TicketTypeForm) => !t.id && !t.name.trim() && !t.price.trim(
 // The form lives here; the page remounts it (key) when the draft changes, so it starts from the
 // saved draft. Details and ticket types are saved in the API, sale rules in the browser
 // (create-event-storage), and the cover image stays in memory until freeze uploads it.
-export function DraftEditor({ event, step, image, imagePreview, onImageChange, onCreated, onEventChange, goTo, justCreated = false }: DraftEditorProps) {
+export function DraftEditor({
+  event,
+  step,
+  image,
+  imagePreview,
+  onImageChange,
+  onCreated,
+  onEventChange,
+  goTo,
+  justCreated = false,
+  tearing = false,
+  onTorn,
+}: DraftEditorProps) {
   const router = useRouter();
   const now = useNow();
   const formRef = useRef<HTMLDivElement>(null);
   const { switchChain, isPending: switching } = useSwitchChain();
+
+  // Moving between steps (#372): the step on screen slides out the way you're going (200 ms), then
+  // the next one comes in from the other side (24 px, 300 ms) while the form glides to its height.
+  // Only one step is ever in the page. With reduced motion the step changes at once.
+  const reduced = useReducedMotion();
+  const [shown, setShown] = useState({ step, dir: 1, entering: false });
+  const [leaving, setLeaving] = useState<{ to: FormStep; dir: number } | null>(null);
+  if (step === shown.step && leaving) setLeaving(null);
+  else if (step !== shown.step && leaving?.to !== step) {
+    const dir = FORM_STEPS.indexOf(step) > FORM_STEPS.indexOf(shown.step) ? 1 : -1;
+    if (reduced) setShown({ step, dir, entering: false });
+    else setLeaving({ to: step, dir });
+  }
+  useEffect(() => {
+    if (!leaving) return;
+    const timer = setTimeout(() => {
+      setShown({ step: leaving.to, dir: leaving.dir, entering: true });
+      setLeaving(null);
+    }, MOTION.base);
+    return () => clearTimeout(timer);
+  }, [leaving]);
+  const stage = useRef<HTMLDivElement>(null);
+  useReshape(stage, shown.step, MOTION.slow, { fade: false });
+  const view = shown.step;
 
   const [details, setDetails] = useState<DetailsForm>(() => (event ? detailsFromEvent(event) : EMPTY_DETAILS));
   const [types, setTypes] = useState<TicketTypeForm[]>(() =>
@@ -260,77 +304,88 @@ export function DraftEditor({ event, step, image, imagePreview, onImageChange, o
     <div ref={formRef} className="flex flex-col gap-6">
       {saveError && <Alert tone="error" title={saveError} />}
 
-      {step === "details" && (
-        <DetailsStep
-          value={details}
-          errors={errorsShown.details ? detailErrors : {}}
-          image={image}
-          imagePreview={imagePreview}
-          imageError={imageError}
-          uploadedImageUrl={event?.image_url ?? null}
-          frozen={frozen}
-          minStart={localInputFromMs(now)}
-          onChange={(v) => {
-            changed();
-            setDetails(v);
-          }}
-          onImageChange={(file) => {
-            changed();
-            onImageChange(file);
-          }}
-        />
-      )}
-
-      {step === "ticket-types" && (
-        <TicketTypesStep
-          types={types}
-          rowErrors={errorsShown["ticket-types"] ? typeCheck.rows : {}}
-          listError={errorsShown["ticket-types"] ? typeCheck.list : null}
-          frozen={frozen}
-          usdcDecimals={decimals}
-          onChange={(v) => {
-            changed();
-            setTypes(v);
-          }}
-        />
-      )}
-
-      {step === "sale-rules" && (
-        <SaleRulesStep
-          value={rules}
-          errors={errorsShown["sale-rules"] ? ruleErrors : {}}
-          types={types}
-          usdcDecimals={decimals}
-          minSalesEnd={localInputFromMs(now)}
-          locked={rulesLocked}
-          onChange={updateRules}
-        />
-      )}
-
-      {step === "review" && (
-        <ReviewStep
-          details={details}
-          types={types}
-          rules={rules}
-          image={image}
-          uploadedImageUrl={event?.image_url ?? null}
-          usdcDecimals={decimals}
-          frozen={frozen}
-          rulesLocked={rulesLocked}
-          disabled={busy}
-          onEdit={goTo}
-          aside={
-            <PublishAside
-              publish={publish}
-              plan={plan}
-              event={event}
-              issues={issues}
+      <div ref={stage} className="relative">
+        <div
+          key={view}
+          className={cn(leaving ? "animate-[step-out_200ms_ease-in_forwards]" : shown.entering && "animate-[step-in_300ms_var(--ease-arrive)_backwards]")}
+          style={{ "--step-dir": leaving?.dir ?? shown.dir } as CSSProperties}
+          inert={Boolean(leaving)}
+        >
+          {view === "details" && (
+            <DetailsStep
+              value={details}
+              errors={errorsShown.details ? detailErrors : {}}
+              image={image}
+              imagePreview={imagePreview}
+              imageError={imageError}
+              uploadedImageUrl={event?.image_url ?? null}
               frozen={frozen}
-              onFix={goTo}
+              minStart={localInputFromMs(now)}
+              onChange={(v) => {
+                changed();
+                setDetails(v);
+              }}
+              onImageChange={(file) => {
+                changed();
+                onImageChange(file);
+              }}
             />
-          }
-        />
-      )}
+          )}
+
+          {view === "ticket-types" && (
+            <TicketTypesStep
+              types={types}
+              rowErrors={errorsShown["ticket-types"] ? typeCheck.rows : {}}
+              listError={errorsShown["ticket-types"] ? typeCheck.list : null}
+              frozen={frozen}
+              usdcDecimals={decimals}
+              onChange={(v) => {
+                changed();
+                setTypes(v);
+              }}
+            />
+          )}
+
+          {view === "sale-rules" && (
+            <SaleRulesStep
+              value={rules}
+              errors={errorsShown["sale-rules"] ? ruleErrors : {}}
+              types={types}
+              usdcDecimals={decimals}
+              minSalesEnd={localInputFromMs(now)}
+              locked={rulesLocked}
+              onChange={updateRules}
+            />
+          )}
+
+          {view === "review" && (
+            <ReviewStep
+              details={details}
+              types={types}
+              rules={rules}
+              image={image}
+              uploadedImageUrl={event?.image_url ?? null}
+              usdcDecimals={decimals}
+              frozen={frozen}
+              rulesLocked={rulesLocked}
+              disabled={busy}
+              onEdit={goTo}
+              aside={
+                <PublishAside
+                  publish={publish}
+                  plan={plan}
+                  event={event}
+                  issues={issues}
+                  frozen={frozen}
+                  onFix={goTo}
+                  tearing={tearing}
+                  onTorn={onTorn}
+                />
+              }
+            />
+          )}
+        </div>
+      </div>
 
       {/* Footer: Cancel or Back on the left, Save draft and the next step on the right (Figma) */}
       <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
@@ -345,14 +400,16 @@ export function DraftEditor({ event, step, image, imagePreview, onImageChange, o
         )}
 
         <div className="flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center">
+          {/* Said here for screen readers; the button rolls over to it on screen (#372) */}
           {savedNote && (
-            <p role="status" className="text-center type-body-sm text-success sm:text-right">
+            <p role="status" className="sr-only">
               Draft saved
             </p>
           )}
           {canSaveDraft(step, frozen, rulesLocked) && (
             <Button variant="secondary" size="lg" onClick={saveDraft} disabled={busy} loading={saving && step !== "review"}>
-              Save draft
+              {savedNote && !saving && <DrawnCheck className="text-success" />}
+              <RollingNumber value={savedNote && !saving ? "Draft saved" : "Save draft"} />
             </Button>
           )}
           <PrimaryButton
@@ -446,6 +503,8 @@ function PublishAside({
   issues,
   frozen,
   onFix,
+  tearing,
+  onTorn,
 }: {
   publish: Publish;
   plan: PublishPlan | null;
@@ -453,6 +512,8 @@ function PublishAside({
   issues: Array<{ step: FormStep; message: string }>;
   frozen: boolean;
   onFix: (step: FormStep) => void;
+  tearing: boolean;
+  onTorn?: () => void;
 }) {
   const typeCount = event?.ticket_types.length ?? 0;
   const statuses = stageStatuses(plan, typeCount, publish.current);
@@ -471,7 +532,10 @@ function PublishAside({
 
   return (
     <>
-      <PublishSteps statuses={statuses} detail={detail} />
+      {/* Once published, the steps card tears off before "Your event is live" (#372) */}
+      <TearOff torn={tearing} onTorn={onTorn}>
+        <PublishSteps statuses={statuses} detail={detail} />
+      </TearOff>
 
       {issues.length > 0 && (
         <Alert tone="error" title="Finish these before publishing">

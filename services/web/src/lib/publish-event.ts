@@ -129,13 +129,17 @@ export function stageStatuses(plan: PublishPlan | null, ticketTypes: number, cur
       }
     : { freeze: false, configure: false, ticketTypes: false, publish: false };
 
+  // A run only reaches a row once the rows before it are finished. The contract is read again only
+  // after the wallet's last transaction, so this keeps a confirmed row done until then.
+  const runningAt = current ? PUBLISH_STAGES.findIndex(({ key }) => key === current.stage) : -1;
+
   const result = {} as Record<PublishStage, StageStatus>;
   let readyGiven = false;
-  for (const { key } of PUBLISH_STAGES) {
+  for (const [index, { key }] of PUBLISH_STAGES.entries()) {
     if (current?.stage === key) {
       result[key] = current.failed ? "failed" : "active";
       readyGiven = true;
-    } else if (done[key]) {
+    } else if (done[key] || index < runningAt) {
       result[key] = "done";
     } else if (!readyGiven && !current) {
       result[key] = "ready";

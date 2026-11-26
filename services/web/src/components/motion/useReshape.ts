@@ -6,8 +6,9 @@ import { MOTION, prefersReducedMotion } from "@/lib/motion";
 
 // When `shape` changes, the new content fades in (300 ms) and the element grows or shrinks from its
 // old height to its new one (300 ms by default) instead of jumping (#370). Use it on a card whose content
-// is swapped for another state, with the state's name as `shape`.
-export function useReshape(ref: RefObject<HTMLElement | null>, shape: string, durationMs: number = MOTION.slow) {
+// is swapped for another state, with the state's name as `shape`. `fade: false` leaves the content
+// to its own arrival (the create event steps slide in, #372).
+export function useReshape(ref: RefObject<HTMLElement | null>, shape: string, durationMs: number = MOTION.slow, { fade = true }: { fade?: boolean } = {}) {
   // The element's height as last drawn, kept up to date while nothing reshapes
   const height = useRef<number | null>(null);
   const shown = useRef(shape);
@@ -29,8 +30,10 @@ export function useReshape(ref: RefObject<HTMLElement | null>, shape: string, du
     shown.current = shape;
     const from = height.current;
     if (!node || from === null || prefersReducedMotion() || typeof node.animate !== "function") return;
-    for (const child of Array.from(node.children)) {
-      child.animate([{ opacity: 0 }, { opacity: 1 }], { duration: MOTION.slow, delay: 60, easing: "ease-out", fill: "backwards" });
+    if (fade) {
+      for (const child of Array.from(node.children)) {
+        child.animate([{ opacity: 0 }, { opacity: 1 }], { duration: MOTION.slow, delay: 60, easing: "ease-out", fill: "backwards" });
+      }
     }
     const to = node.offsetHeight;
     if (from === to) return;
@@ -42,5 +45,5 @@ export function useReshape(ref: RefObject<HTMLElement | null>, shape: string, du
       height.current = node.offsetHeight;
     };
     grow.finished.then(done, done);
-  }, [ref, shape, durationMs]);
+  }, [ref, shape, durationMs, fade]);
 }
