@@ -1,12 +1,14 @@
 "use client";
 
-import { CalendarDays, CalendarX2, Camera, ChevronDown, Lock, QrCode, ScanLine } from "lucide-react";
+import { CalendarDays, CalendarX2, Camera, ChevronDown, Lock, QrCode, ScanLine, Volume2, VolumeX } from "lucide-react";
+import { useLayoutEffect, useRef } from "react";
 
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import type { ApiEvent } from "@/lib/event-details";
 import { shortAddress } from "@/lib/format";
-import { scannerEventLabel } from "@/lib/scanner";
+import { animate, EASE } from "@/lib/motion";
+import { scannerEventLabel, type FrameInsets } from "@/lib/scanner";
 import { cn } from "@/lib/utils";
 
 // Compact header for the door: logo and the scanner wallet, no navigation (Figma "Scanner Page")
@@ -69,19 +71,68 @@ export function EventPicker({
   );
 }
 
-// Orange corner brackets and a sweeping line over the camera (Figma "Camera ready")
-export function CameraFrame() {
-  const corner = "absolute size-8 border-primary";
+/** The corners' place around a found code, and where the sweeping line was and goes (px from the top) */
+export interface CameraLock extends FrameInsets {
+  lineFrom: number;
+  lineTo: number;
+}
+
+// Each corner starts 24 px inside the box (top-6 and so on); it moves by this much to frame the code
+const CORNERS: { place: string; move: (f: FrameInsets) => [number, number] }[] = [
+  { place: "top-6 left-6 rounded-tl-xs border-t-3 border-l-3", move: (f) => [f.left - 24, f.top - 24] },
+  { place: "top-6 right-6 rounded-tr-xs border-t-3 border-r-3", move: (f) => [24 - f.right, f.top - 24] },
+  { place: "bottom-6 left-6 rounded-bl-xs border-b-3 border-l-3", move: (f) => [f.left - 24, 24 - f.bottom] },
+  { place: "right-6 bottom-6 rounded-br-xs border-r-3 border-b-3", move: (f) => [24 - f.right, 24 - f.bottom] },
+];
+
+// Orange corner brackets and a sweeping line over the camera (Figma "Camera ready").
+// Motion (#373): the line is moved with transform, so it stays smooth on cheap phones. When a code
+// is found (`lock`), the line stops on it and the corners snap in around it (120 ms) and flash once.
+export function CameraFrame({ lock }: { lock?: CameraLock | null }) {
+  const line = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    if (lock) animate(line.current, [{ transform: `translateY(${lock.lineFrom}px)` }, { transform: `translateY(${lock.lineTo}px)` }], { duration: 120, easing: EASE.snap });
+  }, [lock]);
+
+  const corner = "absolute size-8 border-primary transition-[translate] duration-[120ms] ease-[var(--ease-snap)]";
   return (
-    <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+    <div className="pointer-events-none absolute inset-0" aria-hidden="true" data-camera-lock={lock ? "true" : undefined}>
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_45%,rgb(13_14_16/55%)_100%)]" />
-      <span className={cn(corner, "top-6 left-6 rounded-tl-xs border-t-3 border-l-3")} />
-      <span className={cn(corner, "top-6 right-6 rounded-tr-xs border-t-3 border-r-3")} />
-      <span className={cn(corner, "bottom-6 left-6 rounded-bl-xs border-b-3 border-l-3")} />
-      <span className={cn(corner, "right-6 bottom-6 rounded-br-xs border-r-3 border-b-3")} />
-      <QrCode className="absolute top-1/2 left-1/2 size-10 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/60" strokeWidth={1.5} />
-      <span className="absolute inset-x-8 h-0.5 animate-scan-line bg-primary shadow-[0_0_12px_2px_rgb(249_115_22/60%)]" />
+      {CORNERS.map(({ place, move }) => {
+        const [x, y] = lock ? move(lock) : [0, 0];
+        return (
+          <span
+            key={place}
+            className={cn(corner, place, lock && "motion-safe:animate-[corner-flash_220ms_ease-out_120ms]")}
+            style={{ translate: `${x}px ${y}px` }}
+            data-frame-corner
+          />
+        );
+      })}
+      <QrCode
+        className={cn("absolute top-1/2 left-1/2 size-10 -translate-x-1/2 -translate-y-1/2 text-muted-foreground/60 transition-opacity duration-fast", lock && "opacity-0")}
+        strokeWidth={1.5}
+      />
+      {/* A box as tall as the camera, whose top edge is the line: moving the box moves the line */}
+      <span
+        ref={line}
+        className={cn("absolute inset-x-8 inset-y-0", !lock && "animate-scan-line")}
+        style={lock ? { transform: `translateY(${lock.lineTo}px)` } : undefined}
+        data-scan-line
+      >
+        <span className="absolute inset-x-0 top-0 h-0.5 bg-primary shadow-[0_0_12px_2px_rgb(249_115_22/60%)]" />
+      </span>
     </div>
+  );
+}
+
+// Turns the scanner's beeps off (#373). Vibration stays. Remembered on this device.
+export function SoundToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  const Icon = on ? Volume2 : VolumeX;
+  return (
+    <Button variant="ghost" size="icon-sm" onClick={onToggle} aria-pressed={on} aria-label="Sound" title={on ? "Turn the sound off" : "Turn the sound on"}>
+      <Icon aria-hidden="true" />
+    </Button>
   );
 }
 

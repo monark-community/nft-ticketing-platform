@@ -261,7 +261,7 @@ test.describe('each QR shown to the fake camera', () => {
     await expectRejected(page, 'This ticket does not exist.');
   });
 
-  test('a ticket already checked in: when it was', async ({ openScanner }) => {
+  test('a ticket already checked in: when it was, even from a QR code older than 60 seconds', async ({ openScanner }) => {
     const buyer = await createBuyer(20);
     const tokenId = await buyGalaTicket(buyer);
     await waitForSync((await chain.checkIn(accounts.scanner, tokenId)).block);
@@ -269,6 +269,11 @@ test.describe('each QR shown to the fake camera', () => {
     const { page } = await scan(openScanner, await entryQr(buyer, tokenId, GALA.contractId));
     await expectRejected(page, 'This ticket has already been checked in.');
     await expect(page.locator('dl')).toContainText(CHECKED_IN_AT);
+
+    // Not "expired": a new QR code wouldn't let it in either
+    const old = await scan(openScanner, await entryQr(buyer, tokenId, GALA.contractId, Math.floor(Date.now() / 1000) - 120));
+    await expectRejected(old.page, 'This ticket has already been checked in.');
+    await expect(old.page.locator('dl')).toContainText(CHECKED_IN_AT);
   });
 
   test('a ticket for another event: both events are named', async ({ openScanner }) => {

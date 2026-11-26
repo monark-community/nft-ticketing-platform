@@ -107,3 +107,60 @@ export function cameraErrorMessage(error: CameraError): string {
   const sentence = !text ? "The camera couldn't start." : /[.!?]$/.test(text) ? text : `${text}.`;
   return `${sentence} ${RELOAD_HINT}`;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Motion (#373): when a code is found, the camera frame's corners close in around it
+// ---------------------------------------------------------------------------------------------
+
+/** How far each side of the code's frame is from the same side of the camera box, in px */
+export interface FrameInsets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+const FRAME_EDGE = 8; // the corners stay this far inside the camera box
+const FRAME_MIN = 72; // and never closer together than this
+
+/**
+ * Where the corners go around a found code. `code` is the code's box in the video's own pixels
+ * (what the QR reader reports); the video fills the camera box (object-fit: cover), so it is scaled
+ * up, centred and cut at the sides. Without a video size, the corners close in on the middle.
+ */
+export function codeFrame(
+  code: { x: number; y: number; width: number; height: number },
+  video: { width: number; height: number },
+  box: { width: number; height: number },
+  pad = 10,
+): FrameInsets {
+  let x0: number, y0: number, x1: number, y1: number;
+  if (video.width > 0 && video.height > 0) {
+    const scale = Math.max(box.width / video.width, box.height / video.height);
+    const offsetX = (box.width - video.width * scale) / 2;
+    const offsetY = (box.height - video.height * scale) / 2;
+    x0 = code.x * scale + offsetX - pad;
+    y0 = code.y * scale + offsetY - pad;
+    x1 = (code.x + code.width) * scale + offsetX + pad;
+    y1 = (code.y + code.height) * scale + offsetY + pad;
+  } else {
+    const side = Math.min(box.width, box.height) * 0.6;
+    x0 = (box.width - side) / 2;
+    y0 = (box.height - side) / 2;
+    x1 = x0 + side;
+    y1 = y0 + side;
+  }
+
+  // A small code still gets a frame the corners fit in, then everything stays inside the box
+  const grow = (from: number, to: number, size: number): [number, number] => {
+    const side = Math.min(Math.max(to - from, FRAME_MIN), size - 2 * FRAME_EDGE);
+    const middle = (from + to) / 2;
+    const start = Math.min(Math.max(middle - side / 2, FRAME_EDGE), size - FRAME_EDGE - side);
+    return [start, start + side];
+  };
+  [x0, x1] = grow(x0, x1, box.width);
+  [y0, y1] = grow(y0, y1, box.height);
+
+  const round = (n: number) => Math.round(n * 10) / 10;
+  return { top: round(y0), right: round(box.width - x1), bottom: round(box.height - y1), left: round(x0) };
+}

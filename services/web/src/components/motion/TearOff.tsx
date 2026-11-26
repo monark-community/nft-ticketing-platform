@@ -11,16 +11,24 @@ interface TearOffProps {
   torn: boolean;
   /** Called once the pieces are gone and the gap has closed: remove the item from the list here */
   onTorn?: () => void;
+  /** "apart" (default): the halves fall away from each other; "down": both fall downwards (the scanner) */
+  fall?: "apart" | "down";
   className?: string;
 }
 
 // The space starts closing this long after the block tears
 const CLOSE_AFTER_MS = 60;
 
+// How each half moves as it falls: [top half, bottom half]
+const FALLS = {
+  apart: ["translate(-8px, -6px) rotate(-2.5deg)", "translate(8px, 14px) rotate(2.5deg)"],
+  down: ["translate(-4px, 14px) rotate(-1.5deg)", "translate(6px, 34px) rotate(2deg)"],
+} as const;
+
 // Removes an item like a ticket torn in two: it splits along a jagged line and both halves fall away
 // (200 ms) while the space it took closes (300 ms, from 60 ms in), with the gap after it in a column.
 // With reduced motion, onTorn is called at once.
-export function TearOff({ children, torn, onTorn, className }: TearOffProps) {
+export function TearOff({ children, torn, onTorn, fall = "apart", className }: TearOffProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const onTornRef = useRef(onTorn);
   useEffect(() => {
@@ -54,9 +62,9 @@ export function TearOff({ children, torn, onTorn, className }: TearOffProps) {
         }
         content.style.visibility = "hidden";
 
-        const fall = { duration: 200, easing: "ease-in", fill: "forwards" } as const;
-        animate(pieces[0], [{ transform: "none", opacity: 1 }, { transform: "translate(-8px, -6px) rotate(-2.5deg)", opacity: 0 }], fall);
-        const falling = finished(animate(pieces[1], [{ transform: "none", opacity: 1 }, { transform: "translate(8px, 14px) rotate(2.5deg)", opacity: 0 }], fall));
+        const timing = { duration: 200, easing: "ease-in", fill: "forwards" } as const;
+        animate(pieces[0], [{ transform: "none", opacity: 1 }, { transform: FALLS[fall][0], opacity: 0 }], timing);
+        const falling = finished(animate(pieces[1], [{ transform: "none", opacity: 1 }, { transform: FALLS[fall][1], opacity: 0 }], timing));
 
         // The space closes while they fall. In a column, the gap after it closes too, so nothing
         // jumps when the item is removed.
@@ -78,7 +86,7 @@ export function TearOff({ children, torn, onTorn, className }: TearOffProps) {
       host.getAnimations?.().forEach((animation) => animation.cancel());
       content.style.visibility = "";
     };
-  }, [torn]);
+  }, [torn, fall]);
 
   return (
     <div ref={hostRef} className={cn("relative", className)}>
