@@ -178,7 +178,8 @@ export function IssueTicketsCard({
             <Button
               onClick={issue}
               loading={tx.isBusy && tx.state.steps.some((step) => step.includes("ticket"))}
-              disabled={locked || recipients.length === 0}
+              // On whenever there's text, like the guest list's Add: a click says what's wrong with it (#427)
+              disabled={locked || text.trim() === ""}
             >
               <Gift aria-hidden="true" />
               Issue free tickets

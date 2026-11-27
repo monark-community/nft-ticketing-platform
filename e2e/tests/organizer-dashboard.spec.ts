@@ -386,6 +386,29 @@ test.describe('event details', () => {
     await expect(row(free)).toBeVisible();
   });
 
+  test('on a phone the tickets table scrolls sideways with the keyboard; on a desktop it fits and is no Tab stop', async ({ page, signIn }) => {
+    const event = await createPublishedEvent({ title: 'Dashboard Table Night', ticketTypes: [{ name: 'General Admission', price: 20, supply: 100 }] });
+    await chain.buyTickets(accounts.alex, { eventId: event.contractId });
+    await waitForSync();
+    await openManage(page, signIn, event);
+    const tickets = card(page, 'Tickets');
+    await expect(tickets.locator('tbody tr').first()).toBeVisible();
+    const table = tickets.getByRole('region', { name: 'Tickets' });
+
+    // Tab from the last filter goes to the table's scroll box when it scrolls, past it when it doesn't (#420)
+    await tickets.getByLabel('Ticket type').focus();
+    await page.keyboard.press('Tab');
+    if (test.info().project.name === 'phone') {
+      await expect(table).toBeFocused();
+      await expect(table).not.toHaveCSS('box-shadow', 'none');
+      await page.keyboard.press('ArrowRight');
+      await expect.poll(() => table.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    } else {
+      await expect(table).not.toHaveAttribute('tabindex');
+      await expect(table).not.toBeFocused();
+    }
+  });
+
   test('publishing checks the event is set up on-chain by this organizer', async () => {
     await promote(accounts.jordan);
     // Not set up on-chain at all
@@ -561,14 +584,23 @@ test.describe('free tickets', () => {
       chain.ticketNft(accounts.organizer).issueTickets.staticCall(event.contractId, 1, [accounts.new1.address, accounts.new2.address, accounts.new3.address]),
     ).rejects.toThrow('Not enough tickets left');
 
-    // An invalid address, or more than 100 recipients: nothing can be issued. The button just turns
-    // off; no message says why yet (#427)
-    await recipients.fill(`${accounts.new1.address}\nnot-an-address`);
+    // An invalid address, or more than 100 recipients: the same messages as the guest list, under
+    // Recipients, and nothing is sent (#427)
+    for (const [text, message] of [
+      [`${accounts.new1.address}\nnot-an-address`, '"not-an-address" is not a valid wallet address.'],
+      [Array.from({ length: 101 }, (_, i) => newWallet(100 + i).address).join('\n'), 'Add at most 100 wallets at a time.'],
+    ]) {
+      await recipients.fill(text);
+      await expect(free.getByText(/will be issued/)).toHaveCount(0);
+      await issue.click();
+      await expect(recipients).toHaveAccessibleDescription(message);
+      await expect(recipients).toHaveAttribute('aria-invalid', 'true');
+    }
+    expect(sendsSince(wallet, sent)).toBe(0);
+    // Typing again clears the message, and an empty box turns the button off
+    await recipients.fill('');
+    await expect(free.getByText('Add at most 100 wallets at a time.')).toHaveCount(0);
     await expect(issue).toBeDisabled();
-    await expect(free.getByText(/will be issued/)).toHaveCount(0);
-    await recipients.fill(Array.from({ length: 101 }, (_, i) => newWallet(100 + i).address).join('\n'));
-    await expect(issue).toBeDisabled();
-    await expect(free.getByText(/will be issued/)).toHaveCount(0);
     await expect(
       chain.ticketNft(accounts.organizer).issueTickets.staticCall(event.contractId, 0, Array.from({ length: 101 }, (_, i) => newWallet(100 + i).address)),
     ).rejects.toThrow('Batch size cannot exceed 100');
