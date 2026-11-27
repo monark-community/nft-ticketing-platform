@@ -25,6 +25,9 @@ export const TX_ERRORS = {
   // MetaMask clears its saved nonces for the network it's on only, so the message says so.
   nonce:
     "Your wallet is out of sync with the network, so nothing was sent. In MetaMask, with this account and network selected, open Settings → Developer tools → Delete activity and nonce data, then try again.",
+  // The wallet switched to another account while it was asking, so it refused to send (#396)
+  accountChanged:
+    "Your wallet switched to another account before this went through, so nothing was sent. Try again to use this account.",
   unknown: "The transaction failed. Please try again.",
 };
 
@@ -55,6 +58,15 @@ export class TransactionReplacedError extends Error {
   }
 }
 
+// Thrown by the runner when the wallet switched to another account before a transaction was sent
+// (#396). What the wallet answered (usually "account not connected") is kept as the cause.
+export class AccountChangedError extends Error {
+  constructor(cause: unknown) {
+    super("The wallet switched to another account before the transaction was sent", { cause });
+    this.name = "AccountChangedError";
+  }
+}
+
 // Different nodes word these errors differently (Hardhat: "Sender doesn't have enough funds",
 // most RPCs: "insufficient funds"), and viem sometimes wraps them as contract errors.
 // So the wording is checked first, before treating anything as a contract revert.
@@ -73,6 +85,10 @@ export function getTransactionErrorMessage(err: unknown, overrides: ErrorOverrid
   const messages = { ...TX_ERRORS, ...overrides.messages };
   const text = err instanceof Error ? err.message : String(err);
 
+  // Checked first: whatever the wallet answered, it was because of the switch
+  if (err instanceof AccountChangedError) {
+    return messages.accountChanged;
+  }
   if (has(err, UserRejectedRequestError) || USER_REJECTED_PATTERN.test(text)) {
     return messages.userRejected;
   }

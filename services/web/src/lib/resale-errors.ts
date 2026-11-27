@@ -14,6 +14,8 @@ export const RESALE_ERRORS = {
   walletLimit: "Buying this ticket would take you over the event's ticket limit per wallet.",
   ownTicket: "This is your own listing.",
   buyFailed: "The purchase failed. Please try again.",
+  buyAccountChanged:
+    "Your wallet switched to another account before the purchase went through, so the ticket wasn't bought and no USDC was taken. Try again to buy with this account.",
 
   listRejected: "Listing was cancelled in your wallet. Nothing changed.",
   overMax: "The price is above this ticket's maximum resale price.",
@@ -29,7 +31,12 @@ export const RESALE_ERRORS = {
 // buyResaleTicket(): require() messages from TicketNFT
 export function getResaleBuyErrorMessage(err: unknown): string {
   return getTransactionErrorMessage(err, {
-    messages: { userRejected: RESALE_ERRORS.buyRejected, revertedOnChain: RESALE_ERRORS.buyReverted, unknown: RESALE_ERRORS.buyFailed },
+    messages: {
+      userRejected: RESALE_ERRORS.buyRejected,
+      revertedOnChain: RESALE_ERRORS.buyReverted,
+      accountChanged: RESALE_ERRORS.buyAccountChanged,
+      unknown: RESALE_ERRORS.buyFailed,
+    },
     revertReasons: {
       "Listing price changed": RESALE_ERRORS.priceChanged,
       "Ticket is not listed": RESALE_ERRORS.notListed,

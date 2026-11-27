@@ -1,5 +1,6 @@
 import {
   WaitForTransactionReceiptTimeoutError,
+  type Address,
   type Hash,
   type ReplacementReturnType,
   type TransactionReceipt,
@@ -16,6 +17,7 @@ import type { TxState, TxStep } from "@/lib/transactions/types";
 // The transaction runner's steps, timeout and stop waiting, with a fake client (#271).
 
 const ACCOUNT = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+const OTHER_ACCOUNT = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
 const HASH_1 = "0x1111111111111111111111111111111111111111111111111111111111111111";
 const HASH_2 = "0x2222222222222222222222222222222222222222222222222222222222222222";
 const SPED_UP_HASH = "0x9999999999999999999999999999999999999999999999999999999999999999";
@@ -54,7 +56,7 @@ function deferred<T>() {
 
 function run(
   client: TransactionClient,
-  options: { steps?: TxStep[]; stopSignal?: AbortSignal; onUpdate?: (s: TxState) => void } = {},
+  options: { steps?: TxStep[]; stopSignal?: AbortSignal; onUpdate?: (s: TxState) => void; currentAccount?: () => Address | undefined } = {},
 ) {
   const states: TxState[] = [];
   const done = runTransactionSteps({
@@ -68,6 +70,7 @@ function run(
     getErrorMessage: (err) => getTransactionErrorMessage(err),
     timeoutMs: 1000,
     stopSignal: options.stopSignal,
+    currentAccount: options.currentAccount,
   });
   const phases = () => states.map((s) => s.phase);
   const last = () => states[states.length - 1];
@@ -208,5 +211,52 @@ describe("runTransactionSteps", () => {
 
     expect(states).toHaveLength(countAfterStop);
     expect(last().phase).toBe("stoppedWaiting");
+  });
+
+  describe("the wallet switching account while it asks (#396)", () => {
+    const notConnected = () => new Error("The requested account is not connected.");
+
+    it("says the wallet switched when it refuses to send for the account it no longer has", async () => {
+      const client = fakeClient();
+      client.write.mockRejectedValueOnce(notConnected());
+      const { done, last } = run(client, { currentAccount: () => OTHER_ACCOUNT });
+
+      expect(await done).toBe("error");
+      expect(last()).toMatchObject({ phase: "error", error: TX_ERRORS.accountChanged });
+    });
+
+    it("says so between two steps too, and doesn't run the next step", async () => {
+      const client = fakeClient();
+      let account: Address = ACCOUNT;
+      client.waitForReceipt.mockImplementationOnce(async () => {
+        account = OTHER_ACCOUNT; // switched while the approval confirmed
+        return receipt("success");
+      });
+      client.write.mockResolvedValueOnce(HASH_1).mockRejectedValueOnce(notConnected());
+      const { done, last } = run(client, { steps: [step("approve"), step("buy")], currentAccount: () => account });
+
+      expect(await done).toBe("error");
+      expect(last()).toMatchObject({ phase: "error", stepIndex: 1, error: TX_ERRORS.accountChanged });
+    });
+
+    it("keeps the wallet's own message for the same account, with another case, or disconnected", async () => {
+      const accounts: (() => Address | undefined)[] = [() => ACCOUNT, () => ACCOUNT.toLowerCase() as Address, () => undefined];
+      for (const currentAccount of accounts) {
+        const client = fakeClient();
+        client.write.mockRejectedValueOnce(new Error("User rejected the request."));
+        const { done, last } = run(client, { currentAccount });
+
+        expect(await done).toBe("error");
+        expect(last().error).toBe(TX_ERRORS.userRejected);
+      }
+    });
+
+    it("keeps the real reason for a transaction that was already sent", async () => {
+      const client = fakeClient(async () => receipt("reverted"));
+      const { done, last } = run(client, { currentAccount: () => OTHER_ACCOUNT });
+
+      expect(await done).toBe("error");
+      expect(last().error).toBe(TX_ERRORS.revertedOnChain);
+    });
   });
 });

@@ -15,6 +15,8 @@ export const PURCHASE_ERRORS = {
   notWhitelisted: "Presale is open to the guest list only, and this wallet isn't on it.",
   saleNotActive: "Ticket sales for this event were paused while you were confirming.",
   eventEnded: "Ticket sales for this event have ended.",
+  accountChanged:
+    "Your wallet switched to another account before the purchase went through, so no tickets were bought and no USDC was taken. Try again to buy with this account.",
   unknown: "The purchase failed. Please try again.",
 } as const;
 
@@ -24,6 +26,7 @@ export function getPurchaseErrorMessage(err: unknown): string {
       userRejected: PURCHASE_ERRORS.userRejected,
       insufficientFunds: PURCHASE_ERRORS.insufficientFunds,
       revertedOnChain: PURCHASE_ERRORS.revertedOnChain,
+      accountChanged: PURCHASE_ERRORS.accountChanged,
       unknown: PURCHASE_ERRORS.unknown,
     },
     // require() messages from TicketNFT.buyTickets()

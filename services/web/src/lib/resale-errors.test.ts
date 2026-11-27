@@ -8,6 +8,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { getCancelErrorMessage, getListErrorMessage, getResaleBuyErrorMessage, RESALE_ERRORS } from "@/lib/resale-errors";
+import { AccountChangedError } from "@/lib/transactions/errors";
 
 // Marketplace reverts and wallet errors map to messages the user can act on (#295)
 
@@ -39,6 +40,10 @@ describe("getResaleBuyErrorMessage", () => {
 
   it("says the buyer wasn't charged when they cancel in the wallet", () => {
     expect(getResaleBuyErrorMessage(rejected())).toBe(RESALE_ERRORS.buyRejected);
+  });
+
+  it("says the ticket wasn't bought when the wallet switched accounts (#396)", () => {
+    expect(getResaleBuyErrorMessage(new AccountChangedError(rejected()))).toBe(RESALE_ERRORS.buyAccountChanged);
   });
 
   it("gives the generic message for anything else", () => {

@@ -6,7 +6,9 @@
 import { runTransactionSteps, type TransactionClient } from "@/lib/transactions/run-transaction";
 import { IDLE_TX_STATE, type TxOutcome, type TxState, type TxStep } from "@/lib/transactions/types";
 import { useRef, useState } from "react";
-import { useAccount, usePublicClient, useWriteContract } from "wagmi";
+import type { Address } from "viem";
+import { useAccount, useConfig, usePublicClient, useWriteContract } from "wagmi";
+import { getAccount } from "wagmi/actions";
 
 interface Options {
   getErrorMessage: (err: unknown) => string;
@@ -15,9 +17,12 @@ interface Options {
 
 export function useTransaction({ getErrorMessage, timeoutMs }: Options) {
   const { address, chain } = useAccount();
+  const config = useConfig();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
   const [state, setState] = useState<TxState>(IDLE_TX_STATE);
+  // The account the last run sent from (#396)
+  const [runAccount, setRunAccount] = useState<Address | null>(null);
 
   // Prevents duplicate submissions (#106). A ref, not state: it changes immediately,
   // so a fast double-click can't start a second run before React re-renders.
@@ -32,6 +37,7 @@ export function useTransaction({ getErrorMessage, timeoutMs }: Options) {
     if (inFlight.current) return "idle";
     inFlight.current = true;
     stopController.current = new AbortController();
+    setRunAccount(address);
 
     const client: TransactionClient = {
       simulate: async (step, account) => {
@@ -51,6 +57,8 @@ export function useTransaction({ getErrorMessage, timeoutMs }: Options) {
         getErrorMessage,
         timeoutMs,
         stopSignal: stopController.current.signal,
+        // Read when the run fails, not from this render: the wallet may have switched since
+        currentAccount: () => getAccount(config).address,
       });
     } finally {
       inFlight.current = false;
@@ -75,8 +83,12 @@ export function useTransaction({ getErrorMessage, timeoutMs }: Options) {
     state.phase === "confirming" ||
     state.phase === "stillPending";
 
+  // The wallet is on another account than the one the last run used, so what that run did (an
+  // approval, a failed step) is about the other account, not this one (#396)
+  const accountChanged = !isBusy && runAccount !== null && address !== undefined && address.toLowerCase() !== runAccount.toLowerCase();
+
   // Block explorer for the connected chain (Sepolia has Etherscan; the local Hardhat node has none)
   const explorerUrl = chain?.blockExplorers?.default.url ?? null;
 
-  return { state, run, reset, stopWaiting, isBusy, explorerUrl };
+  return { state, run, reset, stopWaiting, isBusy, accountChanged, explorerUrl };
 }

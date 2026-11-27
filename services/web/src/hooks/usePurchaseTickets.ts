@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { erc20Abi, type Address } from "viem";
 import { TICKET_NFT_ADDRESS, ticketNftAbi } from "@/lib/contracts/ticket-nft";
-import { getPurchaseErrorMessage } from "@/lib/purchase-errors";
+import { getPurchaseErrorMessage, PURCHASE_ERRORS } from "@/lib/purchase-errors";
 import { APPROVE_STEP_LABEL, BUY_STEP_LABEL, getPurchaseSteps } from "@/lib/purchase-steps";
-import type { TxStep } from "@/lib/transactions/types";
+import { IDLE_TX_STATE, type TxStep } from "@/lib/transactions/types";
 import { useTransaction } from "./useTransaction";
 
 interface Options {
@@ -58,13 +58,22 @@ export function usePurchaseTickets({ contractEventId, typeId, quantity, unitPric
     return succeeded;
   }
 
+  // What a run did belongs to the account that ran it: once the wallet is on another account, the
+  // page shows a new order for that one instead of "You're going!", the other account's error or
+  // the transaction it stopped waiting for. Only the message that the wallet switched mid-purchase
+  // stays (#396). accountChanged is only true between runs, so no phase needs checking.
+  const fromAnotherAccount = tx.accountChanged && tx.state.error !== PURCHASE_ERRORS.accountChanged;
+  const state = fromAnotherAccount ? IDLE_TX_STATE : tx.state;
+
   return {
     buy,
     total,
     approvalNeeded,
     purchased,
-    steps: getPurchaseSteps(tx.state, approvalNeeded),
-    state: tx.state,
+    // After the wallet switched accounts, the rows are the new account's: an approval by the other
+    // account doesn't count for this one (#396)
+    steps: getPurchaseSteps(tx.accountChanged ? IDLE_TX_STATE : tx.state, approvalNeeded),
+    state,
     isBusy: tx.isBusy,
     reset: tx.reset,
     stopWaiting: tx.stopWaiting,
