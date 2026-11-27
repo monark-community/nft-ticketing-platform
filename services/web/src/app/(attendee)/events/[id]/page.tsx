@@ -75,9 +75,10 @@ export default function EventPage() {
   const [quantity, setQuantity] = useState(1);
   const selected = tiers.find((t) => t.key === selectedKey) ?? tiers.find((t) => t.remaining > 0) ?? tiers[0] ?? null;
 
-  const perWalletLimit = chain.event?.perWalletLimit ?? 0;
+  // Unknown (null) until the chain answers, so it's never shown as "No limit" meanwhile (#414)
+  const perWalletLimit = chain.event?.perWalletLimit ?? null;
   const held = chain.wallet?.held ?? null;
-  const maxQuantity = getMaxQuantity({ remaining: selected?.remaining ?? 0, perWalletLimit, held: held ?? 0 });
+  const maxQuantity = getMaxQuantity({ remaining: selected?.remaining ?? 0, perWalletLimit: perWalletLimit ?? 0, held: held ?? 0 });
   const qty = Math.min(quantity, maxQuantity);
 
   const purchase = usePurchaseTickets({
@@ -127,7 +128,7 @@ export default function EventPage() {
           profileComplete: Boolean(user?.profile_complete),
           presaleActive: chain.event?.presaleActive ?? false,
           whitelisted: chain.wallet?.whitelisted ?? false,
-          perWalletLimit,
+          perWalletLimit: perWalletLimit ?? 0, // only checked once the chain has answered (ready)
           held: held ?? 0,
           total: purchase.total,
           usdcBalance: chain.wallet?.usdcBalance ?? BigInt(0),

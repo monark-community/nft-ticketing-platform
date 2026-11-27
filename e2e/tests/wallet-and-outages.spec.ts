@@ -376,15 +376,22 @@ test.describe('outages', () => {
     await expect(chainError).toHaveCount(0);
   });
 
-  // Without the chain the wallet limit falls back to "No limit" (#414): remove .fixme with the fix
-  test.fixme('chain unreachable: the wallet limit shows as unknown, not "No limit"', async ({ page, signIn }) => {
+  // Without the chain the wallet limit is unknown, not "No limit" (#414)
+  test('chain unreachable: the wallet limit shows as unknown, not "No limit", until Try again reads it', async ({ page, signIn }) => {
     await signIn(accounts.jordan, { path: `/events/${GALA.apiId}` });
-    await expect(summaryRow(page, 'Wallet Limit')).toContainText('of 4');
+    const limit = summaryRow(page, 'Wallet Limit');
+    await expect(limit).toContainText('of 4');
 
     await page.route(CHAIN, (route) => route.abort());
     await page.reload();
-    await expect(alertWith(page, 'Could not read this event from the blockchain.')).toBeVisible({ timeout: 30_000 });
-    await expect(summaryRow(page, 'Wallet Limit')).not.toContainText('No limit');
+    const chainError = alertWith(page, 'Could not read this event from the blockchain.');
+    await expect(chainError).toBeVisible({ timeout: 30_000 });
+    await expect(limit).toContainText('—');
+    await expect(limit).not.toContainText('No limit');
+
+    await page.unroute(CHAIN);
+    await chainError.getByRole('button', { name: 'Try again' }).click();
+    await expect(limit).toContainText('of 4');
   });
 
   test("chain unreachable: the organizer's event page says it can't read the chain, and Try again works", async ({ page, signIn }) => {
