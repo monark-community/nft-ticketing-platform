@@ -331,8 +331,6 @@ const KNOWN_AXE: Array<{ rule: string; target: RegExp; path?: string; issue: str
   // A sold-out ticket tier is dimmed with opacity, but it can still be selected: its text, and its
   // "Sold out" badge (border-destructive/40; text boxes only have aria-invalid:border-destructive)
   { rule: 'color-contrast', target: /opacity-55|border-destructive\/40/, path: `/events/${GALA.apiId}`, issue: '#416' },
-  // On phones the tickets table scrolls sideways, but nothing in it can take the focus
-  { rule: 'scrollable-region-focusable', target: /overflow-x-auto/, path: `/organizer/events/${GALA.apiId}`, issue: '#420' },
 ];
 
 interface AxeState {
