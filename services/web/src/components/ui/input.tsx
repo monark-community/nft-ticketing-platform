@@ -9,6 +9,11 @@ import { cn } from "@/lib/utils"
 const fieldClasses =
   "w-full min-w-0 rounded-sm border border-input bg-background px-4 type-body-md text-foreground transition-[color,border-color,box-shadow] duration-fast outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
 
+// Date and time fields: Tab also stops on the calendar button inside the field, where Chrome stops
+// matching :focus-visible on the input, so the ring follows the focus anywhere inside it (#419)
+const DATE_TYPES = new Set(["date", "datetime-local", "time", "month", "week"])
+const dateFocusClasses = "focus-within:border-primary focus-within:ring-3 focus-within:ring-primary/20"
+
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
     <InputPrimitive
@@ -17,6 +22,7 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
       className={cn(
         "h-11 file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
         fieldClasses,
+        type && DATE_TYPES.has(type) && dateFocusClasses,
         className
       )}
       {...props}

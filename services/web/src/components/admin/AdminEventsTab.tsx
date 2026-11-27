@@ -2,10 +2,11 @@
 
 import { ChevronLeft, ChevronRight, Clock, Info, Search, SearchX, Ticket } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 
-import { EmptyState, TableShell, Td, Th } from "@/components/admin/AdminTable";
+import { EmptyState, MotionRows, TableShell, Td, Th } from "@/components/admin/AdminTable";
 import { EditEventSettingsPanel } from "@/components/admin/EditEventSettingsPanel";
+import { FlapText, RollingNumber } from "@/components/motion";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import {
   STATUS_FILTER_OPTIONS,
   type AdminEvent,
   type AdminEventStatusFilter,
+  type EventSettings,
 } from "@/lib/admin-events";
 import { organizerAccountName } from "@/lib/admin-organizers";
 import { shortAddress } from "@/lib/format";
@@ -35,11 +37,41 @@ interface AdminEventsTabProps {
   hasAdminRole: boolean | undefined;
 }
 
+// Where the settings panel grows from: the Edit settings button, as a clip-path of the panel
+// (it sits at the right edge of the screen, up to 480 px wide)
+function growFrom(button: DOMRect): string {
+  const width = Math.min(480, window.innerWidth);
+  const panelLeft = window.innerWidth - width;
+  const left = Math.min(Math.max(button.left - panelLeft, 0), width - 40);
+  const right = Math.min(Math.max(window.innerWidth - button.right, 0), width - left - 40);
+  const top = Math.max(button.top, 0);
+  const bottom = Math.max(window.innerHeight - button.bottom, 0);
+  return `inset(${top}px ${right}px ${bottom}px ${left}px round 6px)`;
+}
+
 // Admin page, Events tab (Figma "Admin/Events"): every event in every status with its sale
 // settings, and "Edit settings" on the ones that are live (#296).
+// Motion (#374): when the search or filter changes, the rows shuffle like the Motion Guide's: rows
+// that leave go at once, the rows that stay slide to their new place and new ones open in (their
+// Sold bars fill from zero); the total rolls. The settings panel grows out of the button you
+// pressed and shrinks back into it; while it's open, a light runs round its edge. The row's
+// changed values then flip over to the saved ones.
 export function AdminEventsTab({ events, hasAdminRole }: AdminEventsTabProps) {
-  const [editing, setEditing] = useState<AdminEvent | null>(null);
+  const [editing, setEditing] = useState<{ event: AdminEvent; from: string } | null>(null);
+  // Saved settings wait until the panel has closed, so the row's values flip where they can be seen
+  const [saved, setSaved] = useState<EventSettings | null>(null);
   const pages = pageCount(events.total);
+
+  function edit(event: AdminEvent, click: MouseEvent<HTMLButtonElement>) {
+    setSaved(null);
+    setEditing({ event, from: growFrom(click.currentTarget.getBoundingClientRect()) });
+  }
+
+  function closed() {
+    if (editing && saved) events.applySaved(editing.event.id, saved);
+    setSaved(null);
+    setEditing(null);
+  }
 
   function clearFilters() {
     events.setSearch("");
@@ -53,7 +85,7 @@ export function AdminEventsTab({ events, hasAdminRole }: AdminEventsTabProps) {
           <h2 className="type-heading-sm text-foreground">All events</h2>
           {events.loaded && (
             <Badge tone="warning" dot className="type-mono-tag normal-case" aria-live="polite">
-              {events.filtered ? `${events.total} of ${events.allTotal}` : `${events.total} total`}
+              <RollingNumber value={events.filtered ? `${events.total} of ${events.allTotal}` : `${events.total} total`} />
             </Badge>
           )}
         </div>
@@ -124,7 +156,9 @@ export function AdminEventsTab({ events, hasAdminRole }: AdminEventsTabProps) {
       ) : (
         <TableShell>
           <table
-            className={cn("w-full min-w-[920px] text-left transition-opacity", events.loading && "opacity-60")}
+            // Dimmed only when the answer takes a moment, like the loading placeholders (#365), so a
+            // quick search or filter goes straight to the rows changing
+            className={cn("w-full min-w-[920px] text-left transition-opacity", events.loading && "opacity-60 delay-250")}
             aria-busy={events.loading}
           >
             <caption className="sr-only">All events</caption>
@@ -140,9 +174,9 @@ export function AdminEventsTab({ events, hasAdminRole }: AdminEventsTabProps) {
               </tr>
             </thead>
             <tbody>
-              {events.events.map((event) => (
-                <EventRow key={event.id} event={event} onEdit={() => setEditing(event)} />
-              ))}
+              <MotionRows items={events.events} itemKey={(event) => event.id} change="shuffle" rowClassName="border-b border-border last:border-0">
+                {(event, { opening }) => <EventCells event={event} opening={opening} onEdit={(click) => edit(event, click)} />}
+              </MotionRows>
             </tbody>
           </table>
         </TableShell>
@@ -179,24 +213,26 @@ export function AdminEventsTab({ events, hasAdminRole }: AdminEventsTabProps) {
 
       {editing && (
         <EditEventSettingsPanel
-          key={editing.id}
-          event={editing}
+          key={editing.event.id}
+          event={editing.event}
+          growFrom={editing.from}
           hasAdminRole={hasAdminRole}
-          onClose={() => setEditing(null)}
-          onSaved={(settings) => events.applySaved(editing.id, settings)}
+          onClose={closed}
+          onSaved={setSaved}
         />
       )}
     </section>
   );
 }
 
-function EventRow({ event, onEdit }: { event: AdminEvent; onEdit: () => void }) {
+// One event's cells. A row that opens in fills its Sold bar from zero.
+function EventCells({ event, opening, onEdit }: { event: AdminEvent; opening: boolean; onEdit: (click: MouseEvent<HTMLButtonElement>) => void }) {
   const status = adminEventStatus(event);
   const live = canEditSettings(event);
   const sold = soldSummary(event);
 
   return (
-    <tr className="border-b border-border last:border-0">
+    <>
       <Td>
         <div className="flex max-w-[260px] flex-col gap-0.5">
           {live ? (
@@ -227,7 +263,10 @@ function EventRow({ event, onEdit }: { event: AdminEvent; onEdit: () => void }) 
           <div className="flex w-28 flex-col gap-1.5">
             <span className="type-body-md text-secondary-foreground">{sold.text}</span>
             <span className="h-1 overflow-hidden rounded-full bg-muted" aria-hidden="true">
-              <span className="block h-full rounded-full bg-primary" style={{ width: `${sold.percent}%` }} />
+              <span
+                className={cn("block h-full origin-left rounded-full bg-primary", opening && "motion-safe:animate-[bar-grow_420ms_var(--ease-arrive)_160ms_backwards]")}
+                style={{ width: `${sold.percent}%` }}
+              />
             </span>
           </div>
         ) : (
@@ -236,8 +275,12 @@ function EventRow({ event, onEdit }: { event: AdminEvent; onEdit: () => void }) 
           </span>
         )}
       </Td>
-      <Td className="type-mono-value text-foreground">{royaltyText(event.royalty_bps)}</Td>
-      <Td className="type-mono-value text-foreground">{resaleCapText(event.resale_cap_bps)}</Td>
+      <Td className="type-mono-value text-foreground">
+        <FlapText text={royaltyText(event.royalty_bps)} />
+      </Td>
+      <Td className="type-mono-value text-foreground">
+        <FlapText text={resaleCapText(event.resale_cap_bps)} />
+      </Td>
       <Td align="right">
         {live ? (
           <Button variant="secondary" size="sm" onClick={onEdit} aria-label={`Edit settings of ${event.title}`}>
@@ -249,6 +292,6 @@ function EventRow({ event, onEdit }: { event: AdminEvent; onEdit: () => void }) 
           </span>
         )}
       </Td>
-    </tr>
+    </>
   );
 }

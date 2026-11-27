@@ -1,16 +1,19 @@
 "use client";
 
+import { Wallet } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { AuthCard } from "@/components/auth/AuthCard";
 import { WalletPill } from "@/components/auth/WalletPill";
+import { DrawnCheck, RollingNumber } from "@/components/motion";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
 // checking = looking for an existing session; waiting = the wallet shows the message to sign;
-// failed = cancelled in the wallet, or the API couldn't be reached
-export type SignatureStatus = "checking" | "waiting" | "failed";
+// failed = cancelled in the wallet, or the API couldn't be reached; signed = it went through, shown
+// for a moment before a new account goes on to Create account (#371)
+export type SignatureStatus = "checking" | "waiting" | "failed" | "signed";
 
 // If "checking" lasts this long, nothing is going to open the wallet on its own
 // (e.g. the session expired mid-way), so offer the button
@@ -26,6 +29,8 @@ interface ConfirmSignatureCardProps {
 
 // Step 2 (Figma: Sign in / Confirm signature). Signing a message proves the wallet is yours;
 // it is free and sends no transaction. The cancelled state isn't in Figma (#282 notes).
+// Motion (#371): your wallet and NFTokenPass with dots travelling between them while the wallet
+// waits; signing joins the line in green with a tick, cancelling breaks it before the message.
 export function ConfirmSignatureCard({ address, status, error, onSign, onCancel }: ConfirmSignatureCardProps) {
   const [stalled, setStalled] = useState(false);
 
@@ -53,19 +58,14 @@ export function ConfirmSignatureCard({ address, status, error, onSign, onCancel 
           Sign a message in your wallet to log in. This is free and doesn&apos;t send a transaction.
         </p>
 
-        {status === "failed" ? (
-          <Alert tone="error" title={error?.title ?? "Signature cancelled"} className="w-full text-left">
-            {error?.message}
-          </Alert>
-        ) : (
-          <div role="status" className="flex w-full items-center justify-center gap-3 rounded-md bg-background py-4">
-            <span className="relative flex size-5 items-center justify-center">
-              <span className="absolute inset-0 rounded-full bg-primary/30 blur-[4px]" aria-hidden="true" />
-              <Spinner className="relative size-5 text-primary" />
-            </span>
-            <span className="text-[13px] leading-5 font-medium tracking-[0.025em] text-foreground">
-              {status === "checking" ? "Checking your wallet…" : "Waiting for signature…"}
-            </span>
+        <Handshake status={status} />
+
+        {status === "failed" && (
+          // Once the line has broken
+          <div className="w-full animate-[fade-in_160ms_ease-out_180ms_backwards]">
+            <Alert tone="error" title={error?.title ?? "Signature cancelled"} className="w-full text-left">
+              {error?.message}
+            </Alert>
           </div>
         )}
 
@@ -85,5 +85,54 @@ export function ConfirmSignatureCard({ address, status, error, onSign, onCancel 
         </Button>
       </div>
     </AuthCard>
+  );
+}
+
+const LABEL: Record<SignatureStatus, string> = {
+  checking: "Checking your wallet…",
+  waiting: "Waiting for signature…",
+  signed: "Signed",
+  failed: "Not signed",
+};
+
+// Your wallet on the left, NFTokenPass on the right, and the line between them (globals.css)
+function Handshake({ status }: { status: SignatureStatus }) {
+  return (
+    <div className="flex w-full flex-col items-center gap-3 rounded-md bg-background px-4 py-4" data-handshake={status}>
+      <div className="flex w-full max-w-[260px] items-center gap-2" aria-hidden="true">
+        <span className="flex size-[34px] shrink-0 items-center justify-center rounded-md bg-popover text-primary">
+          <Wallet className="size-4" />
+        </span>
+        <span className="handshake-wire relative h-0.5 flex-1">
+          <i className="handshake-half left-0" data-half="left" />
+          <i className="handshake-half right-0" data-half="right" />
+          {(status === "checking" || status === "waiting") && (
+            <>
+              <b className="handshake-dot" />
+              <b className="handshake-dot [animation-delay:0.46s]" />
+              <b className="handshake-dot [animation-delay:0.93s]" />
+            </>
+          )}
+          {status === "signed" && (
+            <span className="punch absolute top-1/2 left-1/2 -mt-[11px] -ml-[11px] flex size-[22px] items-center justify-center rounded-full bg-success text-background">
+              <DrawnCheck className="size-3.5" />
+            </span>
+          )}
+        </span>
+        <span className="flex size-[34px] shrink-0 items-center justify-center rounded-md bg-popover">
+          <span className="size-3 rounded-[2px] bg-primary" />
+        </span>
+      </div>
+      <span
+        role="status"
+        className={cn(
+          "text-[13px] leading-5 font-medium tracking-[0.025em]",
+          status === "signed" ? "text-success" : status === "failed" ? "text-destructive" : "text-foreground",
+        )}
+      >
+        {/* Rolls over to the new words */}
+        <RollingNumber value={LABEL[status]} align="center" />
+      </span>
+    </div>
   );
 }

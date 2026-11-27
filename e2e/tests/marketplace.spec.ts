@@ -518,7 +518,7 @@ test.describe('selling', () => {
     // The page reads the listings again as the listener catches up
     await expect(card(page, token)).toContainText('25.00 USDC', { timeout: 20_000 });
     await expect(card(page, token)).toContainText('You');
-    await expect(card(page, token).getByRole('button', { name: `Change the price of your ticket #${token}` })).toBeVisible();
+    await expect(card(page, token).getByRole('button', { name: `Edit the price of your ticket #${token}` })).toBeVisible();
     await expect(yourRow(page, token)).toContainText('Listed for 25.00 USDC');
   });
 
@@ -813,7 +813,7 @@ test.describe('buying', () => {
 
     await expect(card(page, token)).toContainText('You');
     await expect(buyOn(page, token)).toHaveCount(0);
-    await expect(card(page, token).getByRole('button', { name: `Change the price of your ticket #${token}` })).toBeVisible();
+    await expect(card(page, token).getByRole('button', { name: `Edit the price of your ticket #${token}` })).toBeVisible();
     await expect(chain.ticketNft(accounts.alex).buyResaleTicket.staticCall(token, chain.usdc(25))).rejects.toThrow('Cannot buy your own ticket');
   });
 
@@ -989,10 +989,8 @@ test.describe('while the Buy popup is open', () => {
     await expect(chain.ticketNft(accounts.jordan).buyResaleTicket.staticCall(token, chain.usdc(25))).rejects.toThrow('Royalty changed since listing');
   });
 
-  // TODO(418): the popup's last check before the wallet opens compares the price and the seller,
-  // not the royalty, so Buy first sends the USDC approval and only then says the royalty changed.
-  // Turn on once that check includes the royalty.
-  test.fixme('the admin changes the event\'s royalty: nothing is sent', async ({ page, signIn, wallet }) => {
+  // The popup's last check before the wallet opens reads the royalty too (#418)
+  test('the admin changes the event\'s royalty: nothing is sent', async ({ page, signIn, wallet }) => {
     await royaltyChangedUnderBuyer(page, signIn, 'Royalty Changed Nothing Sent');
     const sent = wallet.requests.length;
 

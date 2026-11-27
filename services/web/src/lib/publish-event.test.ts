@@ -140,6 +140,14 @@ describe("stageStatuses", () => {
     expect(stageStatuses(plan, 2, { stage: "ticketTypes", failed: true }).ticketTypes).toBe("failed");
   });
 
+  it("keeps the rows before the running one done while the contract isn't read again yet", () => {
+    // Frozen, nothing on-chain yet: the plan read before the wallet's transactions
+    const plan = planPublish({ ...base, chain: fresh });
+    expect(stageStatuses(plan, 2, { stage: "ticketTypes", failed: false })).toEqual({ freeze: "done", configure: "done", ticketTypes: "active", publish: "waiting" });
+    expect(stageStatuses(plan, 2, { stage: "ticketTypes", failed: true })).toEqual({ freeze: "done", configure: "done", ticketTypes: "failed", publish: "waiting" });
+    expect(stageStatuses(plan, 2, { stage: "publish", failed: false })).toEqual({ freeze: "done", configure: "done", ticketTypes: "done", publish: "active" });
+  });
+
   it("marks every row done once published", () => {
     const plan = planPublish({ ...base, status: "PUBLISHED", chain: { ...configured, typeUris: URIS, active: true } });
     expect(stageStatuses(plan, 2, null)).toEqual({ freeze: "done", configure: "done", ticketTypes: "done", publish: "done" });

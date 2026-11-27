@@ -143,6 +143,21 @@ describe("verifyTicketQR", () => {
     expect(result.reason).toBe("QR code has expired. Ask the attendee to refresh it.");
   });
 
+  it("says what a new QR code wouldn't change before saying the QR code expired", async () => {
+    const expired = await makeQR({ timestamp: NOW - 61 });
+
+    const used = await verify(expired, fakeClient({ isValidTicket: false, isUsed: true }));
+    expect(used.reason).toBe("This ticket has already been checked in.");
+    expect(used.used).toBe(true);
+
+    const missing = await verify(expired, fakeClient({ isValidTicket: false, isUsed: false }));
+    expect(missing.reason).toBe("This ticket does not exist.");
+
+    const otherEvent = await verify(expired, fakeClient({ tokenEventId: BigInt(3) }));
+    expect(otherEvent.reason).toBe("This ticket is for event #3, not event #7.");
+    expect(otherEvent.wrongEvent).toBe(true);
+  });
+
   it("still accepts a QR code that is exactly 60 seconds old", async () => {
     const result = await verify(await makeQR({ timestamp: NOW - 60 }));
 

@@ -6,6 +6,7 @@ import {
   dotWave,
   firstNumber,
   flapCells,
+  flipFrom,
   motionDuration,
   placeholderStep,
   prefersReducedMotion,
@@ -13,7 +14,9 @@ import {
   PRINT_STEP_MS,
   printDelay,
   rollDirection,
+  rowChanges,
   type PlaceholderPhase,
+  withLeavingRows,
 } from "./motion";
 
 describe("motionDuration", () => {
@@ -209,5 +212,42 @@ describe("dotWave (DotField)", () => {
 
   it("is nothing before the click", () => {
     expect(dotWave(0, -0.1)).toBe(0);
+  });
+});
+
+describe("flipFrom (sign-in steps)", () => {
+  it("moves the centre back to where the old box was", () => {
+    expect(flipFrom({ left: 0, top: 0, width: 64, height: 64 }, { left: 100, top: 20, width: 64, height: 64 })).toEqual({ dx: -100, dy: -20, scale: 1 });
+  });
+
+  it("scales by the smaller ratio, kept between 0.45 and 1.6", () => {
+    expect(flipFrom({ left: 0, top: 0, width: 64, height: 64 }, { left: 0, top: 0, width: 160, height: 32 }).scale).toBeCloseTo(0.45);
+    expect(flipFrom({ left: 0, top: 0, width: 150, height: 30 }, { left: 0, top: 0, width: 100, height: 20 }).scale).toBe(1.5);
+    expect(flipFrom({ left: 0, top: 0, width: 400, height: 400 }, { left: 0, top: 0, width: 100, height: 100 }).scale).toBe(1.6);
+    expect(flipFrom({ left: 0, top: 0, width: 10, height: 10 }, { left: 0, top: 0, width: 0, height: 0 }).scale).toBe(1);
+  });
+});
+
+describe("rowChanges and withLeavingRows (admin tables)", () => {
+  it("finds the rows that left, with the row each one followed, and the new ones", () => {
+    expect(rowChanges(["a", "b", "c", "d"], ["a", "d", "e"])).toEqual({
+      gone: [
+        { key: "b", index: 1, after: "a" },
+        { key: "c", index: 2, after: "b" },
+      ],
+      added: ["e"],
+    });
+    expect(rowChanges(["a"], ["a"])).toEqual({ gone: [], added: [] });
+  });
+
+  it("keeps folding rows where they were: below the row they followed, or at their old place", () => {
+    const { gone } = rowChanges(["a", "b", "c", "d"], ["a", "d"]);
+    expect(withLeavingRows(["a", "d"], gone)).toEqual(["a", "b", "c", "d"]);
+    // The first row left: it stays on top
+    expect(withLeavingRows(["b"], rowChanges(["a", "b"], ["b"]).gone)).toEqual(["a", "b"]);
+    // The row it followed is gone for good: its old place, within the list
+    expect(withLeavingRows(["x"], [{ key: "c", index: 2, after: "b" }])).toEqual(["x", "c"]);
+    // A row that came back is not drawn twice
+    expect(withLeavingRows(["a", "b"], [{ key: "b", index: 1, after: "a" }])).toEqual(["a", "b"]);
   });
 });

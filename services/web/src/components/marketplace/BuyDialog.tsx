@@ -106,21 +106,20 @@ function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: ()
 
   async function buy() {
     if (!terms || !chain.usdcAddress) return;
-    // Read the listing once more right before the wallet opens: if the seller changed the price or
-    // took it down since this popup opened, show that instead of asking for an approval first
+    // Read the listing and the event's royalty once more right before the wallet opens: if the
+    // seller changed the price or took it down, or the royalty changed since it was listed (#418),
+    // show that instead of asking for an approval first
     try {
-      const [seller, current] = (await publicClient!.readContract({
-        address: TICKET_NFT_ADDRESS,
-        abi: ticketNftAbi,
-        functionName: "listings",
-        args: [tokenId],
-      })) as [string, bigint, bigint];
-      if (current !== price || seller.toLowerCase() !== terms.listing.seller.toLowerCase()) {
+      const [[seller, current, listedRoyaltyBps], royaltyNow] = (await Promise.all([
+        publicClient!.readContract({ address: TICKET_NFT_ADDRESS, abi: ticketNftAbi, functionName: "listings", args: [tokenId] }),
+        publicClient!.readContract({ address: TICKET_NFT_ADDRESS, abi: ticketNftAbi, functionName: "royaltyPercentage", args: [contractEventId ?? BigInt(0)] }),
+      ])) as [[string, bigint, bigint], bigint];
+      if (current !== price || seller.toLowerCase() !== terms.listing.seller.toLowerCase() || listedRoyaltyBps !== royaltyNow) {
         await chain.refetch();
         return;
       }
     } catch {
-      // Couldn't check: the contract still refuses a changed price (expectedPrice)
+      // Couldn't check: the contract still refuses a changed price (expectedPrice) or royalty
     }
     const run: TxStep[] = [];
     // Approve exactly this ticket's price, not an unlimited amount

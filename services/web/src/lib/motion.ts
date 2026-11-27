@@ -177,3 +177,57 @@ export function finished(animation: Animation | null): Promise<void> {
 /** The two halves of a tear along a jagged line, as clip-paths */
 export const TEAR_TOP = "polygon(0 0,100% 0,100% 46%,88% 52%,76% 47%,63% 53%,50% 48%,37% 54%,24% 48%,12% 53%,0 49%)";
 export const TEAR_BOTTOM = "polygon(0 49%,12% 53%,24% 48%,37% 54%,50% 48%,63% 53%,76% 47%,88% 52%,100% 46%,100% 100%,0 100%)";
+
+// ---------------------------------------------------------------------------------------------
+// Moving one thing into another (the sign-in steps, #371)
+
+export interface Box {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * How to draw the element now at `to` so it starts where `from` was: the move between their centres,
+ * and one scale (kept between 0.45 and 1.6, so a square icon turning into a wide pill isn't squashed).
+ */
+export function flipFrom(from: Box, to: Box): { dx: number; dy: number; scale: number } {
+  const dx = from.left + from.width / 2 - (to.left + to.width / 2);
+  const dy = from.top + from.height / 2 - (to.top + to.height / 2);
+  const ratio = to.width > 0 && to.height > 0 ? Math.min(from.width / to.width, from.height / to.height) : 1;
+  const scale = Math.max(0.45, Math.min(1.6, Number.isFinite(ratio) ? ratio : 1));
+  return { dx, dy, scale };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Table rows that fold away and open in (the admin page, #374)
+
+/** A row that left the list: where it was, and the row it followed */
+export interface LeftRow {
+  key: string;
+  index: number;
+  after: string | null;
+}
+
+/** What changed between two lists of row keys: the rows that left (and where they were), and the new ones */
+export function rowChanges(before: string[], after: string[]): { gone: LeftRow[]; added: string[] } {
+  const now = new Set(after);
+  const had = new Set(before);
+  const gone = before.flatMap((key, index) => (now.has(key) ? [] : [{ key, index, after: index > 0 ? before[index - 1] : null }]));
+  return { gone, added: after.filter((key) => !had.has(key)) };
+}
+
+/**
+ * The rows to draw: the list as it is, with the rows still folding away kept where they were (just
+ * below the row they followed, or at their old place if that row is gone too).
+ */
+export function withLeavingRows(keys: string[], leaving: LeftRow[]): string[] {
+  const rows = [...keys];
+  for (const row of leaving) {
+    if (rows.includes(row.key)) continue;
+    const after = row.after === null ? 0 : rows.indexOf(row.after) + 1;
+    rows.splice(row.after === null || after > 0 ? after : Math.min(row.index, rows.length), 0, row.key);
+  }
+  return rows;
+}

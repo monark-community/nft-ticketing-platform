@@ -2,10 +2,14 @@
 
 // Result card for the ticket scanner (#58), restyled from the Figma "Scanner Page" frames (#287).
 // Headings never say "valid" or "admit" before the check-in is confirmed on-chain (#282).
+// Motion (#373): the card is a ticket. "Do not admit" is stamped VOID. Check in punches a hole in its
+// corner at once; while the network confirms, the waiting button fills like a progress bar; once
+// confirmed, green spreads out from the hole and CHECKED IN is stamped.
 
 import { Check, Clock, Copy, RefreshCw, ScanLine, X } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 
+import { Stamp } from "@/components/motion";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -50,6 +54,8 @@ export function ScanResult({
   onStopWaiting,
 }: Props) {
   const tokenId = result.qr?.tokenId;
+  // Pressing Check in punches the ticket; the hole stays until the result is gone (or the check-in failed)
+  const holed = view === "checkingIn" || view === "pending" || view === "checkedIn";
   const owner = result.owner ?? details.owner;
   const nowSeconds = Math.floor(scannedAt / 1000);
 
@@ -78,6 +84,9 @@ export function ScanResult({
   if (view === "rejected") {
     return (
       <Card tone="danger" centered>
+        <Stamp tone="red" className="absolute top-4 right-4 [animation-delay:170ms]">
+          Void
+        </Stamp>
         <StatusIcon tone="danger">
           <X />
         </StatusIcon>
@@ -93,7 +102,11 @@ export function ScanResult({
 
   if (view === "checkedIn") {
     return (
-      <Card tone="success" centered>
+      <Card tone="success" centered holed className="motion-safe:animate-[green-spread_300ms_ease-out_backwards]">
+        {/* Its words are drawn by CSS, so the page's text says "Checked in" once, in the title */}
+        <Stamp tone="green" className="absolute top-4 left-4 [animation-delay:240ms] before:content-['Checked_in']">
+          {null}
+        </Stamp>
         <StatusIcon tone="success">
           <Check />
         </StatusIcon>
@@ -109,7 +122,7 @@ export function ScanResult({
   if (view === "checkingIn") {
     const label = transaction.phase === "awaitingWallet" ? "Confirm in your wallet..." : transaction.phase === "preparing" ? "Preparing check-in..." : "Waiting for confirmation...";
     return (
-      <Card tone="active">
+      <Card tone="active" holed={holed}>
         <div className="flex items-center gap-4 border-b border-border pb-4">
           <StatusIcon tone="active" small>
             <Spinner />
@@ -117,7 +130,7 @@ export function ScanResult({
           <Heading tone="neutral" title="Checking in..." subtitle="Valid ticket · don't admit until confirmed" />
         </div>
         <Inset>{rows}</Inset>
-        <WaitingButton label={label} />
+        <WaitingButton label={label} fill={transaction.phase === "confirming" ? "running" : undefined} />
         <p className="text-center type-body-sm text-muted-foreground">{FEE_NOTE}</p>
       </Card>
     );
@@ -126,7 +139,7 @@ export function ScanResult({
   if (view === "pending") {
     const stopped = transaction.phase === "stoppedWaiting";
     return (
-      <Card tone="neutral">
+      <Card tone="neutral" holed={holed}>
         <div className="flex items-center gap-4 border-b border-border pb-4">
           <StatusIcon tone="active" small>
             <Clock />
@@ -148,7 +161,7 @@ export function ScanResult({
           </Button>
         ) : (
           <>
-            <WaitingButton label="Waiting for confirmation..." />
+            <WaitingButton label="Waiting for confirmation..." fill="held" />
             <Button variant="ghost" size="sm" className="self-center" onClick={onStopWaiting}>
               Stop waiting
             </Button>
@@ -219,11 +232,35 @@ const CARD: Record<Tone, string> = {
   danger: "border border-destructive/40 bg-destructive-bg shadow-[0_0_32px_rgb(255_180_171/10%)]",
 };
 
-function Card({ tone, centered, children }: { tone: Tone; centered?: boolean; children: ReactNode }) {
+function Card({ tone, centered, holed, className, children }: { tone: Tone; centered?: boolean; holed?: boolean; className?: string; children: ReactNode }) {
   return (
-    <section role="status" aria-live="assertive" className={cn("flex flex-col gap-5 rounded-lg p-5", centered && "items-stretch", CARD[tone])}>
+    <section role="status" aria-live="assertive" className={cn("relative flex flex-col gap-5 rounded-lg p-5", centered && "items-stretch", CARD[tone], className)}>
+      {holed && <PunchHole />}
       {children}
     </section>
+  );
+}
+
+// Where the paper bits from the punch fall
+const BITS = [
+  [-9, 30],
+  [2, 38],
+  [11, 26],
+] as const;
+
+// The hole Check in punches in the ticket's corner, with a few paper bits falling out
+function PunchHole() {
+  return (
+    <span className="absolute top-4 right-4 z-10 size-3.5" aria-hidden="true" data-punch-hole>
+      <span className="punch absolute inset-0 rounded-full bg-background shadow-[inset_0_1px_3px_rgb(0_0_0/80%)]" />
+      {BITS.map(([x, y]) => (
+        <span
+          key={x}
+          className="absolute top-1 left-1 size-1 rounded-[1px] bg-foreground/70 opacity-0 animate-[paper-bit_420ms_ease-in_backwards]"
+          style={{ "--bit-x": `${x}px`, "--bit-y": `${y}px` } as CSSProperties}
+        />
+      ))}
+    </span>
   );
 }
 
@@ -319,11 +356,22 @@ function HashRow({ hash, explorerUrl, accent }: { hash: `0x${string}`; explorerU
   );
 }
 
-function WaitingButton({ label }: { label: string }) {
+// While the network confirms, it fills like a progress bar ("running"); after a long wait it holds ("held")
+function WaitingButton({ label, fill }: { label: string; fill?: "running" | "held" }) {
   return (
-    <Button size="lg" className="w-full" disabled>
-      <Spinner />
-      {label}
+    <Button size="lg" className="w-full overflow-hidden" disabled>
+      {fill && (
+        <span
+          className={cn(
+            "absolute inset-0 origin-left bg-primary/20 motion-reduce:hidden",
+            fill === "running" ? "animate-[wait-fill_15s_cubic-bezier(0.2,0.6,0.3,1)_forwards]" : "scale-x-90",
+          )}
+          aria-hidden="true"
+          data-wait-fill={fill}
+        />
+      )}
+      <Spinner className="relative" />
+      <span className="relative">{label}</span>
     </Button>
   );
 }

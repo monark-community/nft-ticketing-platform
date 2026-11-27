@@ -198,10 +198,11 @@
 }
 @utility animate-pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
 
-/* Scanner: orange line sweeping across the camera frame (#287) */
+/* Scanner: orange line sweeping across the camera frame (#287). The line is the top edge of a box
+   as tall as the frame, moved with transform so it stays smooth on cheap phones (#373). */
 @keyframes scan-line {
-  0%, 100% { top: 12%; }
-  50% { top: 88%; }
+  0%, 100% { transform: translateY(12%); }
+  50% { transform: translateY(88%); }
 }
 @utility animate-scan-line { animation: scan-line 2.4s ease-in-out infinite; }
 
@@ -472,8 +473,10 @@
   & [data-slot="alert-edge"] { transform-origin: top; animation: edge-draw 100ms ease-out backwards; }
   & [data-slot="alert-body"] > * { animation: fade-in 140ms ease-out 110ms backwards; }
 }
-/* The copy of a message that folds away after the message is gone: nothing in it animates again */
+/* The copy of a message that folds away after the message is gone: nothing in it animates again,
+   and what doesn't fit any more is hidden as it closes */
 .folding-away, .folding-away * { animation: none !important; }
+.folding-away > * { overflow: hidden; }
 
 /* Transaction receipt: each step prints a new line from left to right (160 ms) */
 @keyframes print-across { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
@@ -747,6 +750,158 @@
 }
 /* Request access: the paper plane flies up and out of the button */
 @keyframes plane-fly { to { transform: translate(34px, -22px) rotate(-14deg); opacity: 0; } }
+
+/* ---------------------------------------------------------------------------
+   Sign in and sign up (#371)
+   --------------------------------------------------------------------------- */
+/* Connect wallet: hovering (or focusing) the button tips the wallet open and its dot glows */
+[data-wallet-icon] > svg { transition: rotate 160ms var(--ease-arrive), translate 160ms var(--ease-arrive); }
+[data-wallet-dot] { transition: box-shadow 160ms; }
+[data-connect-card]:has([data-connect]:hover, [data-connect]:focus-visible) [data-wallet-icon] > svg { rotate: -12deg; translate: 0 -1px; }
+[data-connect-card]:has([data-connect]:hover, [data-connect]:focus-visible) [data-wallet-dot] { box-shadow: 0 0 10px 2px rgb(249 115 22 / 60%); }
+
+/* Waiting for your signature: a dashed line from your wallet to NFTokenPass, dots travelling along
+   it. Signed joins it in green; cancelled breaks it in two. */
+@utility handshake-half {
+  position: absolute;
+  top: 0;
+  width: 50%;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, var(--muted-foreground) 0 4px, transparent 4px 8px);
+  transition: transform 200ms var(--ease-arrive), background 200ms;
+}
+[data-handshake="signed"] [data-half] { background: var(--success); }
+[data-handshake="failed"] [data-half] { background: var(--destructive); }
+[data-handshake="failed"] [data-half="left"] { transform: translateX(-8px) rotate(-6deg); }
+[data-handshake="failed"] [data-half="right"] { transform: translateX(8px) rotate(6deg); }
+@keyframes handshake-travel {
+  0% { left: 0; opacity: 0; }
+  15%, 85% { opacity: 1; }
+  100% { left: calc(100% - 6px); opacity: 0; }
+}
+@utility handshake-dot {
+  position: absolute;
+  top: -2px;
+  left: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--primary);
+  opacity: 0;
+  animation: handshake-travel 1.4s linear infinite;
+}
+
+/* Choosing Attendee or Organizer: one orange frame slides to the chosen option */
+@utility choice-frame {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: 1;
+  pointer-events: none;
+  border: 1px solid rgb(249 115 22 / 40%);
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 16px var(--primary-tint);
+  transition: translate 180ms var(--ease-arrive), height 180ms var(--ease-arrive);
+}
+
+/* ---------------------------------------------------------------------------
+   Create event (#372)
+   --------------------------------------------------------------------------- */
+/* Moving between steps: out the way you're going, in from the other side (--step-dir: 1 or -1) */
+@keyframes step-out { to { opacity: 0; translate: calc(var(--step-dir, 1) * -24px) 0; } }
+@keyframes step-in { from { opacity: 0; translate: calc(var(--step-dir, 1) * 24px) 0; } }
+/* A new cover image develops from dark and blurred to sharp */
+@keyframes cover-develop {
+  from { filter: brightness(0.15) blur(10px) saturate(0); }
+  50% { filter: brightness(0.6) blur(3px) saturate(0.4); }
+}
+/* A padlock's shackle (the icon's path): dropped shut, or lifted and dropped again on hover */
+@keyframes shackle-shut { from { translate: 0 -5px; } }
+@keyframes shackle-lift { 35%, 70% { translate: 0 -4px; } }
+[data-lock-note]:hover svg.lucide-lock > path { animation: shackle-lift 420ms var(--ease-arrive); }
+
+/* ---------------------------------------------------------------------------
+   Scanner (#373)
+   --------------------------------------------------------------------------- */
+/* A code is found: the corners flash once after snapping in */
+@keyframes corner-flash { 50% { opacity: 0.35; } }
+/* The screen edge glows in the result's colour (--gate), like the light on a gate */
+@keyframes gate-glow {
+  from { box-shadow: inset 0 0 0 3px var(--gate), inset 0 0 56px color-mix(in srgb, var(--gate) 45%, transparent); }
+  to { box-shadow: inset 0 0 0 3px transparent, inset 0 0 56px transparent; }
+}
+/* The result comes out of the camera frame like a ticket handed over (transform-origin: the frame's middle) */
+@keyframes hand-over { from { opacity: 0; scale: 0.55; rotate: -3deg; } }
+/* Checked in: green spreads out from the punched hole (top right) */
+@keyframes green-spread {
+  from { clip-path: circle(0 at calc(100% - 23px) 23px); }
+  to { clip-path: circle(150% at calc(100% - 23px) 23px); }
+}
+/* The waiting button fills like a progress bar while the network confirms: quickly at first, never full */
+@keyframes wait-fill {
+  from { scale: 0 1; }
+  to { scale: 0.9 1; }
+}
+
+/* ---------------------------------------------------------------------------
+   Admin (#374)
+   --------------------------------------------------------------------------- */
+/* Switching tabs: the panel slides 12 px in from the side you moved towards (--tab-dir: 1 or -1) */
+@keyframes tab-in { from { opacity: 0; translate: calc(var(--tab-dir, 1) * 12px) 0; } }
+/* Table rows (MotionRows): a row folds away or opens as its cells' padding and content close up */
+@keyframes cell-fold { to { padding-top: 0; padding-bottom: 0; opacity: 0; } }
+@keyframes cell-fold-inner { to { grid-template-rows: 0fr; } }
+@keyframes cell-open { from { padding-top: 0; padding-bottom: 0; opacity: 0; } }
+@keyframes cell-open-inner { from { grid-template-rows: 0fr; } }
+tr[data-row="folding"] > td { animation: cell-fold 200ms ease-in forwards; }
+tr[data-row="folding"] > td > div { animation: cell-fold-inner 200ms ease-in forwards; }
+tr:is([data-row="opening"], [data-row="printing"]) > td { animation: cell-open 300ms var(--ease-arrive) backwards; }
+tr:is([data-row="opening"], [data-row="printing"]) > td > div { animation: cell-open-inner 300ms var(--ease-arrive) backwards; }
+tr[data-row] > td > div > div { overflow: hidden; }
+/* A decision prints into its table like a receipt line, after it opens */
+tr[data-row="printing"] > td > div > div { animation: print-in 400ms linear 120ms backwards; }
+/* Refresh: the arrows turn once */
+@keyframes spin-once { to { rotate: 360deg; } }
+
+/* Edit settings panel: while it's open, an orange light runs clockwise round its edge (5 s a lap,
+   from the middle of the side facing the page) over a faint orange edge, and glows into the panel
+   as it passes. It fades in once the panel has grown and fades out, still running, as it shrinks
+   back. The glow sits under the panel's content and the edge over it; neither takes the pointer.
+   With reduced motion only the faint edge shows. */
+@property --light-turn { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
+@keyframes light-lap { to { --light-turn: 1turn; } }
+.panel-light {
+  --light-faint: color-mix(in oklab, var(--primary) 30%, transparent);
+  /* The tail starts 110° behind the head; the head starts on the left, at 270° */
+  --light-tail: from calc(160deg + var(--light-turn));
+  position: absolute;
+  inset: 0 0 0 -1px; /* over the panel's left border too */
+  pointer-events: none;
+  animation: light-lap 5s linear infinite paused;
+}
+.panel-light[data-light] { animation-play-state: running; }
+.panel-light > * { position: absolute; inset: 0; opacity: 0; transition: opacity 240ms ease-in; }
+.panel-light[data-light="on"] > * { opacity: 1; transition: opacity 400ms var(--ease-arrive); }
+/* A ring: the box with its padding box cut out of the middle */
+.panel-light-edge, .panel-light-glow > span {
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+.panel-light-edge {
+  z-index: 1;
+  padding: 1.5px;
+  background: conic-gradient(var(--light-tail), var(--light-faint) 0deg, var(--primary) 104deg, #fed7aa 109deg, var(--light-faint) 110deg);
+}
+.panel-light-glow { z-index: -1; filter: blur(10px); }
+.panel-light-glow > span {
+  position: absolute;
+  inset: 0;
+  padding: 8px;
+  background: conic-gradient(var(--light-tail), transparent 30deg, color-mix(in oklab, var(--primary) 60%, transparent) 106deg, transparent 112deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel-light-edge { background: var(--light-faint); }
+  .panel-light-glow { display: none; }
+}
 
 /* Respect reduced motion everywhere: animations and transitions jump to their end, without delay */
 @media (prefers-reduced-motion: reduce) {

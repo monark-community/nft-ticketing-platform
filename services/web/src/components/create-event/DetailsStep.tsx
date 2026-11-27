@@ -1,5 +1,7 @@
 "use client";
 
+import { Lock } from "lucide-react";
+
 import { CoverImageField } from "@/components/create-event/CoverImageField";
 import { Alert } from "@/components/ui/alert";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -88,7 +90,8 @@ export function DetailsStep({ value, errors, image, imagePreview, imageError, up
             They were uploaded to IPFS when you froze the event, so they can&apos;t change anymore.
           </Alert>
         ) : (
-          <Alert tone="info" title="Details lock when you freeze" icon={null}>
+          // Hovering it lifts the padlock's shackle and drops it shut (#372)
+          <Alert tone="info" title="Details lock when you freeze" icon={Lock} data-lock-note>
             Drafts are only visible to you. Freezing in the last step locks the event details and ticket types. Sale rules stay editable until the first ticket sells.
           </Alert>
         )}

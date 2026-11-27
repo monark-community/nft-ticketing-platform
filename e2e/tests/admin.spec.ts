@@ -161,9 +161,12 @@ const pendingSection = (page: Page) => page.locator('section').filter({ has: pag
 const decisionsSection = (page: Page) => page.locator('section').filter({ has: page.getByRole('heading', { name: 'Recent decisions' }) });
 const organizersSection = (page: Page) => page.locator('section').filter({ has: page.getByRole('heading', { name: 'Organizers', exact: true }) });
 
+/** A wallet chip's name: the address it shows, then what it does with the full address */
+const walletChipName = (wallet: string) => `${shortAddress(wallet)}: copy wallet address ${wallet}`;
+
 /** A wallet's row in a table, found by its wallet chip */
 const rowOf = (scope: Locator, account: Account) =>
-  scope.getByRole('row').filter({ has: scope.page().getByRole('button', { name: `Copy wallet address ${account.address.toLowerCase()}`, exact: true }) });
+  scope.getByRole('row').filter({ has: scope.page().getByRole('button', { name: walletChipName(account.address.toLowerCase()), exact: true }) });
 
 /** Answers the next window.confirm, and gives its text */
 function answerConfirm(page: Page, accept: boolean): Promise<string> {
@@ -439,7 +442,7 @@ test.describe('organizers', () => {
     await expect(tab(page, 'Organizers')).toHaveAccessibleName(new RegExp(`^Organizers\\s*${wallets.length}$`));
     await expect(organizersSection(page).locator('tbody').getByRole('row')).toHaveCount(wallets.length);
     for (const wallet of wallets) {
-      await expect(organizersSection(page).getByRole('button', { name: `Copy wallet address ${wallet}`, exact: true })).toBeVisible();
+      await expect(organizersSection(page).getByRole('button', { name: walletChipName(wallet), exact: true })).toBeVisible();
       expect(await chain.ticketNft().hasRole(await organizerRole(), wallet), wallet).toBe(true);
     }
     // An attendee has neither
@@ -455,7 +458,16 @@ test.describe('organizers', () => {
     const confirm = answerConfirm(page, true);
     await rowOf(organizersSection(page), account).getByRole('button', { name: 'Revoke' }).click();
     expect(await confirm).toBe(`Revoke organizer access for ${name}?`);
-    await expect(page.getByText('Organizer access revoked', { exact: true })).toBeVisible();
+    const notice = page.getByText('Organizer access revoked', { exact: true });
+    await expect(notice).toBeVisible();
+
+    // The notice and the receipt belong to this tab: moving to another one clears them
+    const receipt = page.locator('[data-slot="transaction-status"]');
+    await expect(receipt).toContainText('Confirmed');
+    await tab(page, 'Events').click();
+    await expect(notice).toHaveCount(0);
+    await expect(receipt).toHaveCount(0);
+    await tab(page, 'Organizers').click();
 
     expect(sentTransactions(wallet)).toBe(sent + 1);
     expect(await hasOrganizerRole(account)).toBe(false);
