@@ -106,6 +106,14 @@ const statusOf = async (account: Account, apiEventId: string, tokenId: bigint) =
 
 const sameAddress = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
+// The organizer dashboard: an event's row in "My events" (on phones the table turns into cards,
+// still built from <tr>), a card of the event's manage page, and a wallet as it shortens them
+const myEventsRow = (page: Page, title: string) =>
+  page.getByRole('main').locator('tbody tr').filter({ has: page.getByRole('link', { name: title, exact: true }) });
+const manageCard = (page: Page, title: string) =>
+  page.getByRole('main').locator('[data-slot="card"]').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
+const short = (address: string) => `${address.slice(0, 6)}…${address.slice(-4)}`.toLowerCase();
+
 test('the demo journey: organizer request, approval, event, sale, check-in, resale and withdrawal', async ({ openAs, openScanner }, testInfo) => {
   test.setTimeout(10 * 60_000);
 
@@ -270,20 +278,23 @@ test('the demo journey: organizer request, approval, event, sale, check-in, resa
   });
 
   // --- 8 ---------------------------------------------------------------------------------------
-  // TODO(#194): add the scanner from the organizer dashboard once scanner management lands
-  await test.step('a scanner wallet is added for the event', async () => {
-    const session = await ApiSession.signIn(organizer);
-    // The API's row first, so the listener marks it synced when the on-chain change arrives
-    await session.post(`/api/events/${apiId}/scanners`, { wallet: door.address });
-    await (await chain.ticketNft(organizer).setEventScanner(contractId, door.address, true)).wait();
+  await test.step('the organizer adds a scanner wallet from the dashboard; it is saved in the API and on-chain', async () => {
+    const { page } = org;
+    await page.goto('/organizer');
+    await myEventsRow(page, title).getByRole('link', { name: 'Manage' }).click();
+    await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible();
+
+    // The card saves the API's row first, then sends setEventScanner() from the organizer's wallet
+    const scanners = manageCard(page, 'Scanners');
+    await scanners.getByLabel('Add a scanner').fill(door.address);
+    await scanners.getByRole('button', { name: 'Add scanner' }).click();
+    await expect(scanners.getByText(`${short(door.address)} can now check in tickets.`)).toBeVisible({ timeout: 30_000 });
+    // The listener marks the row synced once the on-chain change arrives
+    await expect(scanners.getByRole('listitem').filter({ hasText: short(door.address) })).toContainText('On-chain', { timeout: 20_000 });
 
     expect(await nft.eventScanners(contractId, door.address)).toBe(true);
-    await expect
-      .poll(async () => {
-        const scanners = await session.get<Array<{ wallet: string; synced_to_chain: boolean }>>(`/api/events/${apiId}/scanners`);
-        return scanners.find((s) => sameAddress(s.wallet, door.address))?.synced_to_chain ?? false;
-      }, { message: 'the scanner is synced in the API' })
-      .toBe(true);
+    const saved = await (await ApiSession.signIn(organizer)).get<Array<{ wallet: string; synced_to_chain: boolean }>>(`/api/events/${apiId}/scanners`);
+    expect(saved.find((s) => sameAddress(s.wallet, door.address))?.synced_to_chain).toBe(true);
   });
 
   // --- 9 ---------------------------------------------------------------------------------------
@@ -367,16 +378,24 @@ test('the demo journey: organizer request, approval, event, sale, check-in, resa
   });
 
   // --- 14 --------------------------------------------------------------------------------------
-  // TODO(#187): withdraw from the organizer dashboard once its Withdraw button lands
-  await test.step('the organizer withdraws the sales revenue', async () => {
-    // The dashboard shows the two paid tickets' revenue
-    await org.page.goto('/organizer');
-    await expect(org.page.getByText(`${(GA.price * 2).toFixed(2)} USDC`).first()).toBeVisible();
+  await test.step('the organizer withdraws the sales revenue from the dashboard', async () => {
+    const { page } = org;
+    // "My events" shows the two paid tickets' sales
+    await page.goto('/organizer');
+    const row = myEventsRow(page, title);
+    await expect(row).toContainText(`${(GA.price * 2).toFixed(2)} USDC`);
 
     const revenue = (await nft.eventRevenue(contractId)) as bigint;
     expect(revenue).toBe(chain.usdc(GA.price * 2)); // primary sales only: the resale royalty was paid out at the resale
     const before = await chain.usdcBalance(organizer.address);
-    await (await chain.ticketNft(organizer).withdraw(contractId)).wait();
+
+    await row.getByRole('link', { name: 'Manage' }).click();
+    const sales = manageCard(page, 'Sales');
+    await expect(sales).toContainText(`${(GA.price * 2).toFixed(2)} USDC`, { timeout: 20_000 });
+    await sales.getByRole('button', { name: 'Withdraw revenue' }).click();
+    await expect(sales.getByText('Withdrawal confirmed. The revenue is in your wallet.')).toBeVisible({ timeout: 30_000 });
+    await expect(sales.getByText('Nothing to withdraw yet. Revenue appears here as tickets sell.')).toBeVisible();
+    await expect(sales.getByRole('button', { name: 'Withdraw revenue' })).toBeDisabled();
 
     expect((await chain.usdcBalance(organizer.address)) - before).toBe(revenue);
     expect(await nft.eventRevenue(contractId)).toBe(0n);
