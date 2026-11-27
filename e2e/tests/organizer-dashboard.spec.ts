@@ -584,14 +584,23 @@ test.describe('free tickets', () => {
       chain.ticketNft(accounts.organizer).issueTickets.staticCall(event.contractId, 1, [accounts.new1.address, accounts.new2.address, accounts.new3.address]),
     ).rejects.toThrow('Not enough tickets left');
 
-    // An invalid address, or more than 100 recipients: nothing can be issued. The button just turns
-    // off; no message says why yet (#427)
-    await recipients.fill(`${accounts.new1.address}\nnot-an-address`);
+    // An invalid address, or more than 100 recipients: the same messages as the guest list, under
+    // Recipients, and nothing is sent (#427)
+    for (const [text, message] of [
+      [`${accounts.new1.address}\nnot-an-address`, '"not-an-address" is not a valid wallet address.'],
+      [Array.from({ length: 101 }, (_, i) => newWallet(100 + i).address).join('\n'), 'Add at most 100 wallets at a time.'],
+    ]) {
+      await recipients.fill(text);
+      await expect(free.getByText(/will be issued/)).toHaveCount(0);
+      await issue.click();
+      await expect(recipients).toHaveAccessibleDescription(message);
+      await expect(recipients).toHaveAttribute('aria-invalid', 'true');
+    }
+    expect(sendsSince(wallet, sent)).toBe(0);
+    // Typing again clears the message, and an empty box turns the button off
+    await recipients.fill('');
+    await expect(free.getByText('Add at most 100 wallets at a time.')).toHaveCount(0);
     await expect(issue).toBeDisabled();
-    await expect(free.getByText(/will be issued/)).toHaveCount(0);
-    await recipients.fill(Array.from({ length: 101 }, (_, i) => newWallet(100 + i).address).join('\n'));
-    await expect(issue).toBeDisabled();
-    await expect(free.getByText(/will be issued/)).toHaveCount(0);
     await expect(
       chain.ticketNft(accounts.organizer).issueTickets.staticCall(event.contractId, 0, Array.from({ length: 101 }, (_, i) => newWallet(100 + i).address)),
     ).rejects.toThrow('Batch size cannot exceed 100');
