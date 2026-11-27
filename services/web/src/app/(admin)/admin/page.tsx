@@ -53,6 +53,7 @@ import { apiClient } from "@/lib/api";
 import { shortAddress } from "@/lib/format";
 import { TICKET_NFT_ADDRESS, TICKET_NFT_CHAIN_ID, ticketNftAbi } from "@/lib/contracts/ticket-nft";
 import { animate, EASE } from "@/lib/motion";
+import { describeAuthError } from "@/lib/sign-up";
 import { getTransactionErrorMessage } from "@/lib/transactions/errors";
 import { cn } from "@/lib/utils";
 
@@ -87,7 +88,8 @@ const ROW_FOLD_MS = 260; // the row folds (200 ms), then the decision prints in 
 export default function AdminPage() {
   const hasMounted = useHasMounted();
   const { address, isConnected, chainId } = useAccount();
-  const { user, isLoading: signingIn, signIn } = useWalletAuth();
+  const { user, isLoading: signingIn, authError, signIn } = useWalletAuth();
+  const authProblem = describeAuthError(authError);
   const chains = useChains();
   const contractChain = chains.find((chain) => chain.id === TICKET_NFT_CHAIN_ID);
   const { switchChain, isPending: switchingNetwork } = useSwitchChain();
@@ -426,7 +428,14 @@ export default function AdminPage() {
         <Panel className="items-center py-10 text-center">
           <ShieldCheck className="size-10 text-primary" aria-hidden="true" />
           <h2 className="type-heading-sm text-foreground">Sign in to continue</h2>
-          <p className="type-body-md text-muted-foreground">Sign the message with your admin wallet to open the admin page.</p>
+          {/* The session check or the sign-in failed: say why, like Profile (#413) */}
+          {authProblem ? (
+            <Alert tone="error" title={authProblem.title} className="w-full max-w-md text-left">
+              {authProblem.message}
+            </Alert>
+          ) : (
+            <p className="type-body-md text-muted-foreground">Sign the message with your admin wallet to open the admin page.</p>
+          )}
           <Button onClick={() => void signIn()} loading={signingIn}>
             Sign in
           </Button>
