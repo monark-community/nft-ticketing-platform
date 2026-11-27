@@ -24,7 +24,8 @@ interface TierCardProps {
 }
 
 // Tier Card from the Figma Design System page (#290): Default, Selected (orange 2px border,
-// orange price, quantity stepper) and Sold Out (dimmed). The side notches on the selected card
+// orange price, quantity stepper) and Sold Out (dimmed with the muted text color, not opacity, so
+// its text keeps a 4.5:1 contrast, #416). The side notches on the selected card
 // come from the event page frame. A sold-out card can still be selected, so the order summary
 // can point to the Marketplace (Figma: "Sold out selected").
 // Choosing one (#367), as in the Motion Guide: the border turns orange (140 ms), the notches are
@@ -57,12 +58,11 @@ export function TierCard({ tier, usdcDecimals, selected, onSelect, quantity, max
           "flex w-full items-start justify-between gap-4 rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
           // Not selected: the whole card is the click target
           !selected && "after:absolute after:inset-0 after:rounded-lg",
-          soldOut && "opacity-55",
         )}
       >
         <span className="flex min-w-0 flex-col gap-1">
           <span className="flex flex-wrap items-center gap-2">
-            <span className="type-title-lg text-foreground">{tier.name}</span>
+            <span className={cn("type-title-lg", soldOut ? "text-muted-foreground" : "text-foreground")}>{tier.name}</span>
             {soldOut ? (
               <Badge tone="danger">Sold out</Badge>
             ) : selected ? (
@@ -81,7 +81,7 @@ export function TierCard({ tier, usdcDecimals, selected, onSelect, quantity, max
 
         <span className="flex shrink-0 flex-col items-end gap-1">
           <span className="flex items-baseline gap-2">
-            <span className={cn("type-price transition-colors duration-[140ms]", selected && !soldOut ? "text-primary" : "text-foreground")}>
+            <span className={cn("type-price transition-colors duration-[140ms]", soldOut ? "text-muted-foreground" : selected ? "text-primary" : "text-foreground")}>
               {formatTokenAmount(tier.price, usdcDecimals)}
             </span>
             <span className="type-body-sm text-muted-foreground">USDC</span>
