@@ -36,7 +36,7 @@ import {
 } from "@/lib/marketplace";
 import { ROUTES } from "@/lib/nav";
 import { APPROVE_STEP_LABEL, getPurchaseSteps, isApproving } from "@/lib/purchase-steps";
-import { getResaleBuyErrorMessage } from "@/lib/resale-errors";
+import { getResaleBuyErrorMessage, RESALE_ERRORS } from "@/lib/resale-errors";
 import { formatEth } from "@/lib/token-amount";
 import { IDLE_TX_STATE, type TxStep } from "@/lib/transactions/types";
 import { cn } from "@/lib/utils";
@@ -101,9 +101,13 @@ function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: ()
       : null;
   const blockMessage = block ? getResaleBlockMessage(block, { usdcDecimals: decimals, chainName: contractChain?.name ?? "the right network" }) : null;
 
-  // After the wallet switched accounts, the rows are the new account's (#396)
+  // What a run did belongs to the account that ran it: once the wallet is on another account, the
+  // popup shows a new purchase for that one, without the other account's result, error or pending
+  // transaction. Only the message that the wallet switched mid-purchase stays (#396).
+  const state = tx.accountChanged && tx.state.error !== RESALE_ERRORS.buyAccountChanged ? IDLE_TX_STATE : tx.state;
+  // After the wallet switched accounts, the rows are the new account's
   const steps = getPurchaseSteps(tx.accountChanged ? IDLE_TX_STATE : tx.state, approvalNeeded, BUY_LABEL);
-  const approving = isApproving(tx.state);
+  const approving = isApproving(state);
 
   async function buy() {
     if (!terms || !chain.usdcAddress) return;
@@ -147,7 +151,7 @@ function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: ()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [priceChanged]);
 
-  const succeeded = tx.state.phase === "success";
+  const succeeded = state.phase === "success";
   const { event } = listing;
 
   return (
@@ -263,7 +267,7 @@ function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: ()
               <Link href={ROUTES.myTickets} className={cn(buttonVariants({ size: "md" }), "w-full")}>
                 View my tickets <ArrowRight aria-hidden="true" />
               </Link>
-              {tx.state.hash && <TxHash hash={tx.state.hash} explorerUrl={tx.explorerUrl} />}
+              {state.hash && <TxHash hash={state.hash} explorerUrl={tx.explorerUrl} />}
             </div>
           ) : (
             <>
@@ -273,7 +277,7 @@ function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: ()
                 ))}
               </ol>
 
-              {tx.state.phase === "error" && tx.state.error && <Alert tone="error" title={tx.state.error} />}
+              {state.phase === "error" && state.error && <Alert tone="error" title={state.error} />}
               {chain.walletError && !tx.isBusy && (
                 <Alert
                   tone="error"
@@ -285,7 +289,7 @@ function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: ()
                   }
                 />
               )}
-              {tx.state.phase === "stillPending" && (
+              {state.phase === "stillPending" && (
                 <Alert
                   tone="warning"
                   title="This is taking longer than usual. Your purchase may still confirm, so don't buy again yet."
@@ -295,13 +299,13 @@ function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: ()
                     </Button>
                   }
                 >
-                  {tx.state.hash && <TxHash hash={tx.state.hash} explorerUrl={tx.explorerUrl} className="justify-start" />}
+                  {state.hash && <TxHash hash={state.hash} explorerUrl={tx.explorerUrl} className="justify-start" />}
                 </Alert>
               )}
-              {tx.state.phase === "stoppedWaiting" && (
+              {state.phase === "stoppedWaiting" && (
                 <Alert tone="warning" title="Stopped waiting for the transaction">
-                  {tx.state.note}
-                  {tx.state.hash && <TxHash hash={tx.state.hash} explorerUrl={tx.explorerUrl} className="mt-1 justify-start" />}
+                  {state.note}
+                  {state.hash && <TxHash hash={state.hash} explorerUrl={tx.explorerUrl} className="mt-1 justify-start" />}
                 </Alert>
               )}
               {!tx.isBusy && block && blockMessage && (
@@ -312,7 +316,7 @@ function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: ()
 
               <BuyButton
                 busy={tx.isBusy}
-                phase={tx.state.phase}
+                phase={state.phase}
                 approving={approving}
                 block={block?.reason ?? null}
                 ready={ready}
@@ -324,12 +328,12 @@ function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: ()
                 onSwitchNetwork={() => switchChain({ chainId: TICKET_NFT_CHAIN_ID })}
                 onSignIn={() => void signIn()}
               />
-              {tx.state.phase === "awaitingWallet" && (
+              {state.phase === "awaitingWallet" && (
                 <p className="text-center text-[11px] leading-[16.5px] text-muted-foreground">
                   {approving ? `Step 1 of 2: allow ${usdc(price)} to be used for this purchase.` : `Confirm the purchase of ticket #${listing.token_id} in your wallet.`}
                 </p>
               )}
-              {tx.state.phase === "confirming" && tx.state.hash && <TxHash hash={tx.state.hash} explorerUrl={tx.explorerUrl} />}
+              {state.phase === "confirming" && state.hash && <TxHash hash={state.hash} explorerUrl={tx.explorerUrl} />}
             </>
           )}
         </>

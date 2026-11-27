@@ -547,6 +547,34 @@ test.describe('buying', () => {
     expect(sendsSince(wallet, 0)).toBe(1);
   });
 
+  test('switching account after "Stop waiting": the other account gets a new order', async ({ page, signIn, wallet }) => {
+    const event = await createPublishedEvent({ title: 'Switched After Stop Waiting', ticketTypes: [{ name: 'General Admission', price: 20, supply: 50 }] });
+    await approve(accounts.jordan, chain.usdc(20)); // only the buy step, so one transaction to hold
+    await approve(accounts.alex, 0n);
+    await page.clock.install();
+    await openSignedIn(page, signIn, accounts.jordan, event);
+    await expect(buyButton(page)).toBeEnabled();
+    const stopped = summary(page).getByText('Stopped waiting for the transaction');
+
+    await holdBlocks(async () => {
+      await buyButton(page).click();
+      await expect(summary(page)).toContainText('Transaction sent. Waiting for confirmation.');
+      await page.clock.fastForward('02:05');
+      await summary(page).getByRole('button', { name: 'Stop waiting' }).click();
+      await expect(stopped).toBeVisible();
+
+      // Jordan's transaction isn't Alex's: Alex gets the order form, with nothing approved yet (#396)
+      await wallet.switchAccount(accounts.alex);
+      await expect(stopped).toHaveCount(0);
+      await expect(buyButton(page)).toBeEnabled();
+      await expectSteps(page, 'Not started', 'Not started');
+
+      // Back on Jordan's account, the transaction it stopped waiting for shows again
+      await wallet.switchAccount(accounts.jordan);
+      await expect(stopped).toBeVisible();
+    });
+  });
+
   test('refreshing the page while the purchase is pending', async ({ page, signIn, wallet }) => {
     const event = await createPublishedEvent({ title: 'Refresh Mid Purchase', ticketTypes: [{ name: 'General Admission', price: 20, supply: 50 }] });
     await approve(accounts.jordan, chain.usdc(20));

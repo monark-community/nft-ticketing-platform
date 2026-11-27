@@ -848,6 +848,26 @@ test.describe('buying', () => {
     expect(await chain.usdcBalance(accounts.scanner.address)).toBe(before.scanner);
   });
 
+  test('switching account after a failed purchase: its error stays with the account that had it', async ({ page, signIn, wallet }) => {
+    const { token } = await alexListing();
+    await openSignedIn(page, signIn, accounts.jordan);
+    await openBuy(page, token);
+    const rejected = buyDialog(page).getByRole('alert').filter({ hasText: RESALE_ERRORS.buyRejected });
+
+    wallet.rejectNext('send');
+    await buyButton(page).click();
+    await expect(rejected).toBeVisible();
+
+    // Jordan's cancelled purchase isn't the scanner's: the popup is a new purchase for it (#396)
+    await wallet.switchAccount(accounts.scanner);
+    await expect(rejected).toHaveCount(0);
+    await expect(buyDialog(page).getByRole('button', { name: 'Try again' })).toHaveCount(0);
+
+    // Back on Jordan's account, its error shows again
+    await wallet.switchAccount(accounts.jordan);
+    await expect(rejected).toBeVisible();
+  });
+
   test('disconnecting mid-purchase: nothing is sent', async ({ page, signIn, wallet }) => {
     const { token } = await alexListing();
     await (await chain.mockUsdc(accounts.jordan).approve(chain.addresses().TicketNFT, chain.usdc(25))).wait();

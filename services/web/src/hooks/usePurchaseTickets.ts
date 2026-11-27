@@ -59,11 +59,10 @@ export function usePurchaseTickets({ contractEventId, typeId, quantity, unitPric
   }
 
   // What a run did belongs to the account that ran it: once the wallet is on another account, the
-  // page shows a new order for that one instead of "You're going!" or the other account's error.
-  // Only the message that the wallet switched mid-purchase stays (#396).
-  const fromAnotherAccount =
-    tx.accountChanged &&
-    (tx.state.phase === "success" || (tx.state.phase === "error" && tx.state.error !== PURCHASE_ERRORS.accountChanged));
+  // page shows a new order for that one instead of "You're going!", the other account's error or
+  // the transaction it stopped waiting for. Only the message that the wallet switched mid-purchase
+  // stays (#396). accountChanged is only true between runs, so no phase needs checking.
+  const fromAnotherAccount = tx.accountChanged && tx.state.error !== PURCHASE_ERRORS.accountChanged;
   const state = fromAnotherAccount ? IDLE_TX_STATE : tx.state;
 
   return {
