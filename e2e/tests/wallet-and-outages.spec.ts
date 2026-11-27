@@ -316,7 +316,6 @@ interface ApiDownRow {
   error: string; // what the page says
   retry: string; // the button (or link) that tries again
   shows: (page: Page) => Locator; // the page, loaded
-  bug?: string; // the issue, while the page doesn't say it yet
 }
 
 const SIGN_IN_ERROR = "We couldn't sign you in";
@@ -329,16 +328,15 @@ const API_DOWN: ApiDownRow[] = [
   { path: '/profile', who: accounts.alex, error: SIGN_IN_ERROR, retry: 'Sign in', shows: (page) => heading(page, 'Account details') },
   { path: '/signup', who: 'new wallet', error: SIGN_IN_ERROR, retry: 'Sign message', shows: (page) => main(page).getByText('Create your account', { exact: true }) },
   { path: '/scan', who: accounts.scanner, error: "Couldn't load your events", retry: 'Try again', shows: (page) => main(page).getByText(CAMERA) },
-  { path: '/organizer', who: accounts.organizer, error: SIGN_IN_ERROR, retry: 'Sign in', shows: (page) => heading(page, 'My events'), bug: '#413' },
-  { path: '/organizer/events/new', who: accounts.organizer, error: SIGN_IN_ERROR, retry: 'Sign in', shows: (page) => heading(page, 'Create event'), bug: '#413' },
-  { path: `/organizer/events/${GALA.apiId}`, who: accounts.organizer, error: SIGN_IN_ERROR, retry: 'Sign in', shows: (page) => heading(page, GALA.title), bug: '#413' },
-  { path: '/admin', who: accounts.admin, error: SIGN_IN_ERROR, retry: 'Sign in', shows: (page) => page.getByText(ADMIN_INTRO), bug: '#413' },
+  { path: '/organizer', who: accounts.organizer, error: SIGN_IN_ERROR, retry: 'Sign in', shows: (page) => heading(page, 'My events') },
+  { path: '/organizer/events/new', who: accounts.organizer, error: SIGN_IN_ERROR, retry: 'Sign in', shows: (page) => heading(page, 'Create event') },
+  { path: `/organizer/events/${GALA.apiId}`, who: accounts.organizer, error: SIGN_IN_ERROR, retry: 'Sign in', shows: (page) => heading(page, GALA.title) },
+  { path: '/admin', who: accounts.admin, error: SIGN_IN_ERROR, retry: 'Sign in', shows: (page) => page.getByText(ADMIN_INTRO) },
 ];
 
 test.describe('outages', () => {
   for (const row of API_DOWN) {
     test(`API down: ${row.path} shows an error with a retry, and the retry works once the API is back`, async ({ page, signIn, wallet }) => {
-      test.fixme(row.bug !== undefined, `It shows "Sign in to continue" without an error (${row.bug})`);
       if (row.who === 'new wallet') await connectNewWallet(page, wallet);
       else if (row.who) await signIn(row.who, { path: row.path });
       else await page.goto(row.path);

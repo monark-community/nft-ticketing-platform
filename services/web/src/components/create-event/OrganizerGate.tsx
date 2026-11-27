@@ -14,6 +14,7 @@ import { useHasMounted } from "@/hooks/useHasMounted";
 import { useWalletAuth } from "@/hooks/useWalletAuth";
 import { ROUTES } from "@/lib/nav";
 import { sendOrganizerRequest, type OrganizerRequestResult } from "@/lib/organizer-request";
+import { describeAuthError } from "@/lib/sign-up";
 import { cn } from "@/lib/utils";
 
 // Only signed-in organizers can use the organizer pages (the API's organizer routes need the
@@ -29,7 +30,8 @@ export function OrganizerGate({
 }) {
   const hasMounted = useHasMounted();
   const { isConnected } = useAccount();
-  const { user, isLoading, authError } = useWalletAuth();
+  const { user, isLoading, authError, signIn } = useWalletAuth();
+  const authProblem = describeAuthError(authError);
   const [request, setRequest] = useState<OrganizerRequestResult | null>(null);
   const [requesting, setRequesting] = useState(false);
 
@@ -49,6 +51,21 @@ export function OrganizerGate({
     return (
       <GateCard icon={<Spinner className="size-6 text-primary" />} title={isLoading ? "Confirm the sign-in in your wallet" : "Checking your account…"}>
         Opening {feature} needs a signed-in organizer account.
+      </GateCard>
+    );
+  }
+
+  // The session check or the sign-in failed (the API can't be reached, the signature was
+  // cancelled): say why, and sign in again from here, like Profile (#413)
+  if (isConnected && !user && authProblem) {
+    return (
+      <GateCard icon={<LockKeyhole className="size-6" aria-hidden="true" />} title="Sign in to continue">
+        <Alert tone="error" title={authProblem.title} className="w-full text-left">
+          {authProblem.message}
+        </Alert>
+        <Button size="md" className="mt-4 w-full sm:w-auto" onClick={() => void signIn()} loading={isLoading}>
+          Sign in
+        </Button>
       </GateCard>
     );
   }
