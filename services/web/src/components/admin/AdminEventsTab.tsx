@@ -4,9 +4,9 @@ import { ChevronLeft, ChevronRight, Clock, Info, Search, SearchX, Ticket } from 
 import Link from "next/link";
 import { useState, type MouseEvent } from "react";
 
-import { EmptyState, MotionRows, TableShell, Td, Th } from "@/components/admin/AdminTable";
+import { EmptyState, TableShell, Td, Th } from "@/components/admin/AdminTable";
 import { EditEventSettingsPanel } from "@/components/admin/EditEventSettingsPanel";
-import { FlapText, RollingNumber } from "@/components/motion";
+import { FlapText, MotionRows, RollingNumber } from "@/components/motion";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

@@ -1,17 +1,19 @@
 "use client";
 
 import { AlertCircle, CalendarPlus, Plus, RotateCw, Ticket } from "lucide-react";
+import * as m from "motion/react-m";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { EventsMessage } from "@/components/events/EventsMessage";
-import { PrintIn } from "@/components/motion";
+import { FlapText, PrintIn, RollingNumber } from "@/components/motion";
 import { OrganizerEventTable, OrganizerEventTableSkeleton } from "@/components/organizer/OrganizerEventTable";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { useOrganizerEvents } from "@/hooks/useOrganizerEvents";
 import { useHeldLoading } from "@/hooks/useHeldLoading";
 import { useSawLoading } from "@/hooks/useSawLoading";
+import { flapZeros, printDelay } from "@/lib/motion";
 import {
   filterOrganizerEvents,
   formatRevenue,
@@ -38,6 +40,8 @@ const EMPTY_TEXT: Record<OrganizerFilter, string> = {
 
 // "My events" (#187): the organizer's drafts, events waiting to publish, live events and past
 // events, in the Figma table with their sales. The list comes from GET /api/events/mine (#250).
+// Motion (#375): the summary numbers flip in like a departure board, tile after tile; the filter's
+// orange pill slides to the one you pick and "Showing 2 of 6" rolls.
 export function OrganizerDashboard() {
   const { events, loading, error, reload } = useOrganizerEvents();
   const sawLoading = useSawLoading(loading);
@@ -99,13 +103,13 @@ export function OrganizerDashboard() {
           {/* When it replaces the placeholders, the summary prints in under its scan line, then the
               table's rows one after another (#365) */}
           <PrintIn play={sawLoading}>
-            <SummaryStrip summary={summary} />
+            <SummaryStrip summary={summary} arrive={sawLoading} />
           </PrintIn>
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <FilterTabs filter={filter} onChange={setFilter} summary={summary} />
             <p className="type-body-sm text-muted-foreground" aria-live="polite">
-              Showing {visible.length} of {summary.total} {summary.total === 1 ? "event" : "events"}
+              <RollingNumber value={`Showing ${visible.length} of ${summary.total} ${summary.total === 1 ? "event" : "events"}`} />
             </p>
           </div>
 
@@ -176,14 +180,23 @@ function FilterTabs({
             onClick={() => onChange(key)}
             onKeyDown={(event) => move(event, index)}
             className={cn(
-              "inline-flex h-9 items-center gap-2 rounded-full border px-4 type-label-button transition-colors",
+              "relative inline-flex h-9 items-center gap-2 rounded-full border px-4 type-label-button transition-colors duration-200",
               selected
-                ? "border-primary bg-primary text-primary-foreground"
+                ? "border-primary text-primary-foreground"
                 : "border-border bg-card text-secondary-foreground hover:border-border-accent hover:text-foreground"
             )}
           >
-            {label}
-            <span className={cn("type-label-sm", selected ? "text-primary-foreground/80" : "text-muted-foreground")}>
+            {/* One orange pill for all the filters: it slides behind the labels to the one you pick */}
+            {selected && (
+              <m.span
+                layoutId="organizer-filter-pill"
+                className="absolute -inset-px rounded-full bg-primary"
+                transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+                aria-hidden="true"
+              />
+            )}
+            <span className="relative">{label}</span>
+            <span className={cn("relative type-label-sm transition-colors duration-200", selected ? "text-primary-foreground/80" : "text-muted-foreground")}>
               {countFor(summary, key)}
             </span>
           </button>
@@ -193,7 +206,11 @@ function FilterTabs({
   );
 }
 
-function SummaryStrip({ summary }: { summary: OrganizerSummary }) {
+// Arriving (it replaced the loading placeholder), each number starts with every digit at 0, then its
+// digits flip over one after another like a departure board, once the print has shown them (from
+// 320 ms), one tile after another 80 ms apart like the print. Later changes flip only the digits that
+// changed. The numbers are in the mono font, so every digit is as wide as the 0 it replaces.
+function SummaryStrip({ summary, arrive }: { summary: OrganizerSummary; arrive: boolean }) {
   const stats = [
     { label: "All events", value: summary.total.toLocaleString("en-US") },
     { label: "Live now", value: summary.live.toLocaleString("en-US") },
@@ -204,10 +221,13 @@ function SummaryStrip({ summary }: { summary: OrganizerSummary }) {
 
   return (
     <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-      {stats.map(({ label, value }) => (
-        <div key={label} className="rounded-lg border border-border bg-card px-4 py-3">
+      {stats.map(({ label, value }, index) => (
+        // The revenue, the longest number, takes the rest of its row until the five tiles fit on one
+        <div key={label} className={cn("rounded-lg border border-border bg-card px-4 py-3", index === stats.length - 1 && "col-span-2 xl:col-span-1")}>
           <dt className="type-label-sm text-muted-foreground">{label}</dt>
-          <dd className="type-heading-md text-foreground">{value}</dd>
+          <dd className="font-mono text-xl leading-8 font-semibold text-foreground">
+            <FlapText text={value} from={arrive ? flapZeros(value) : undefined} stagger={30} delay={320 + printDelay(index)} />
+          </dd>
         </div>
       ))}
     </dl>
