@@ -13,7 +13,7 @@ interface OrderSummaryProps {
   total: bigint;
   usdcDecimals: number;
   presaleActive: boolean;
-  perWalletLimit: number; // 0 = no limit
+  perWalletLimit: number | null; // 0 = no limit, null = unknown until the chain answers (#414)
   held: number | null; // null when no wallet is connected
   networkFee: bigint | null; // estimate in wei, null when unknown
   block: PurchaseBlock | null;
@@ -43,11 +43,13 @@ export function OrderSummary({
   // already holds, in red, next to the "Wallet limit reached" alert.
   const overLimit = block?.reason === "walletLimit";
   const walletLimit =
-    perWalletLimit === 0
-      ? "No limit"
-      : held === null
-        ? `${perWalletLimit} per wallet`
-        : `${held + (soldOut || overLimit ? 0 : quantity)} of ${perWalletLimit}`;
+    perWalletLimit === null
+      ? "—"
+      : perWalletLimit === 0
+        ? "No limit"
+        : held === null
+          ? `${perWalletLimit} per wallet`
+          : `${held + (soldOut || overLimit ? 0 : quantity)} of ${perWalletLimit}`;
 
   return (
     <section
