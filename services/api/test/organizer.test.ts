@@ -135,7 +135,7 @@ describe('admin organizer management', () => {
       .get('/api/admin/organizer-requests')
       .set('Cookie', authCookie(incomplete.wallet_address, 'USER'));
     expect(res.status).toBe(403);
-    expect(res.body.code).toBeUndefined();
+    expect(res.body.code).toBe('ROLE_REQUIRED'); // not EMAIL_REQUIRED
   });
 
   it('lists every request and can filter by status', async () => {

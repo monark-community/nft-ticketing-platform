@@ -52,6 +52,8 @@ describe('requireRole', () => {
     const user = await createUser({ role: 'USER' });
     const res = await request(app).post('/api/events').set('Cookie', authCookie(user.wallet_address, 'USER')).send(newEvent);
     expect(res.status).toBe(403);
+    // The web tells a missing role apart from other refusals by this code (#428)
+    expect(res.body.code).toBe('ROLE_REQUIRED');
   });
 
   it('blocks a SCANNER from organizer routes', async () => {
@@ -84,7 +86,7 @@ describe('requireRole', () => {
     const user = await createUser({ role: 'USER', email: null });
     const res = await request(app).post('/api/events').set('Cookie', authCookie(user.wallet_address, 'USER')).send(newEvent);
     expect(res.status).toBe(403);
-    expect(res.body.code).toBeUndefined();
+    expect(res.body.code).toBe('ROLE_REQUIRED'); // not EMAIL_REQUIRED
   });
 
   it('reads the role from the database, not the token', async () => {

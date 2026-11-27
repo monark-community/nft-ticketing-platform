@@ -5,6 +5,7 @@ import { isAddress, parseUnits } from "viem";
 
 import { ApiError, apiClient } from "@/lib/api";
 import type { OrganizerEvent } from "@/lib/organizer-events";
+import { MANAGE_ERRORS } from "@/lib/organizer-manage-errors";
 import { formatTokenAmount } from "@/lib/token-amount";
 
 // TicketNFT's batch calls (batchAddToWhitelist, issueTickets) accept at most 100 wallets.
@@ -183,6 +184,8 @@ export function manageApiErrorMessage(err: unknown): string {
     if (err.status === 422) {
       return "Every wallet needs a finished platform account (name and email) before it can be added. Nothing was sent on-chain.";
     }
+    // No longer an organizer (revoked while the page was open): the same reason as pausing gives (#428)
+    if (err.status === 403 && err.code === "ROLE_REQUIRED") return MANAGE_ERRORS.notOrganizerRole;
     if (err.status === 403) return "Only this event's organizer can do that. Sign in with the wallet that created the event.";
     return err.message;
   }
