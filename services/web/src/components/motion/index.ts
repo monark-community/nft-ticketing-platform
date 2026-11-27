@@ -7,6 +7,7 @@ export { DrawnCheck } from "./DrawnCheck";
 export { FlapText } from "./FlapText";
 export { FoldAway } from "./FoldAway";
 export { MotionProvider } from "./MotionProvider";
+export { MotionRows, RowCell } from "./MotionRows";
 export { PrintIn } from "./PrintIn";
 export { RollingNumber } from "./RollingNumber";
 export { PageSwap, SharedPicture, usePictureGrowing, usePictureLink } from "./SharedPicture";

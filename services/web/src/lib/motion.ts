@@ -129,6 +129,14 @@ export function flapCells(from: string, to: string): FlapCell[] {
   });
 }
 
+/**
+ * What a number shows before it flips in like a departure board: the same text with every digit at 0,
+ * so "1,234.50 USDC" starts as "0,000.00 USDC". Its zeros, separators and unit then stay still.
+ */
+export function flapZeros(text: string): string {
+  return text.replace(/\d/g, "0");
+}
+
 // ---------------------------------------------------------------------------------------------
 // DotField (the live background, #362). Distances are in grid cells.
 

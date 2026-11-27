@@ -23,6 +23,9 @@ interface Flip {
 }
 
 const FLIP_MS = 200; // one character: 80 ms out, 120 ms in (flap-out and flap-in in globals.css)
+// Spare time for the fallback timer: a page that arrives through a view transition starts its
+// animations late, and plain text too early would cut its first flips
+const LATE_MS = 1000;
 
 // Changes text like a departure board: only the characters that changed flip over. Meant for text
 // in the mono font (prices, counts), where every character is as wide as the next. While nothing is
@@ -37,24 +40,32 @@ export function FlapText({ text, from, stagger = 0, delay = 0, className }: Flap
     setFlip({ cells: flapCells(current, text), id: (flip?.id ?? 0) + 1 });
   }
 
-  // Back to plain text once the last character has landed. A timer, not animationend: a flip that
-  // starts in the server-rendered page can be over before React is listening.
+  // Back to plain text once the last character has landed (its animationend). A timer too, with time
+  // to spare: a flip that starts in the server-rendered page can be over before React is listening.
   const reduced = usePrefersReducedMotion();
   useEffect(() => {
     if (!flip) return;
     const flipping = flip.cells.filter((cell) => cell.changed).length;
-    const timer = setTimeout(() => setFlip(null), motionDuration(delay + FLIP_MS + Math.max(0, flipping - 1) * stagger, reduced));
+    const timer = setTimeout(() => setFlip(null), motionDuration(delay + FLIP_MS + Math.max(0, flipping - 1) * stagger + LATE_MS, reduced));
     return () => clearTimeout(timer);
   }, [flip, stagger, delay, reduced]);
 
   if (!flip) return <span className={className}>{text}</span>;
 
+  const last = flip.cells.filter((cell) => cell.changed).length - 1;
   let order = 0;
   return (
-    <span key={flip.id} className={cn("whitespace-pre", className)}>
+    <span
+      key={flip.id}
+      className={cn("whitespace-pre", className)}
+      onAnimationEnd={(event) => {
+        if (event.animationName === "flap-in" && (event.target as HTMLElement).dataset.lastFlap !== undefined) setFlip(null);
+      }}
+    >
       {flip.cells.map((cell, i) => {
         if (!cell.changed) return cell.char;
-        const style = { "--flap-delay": `${delay + order++ * stagger}ms` } as CSSProperties;
+        const n = order++;
+        const style = { "--flap-delay": `${delay + n * stagger}ms` } as CSSProperties;
         return (
           <span key={i} className="relative inline-block" style={style}>
             {cell.was && (
@@ -62,7 +73,9 @@ export function FlapText({ text, from, stagger = 0, delay = 0, className }: Flap
                 {cell.was}
               </span>
             )}
-            <span className="flap-in inline-block">{cell.char}</span>
+            <span className="flap-in inline-block" data-last-flap={n === last ? "" : undefined}>
+              {cell.char}
+            </span>
           </span>
         );
       })}
