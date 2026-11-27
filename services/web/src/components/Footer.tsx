@@ -1,8 +1,7 @@
-import Link from "next/link";
-
 import { Logo } from "@/components/Logo";
 
-// Shared footer from Figma (#290): logo and copyright on the left, legal links on the right.
+// Shared footer from Figma (#290): logo and copyright. The Figma's Terms and Privacy links come
+// back with their pages (#400): until those exist, they only led to the 404 page.
 export function Footer() {
   return (
     <footer className="border-t border-border bg-background">
@@ -11,14 +10,6 @@ export function Footer() {
           <Logo />
           <p className="type-body-sm text-muted-foreground">© {new Date().getFullYear()} NFTOKENPASS. All rights reserved.</p>
         </div>
-        <nav aria-label="Legal" className="flex gap-6">
-          <Link href="/terms" className="type-mono-address text-muted-foreground transition-colors hover:text-foreground">
-            Terms
-          </Link>
-          <Link href="/privacy" className="type-mono-address text-muted-foreground transition-colors hover:text-foreground">
-            Privacy
-          </Link>
-        </nav>
       </div>
     </footer>
   );

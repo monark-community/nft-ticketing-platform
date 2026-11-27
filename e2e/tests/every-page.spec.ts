@@ -102,8 +102,6 @@ function expected(url: string, status?: number): boolean {
   // Outside services the test stack doesn't run (WalletConnect's remote config, for example)
   if (!/^https?:\/\/(localhost|127\.0\.0\.1)[:/]/.test(url)) return true;
   const { pathname } = new URL(url);
-  // TODO(#400): the footer links to /terms and /privacy, which don't exist yet (Next prefetches them)
-  if (pathname === '/terms' || pathname === '/privacy') return true;
   // The API answers 404 when an account hasn't asked to become an organizer
   if (status === 404 && pathname === '/api/users/me/organizer-request') return true;
   return false;
@@ -277,6 +275,18 @@ test('unknown pages show the 404 page; unknown event and ticket IDs say "not fou
     const res = await page.request.get(`${API_URL}${path}`);
     expect(res.status(), path).toBe(404);
     expect((await res.json()).error, path).toBe(error);
+  }
+});
+
+// The footer only links to pages that exist (#400): its Terms and Privacy links come back with their pages
+test('every link in the footer opens a page that exists', async ({ page }) => {
+  await page.goto('/marketplace');
+  const links = page.getByRole('contentinfo').getByRole('link');
+  await expect(links.first()).toBeVisible();
+
+  for (const href of await links.evaluateAll((all) => all.map((link) => link.getAttribute('href') ?? ''))) {
+    const response = await page.request.get(href);
+    expect(response.status(), href).toBe(200);
   }
 });
 
