@@ -63,7 +63,7 @@ One spec file per sub-issue, so people working in parallel only share the helper
 | #346 Scanner and check-in | `tests/scanner.spec.ts` |
 | #347 Marketplace | `tests/marketplace.spec.ts` |
 | #348 Organizer dashboard | `tests/organizer-dashboard.spec.ts` |
-| #349 Every page | `tests/every-page.spec.ts`, `tests/wallet-and-outages.spec.ts` |
+| #349 Every page | `tests/every-page.spec.ts`, `tests/wallet-and-outages.spec.ts`, `tests/accessibility-and-layout.spec.ts` |
 
 ```ts
 import { accounts, chain, createPublishedEvent, expect, test, waitForSync } from '../fixtures/index.js';
