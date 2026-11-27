@@ -711,12 +711,12 @@ test.describe('access', () => {
     await sales.getByRole('button', { name: 'Pause sales' }).click();
     await expect(sales.getByText(MANAGE_ERRORS.notOrganizerRole)).toBeVisible();
     expect((await chainEvent(event)).active).toBe(true);
-    // The guest list goes through the API's organizer routes: refused. The message tells them to sign
-    // in with the wallet that created the event, which they already are (#428)
+    // The guest list goes through the API's organizer routes: refused, with the same reason (#428)
     const list = card(page, 'Guest list & presale');
     await list.getByLabel('Add wallets').fill(accounts.jordan.address);
     await list.getByRole('button', { name: 'Add to guest list' }).click();
-    await expect(list.getByText(MANAGE_ERRORS.forbidden)).toBeVisible();
+    await expect(list.getByText(MANAGE_ERRORS.notOrganizerRole)).toBeVisible();
+    await expect(list.getByText(MANAGE_ERRORS.forbidden)).toHaveCount(0);
 
     // Withdrawing only needs to be the event's organizer: the revenue still comes out
     const before = await chain.usdcBalance(robin.address);

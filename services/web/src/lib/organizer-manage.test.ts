@@ -19,6 +19,7 @@ import {
   walletsMissingFrom,
   type TicketQuery,
 } from "@/lib/organizer-manage";
+import { MANAGE_ERRORS } from "@/lib/organizer-manage-errors";
 
 // Organizer manage page (#189-#194): API paths, wallet-list rules and display helpers.
 
@@ -133,6 +134,10 @@ describe("manageApiErrorMessage", () => {
   it("explains the cases the organizer can act on", () => {
     expect(manageApiErrorMessage(new ApiError("incomplete profile", 422))).toContain("finished platform account");
     expect(manageApiErrorMessage(new ApiError("not your event", 403))).toContain("Only this event's organizer");
+    // No longer an organizer: the role is missing, not the wallet (#428)
+    expect(manageApiErrorMessage(new ApiError("Forbidden: requires one of [ORGANIZER]", 403, "ROLE_REQUIRED"))).toBe(
+      MANAGE_ERRORS.notOrganizerRole,
+    );
     expect(manageApiErrorMessage(new ApiError("Server exploded", 500))).toBe("Server exploded");
   });
 

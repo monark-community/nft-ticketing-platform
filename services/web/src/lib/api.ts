@@ -6,7 +6,8 @@ interface FetchOptions extends RequestInit {
 
 // The API's error text, plus the HTTP status so callers can tell e.g. 409 from 500
 export class ApiError extends Error {
-    constructor(message: string, public status: number) {
+    // code: the API's machine-readable reason, when it sends one (e.g. ROLE_REQUIRED)
+    constructor(message: string, public status: number, public code?: string) {
         super(message);
         this.name = 'ApiError';
     }
@@ -41,7 +42,7 @@ export async function apiClient<T>(endpoint: string, options: FetchOptions = {})
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new ApiError(errorData.error || 'An error occurred while fetching data.', response.status);
+        throw new ApiError(errorData.error || 'An error occurred while fetching data.', response.status, errorData.code);
     }
 
     // 204 No Content (e.g. deleting a ticket type) has no body to parse

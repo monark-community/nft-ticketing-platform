@@ -22,7 +22,9 @@ export function requireRole(...roles: string[]) {
       }
 
       if (!roles.includes(user.role)) {
-        res.status(403).json({ error: `Forbidden: requires one of [${roles.join(', ')}]` });
+        // The code tells the web the account lacks the role, as opposed to another 403 such as
+        // "Not your event", e.g. an organizer revoked while their manage page is open (#428)
+        res.status(403).json({ error: `Forbidden: requires one of [${roles.join(', ')}]`, code: 'ROLE_REQUIRED' });
         return;
       }
 
