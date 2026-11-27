@@ -96,8 +96,6 @@ async function focusShows(page: Page): Promise<{ label: string; shows: boolean }
     if (!el || el === document.body) return { label: 'the page', shows: true };
     const name = (el.getAttribute('aria-label') ?? el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 50);
     const label = `<${el.tagName.toLowerCase()}> "${name}"`;
-    // TODO(#419): Tab stops on the calendar button inside a date field, and the field loses its ring
-    if (el instanceof HTMLInputElement && ['date', 'datetime-local', 'time'].includes(el.type) && !el.matches(':focus-visible')) return { label, shows: true };
     const seen = (color: string) => color !== 'transparent' && !/^rgba\([^,]+,[^,]+,[^,]+,\s*0\)$/.test(color) && !/\/\s*0\)$/.test(color);
     const ring = /((?:rgba?|oklch|oklab|lab|lch|color)\([^)]*\))\s+0px 0px 0px (\d+(?:\.\d+)?)px/g;
     let node: HTMLElement | null = el;
@@ -157,6 +155,8 @@ test.describe('keyboard only', () => {
     await page.keyboard.press('Enter');
     const walletList = page.getByRole('dialog');
     await expect(walletList).toBeVisible();
+    // On phones RainbowKit first draws its wide list, then swaps in the compact one: wait for that
+    if (page.viewportSize()!.width < 768) await expect(walletList.getByText('New to Ethereum wallets?')).toBeVisible();
     // RainbowKit's wallet list draws its own focus
     await expectFocusStaysIn(page, walletList, { checkFocus: false });
     await page.keyboard.press('Escape');
@@ -331,17 +331,8 @@ const KNOWN_AXE: Array<{ rule: string; target: RegExp; path?: string; issue: str
   // A sold-out ticket tier is dimmed with opacity, but it can still be selected: its text, and its
   // "Sold out" badge (border-destructive/40; text boxes only have aria-invalid:border-destructive)
   { rule: 'color-contrast', target: /opacity-55|border-destructive\/40/, path: `/events/${GALA.apiId}`, issue: '#416' },
-  // My Tickets' "Sell on Marketplace" link is named "Sell ticket #N to … on the Marketplace"
-  { rule: 'label-content-name-mismatch', target: /marketplace\?sell=/, issue: '#417' },
-  // Your own listing's "Edit" button is named "Change the price of your ticket #N" (same issue).
-  // axe cuts long attributes to 20 characters, so only the start of the name is there
-  { rule: 'label-content-name-mismatch', target: /Change the price of/, issue: '#417' },
-  // Admin's wallet chips show "0x86c5…ac18" but are named "Copy wallet address 0x86c53e…" (same issue)
-  { rule: 'label-content-name-mismatch', target: /Copy wallet address/, path: '/admin', issue: '#417' },
   // On phones the tickets table scrolls sideways, but nothing in it can take the focus
   { rule: 'scrollable-region-focusable', target: /overflow-x-auto/, path: `/organizer/events/${GALA.apiId}`, issue: '#420' },
-  // The entry QR code's picture comes from qrcode.react as an <svg role="img"> with no name
-  { rule: 'svg-img-alt', target: /<svg/, path: '/my-tickets', issue: '#429' },
 ];
 
 interface AxeState {
@@ -387,7 +378,7 @@ const AXE_STATES: AxeState[] = [
     },
     who: accounts.jordan,
     open: (page) => main(page).getByRole('button', { name: /^Buy ticket #2 to / }).click(),
-    shows: (page) => buyDialog(page).getByRole('button', { name: /^Buy ticket · / }),
+    shows: (page) => buyDialog(page).getByRole('button', { name: /^Buy ticket · /, disabled: false }),
   },
   {
     name: 'the entry QR code',
@@ -536,8 +527,8 @@ interface LongPage {
 const LONG_PAGES: LongPage[] = [
   { name: 'the Events page', path: () => '/', who: 'visitor' },
   { name: 'the event page', path: (event) => `/events/${event.apiId}`, who: 'buyer' },
-  // With other listings beside it, the long listing's card goes past the screen
-  { name: 'the Marketplace', path: () => '/marketplace', who: 'visitor', bug: '#430' },
+  // With other listings beside it, the long listing's card stays in its column
+  { name: 'the Marketplace', path: () => '/marketplace', who: 'visitor' },
   {
     name: "Your listings (the seller's row)",
     path: () => '/marketplace',
@@ -555,9 +546,7 @@ const LONG_PAGES: LongPage[] = [
     name: 'the Buy resale popup',
     path: () => '/marketplace',
     who: 'jordan',
-    // TODO(#430): on phones something else in the grid is on top of the long card's Buy button, so it
-    // can't be clicked: the popup is opened straight from the button until that's fixed
-    open: (page) => main(page).getByRole('button', { name: /^Buy ticket #\d+ to The Extraordinarily/ }).dispatchEvent('click'),
+    open: (page) => main(page).getByRole('button', { name: /^Buy ticket #\d+ to The Extraordinarily/ }).click(),
     scope: buyDialog,
   },
   { name: 'My Tickets', path: () => '/my-tickets', who: 'buyer' },
