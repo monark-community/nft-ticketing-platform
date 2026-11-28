@@ -9,6 +9,8 @@ interface MarketDialogProps {
   eyebrow: string; // "Resale listing", "Resale purchase"
   title: string;
   canClose?: boolean; // false while a transaction runs, so it isn't hidden mid-way
+  // Where focus goes when it closes; by default, back to the button that opened it
+  finalFocus?: React.RefObject<HTMLElement | null>;
   children: React.ReactNode;
 }
 
@@ -16,7 +18,7 @@ interface MarketDialogProps {
 // glow, the small orange eyebrow over a serif title, and a round close button.
 // *:shrink-0: when the popup is taller than the screen it scrolls instead of squashing its
 // sections (an Alert has overflow-hidden, so as a flex item it could shrink to one line).
-export function MarketDialog({ open, onClose, eyebrow, title, canClose = true, children }: MarketDialogProps) {
+export function MarketDialog({ open, onClose, eyebrow, title, canClose = true, finalFocus, children }: MarketDialogProps) {
   return (
     <Dialog.Root
       open={open}
@@ -26,7 +28,7 @@ export function MarketDialog({ open, onClose, eyebrow, title, canClose = true, c
     >
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm transition-opacity duration-200 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
-        <Dialog.Popup className="fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-[640px] -translate-x-1/2 -translate-y-1/2 flex-col gap-6 overflow-y-auto rounded-lg *:shrink-0 border border-primary/60 bg-card p-6 shadow-[0_0_40px_var(--primary-tint)] outline-none transition-[opacity,scale] duration-200 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0 sm:p-8">
+        <Dialog.Popup finalFocus={finalFocus} className="fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-[640px] -translate-x-1/2 -translate-y-1/2 flex-col gap-6 overflow-y-auto rounded-lg *:shrink-0 border border-primary/60 bg-card p-6 shadow-[0_0_40px_var(--primary-tint)] outline-none transition-[opacity,scale] duration-200 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0 sm:p-8">
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-col gap-1">
               <p className="type-mono-tag text-primary">{eyebrow}</p>

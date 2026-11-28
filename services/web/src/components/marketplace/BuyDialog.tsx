@@ -46,12 +46,21 @@ const BUY_LABEL = "Buy ticket";
 // Buy popup (Figma: Marketplace / Buy open): the ticket, its price against the cap, the summary,
 // then approve USDC and buyResaleTicket(). The listing is read again from the contract, so the
 // buyer pays what the contract will charge, even if the seller just changed the price.
-export function BuyDialog({ listing, onClose, onBought }: { listing: Listing | null; onClose: () => void; onBought: () => void }) {
-  // A new flow (fresh reads and steps) for each listing opened
-  return listing ? <BuyFlow key={listing.token_id} listing={listing} onClose={onClose} onBought={onBought} /> : null;
+// focusAfterBuy: where focus goes when the popup closes after a purchase, since the bought card
+// (and its Buy button) leaves the list (#457)
+interface BuyDialogProps {
+  listing: Listing | null;
+  onClose: () => void;
+  onBought: () => void;
+  focusAfterBuy?: React.RefObject<HTMLElement | null>;
 }
 
-function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: () => void; onBought: () => void }) {
+export function BuyDialog({ listing, ...props }: BuyDialogProps) {
+  // A new flow (fresh reads and steps) for each listing opened
+  return listing ? <BuyFlow key={listing.token_id} listing={listing} {...props} /> : null;
+}
+
+function BuyFlow({ listing, onClose, onBought, focusAfterBuy }: BuyDialogProps & { listing: Listing }) {
   const hasMounted = useHasMounted();
   const { address, isConnected: walletConnected, chainId } = useAccount();
   const isConnected = hasMounted && walletConnected;
@@ -154,7 +163,14 @@ function BuyFlow({ listing, onClose, onBought }: { listing: Listing; onClose: ()
   const { event } = listing;
 
   return (
-    <MarketDialog open onClose={onClose} eyebrow="Resale purchase" title="Buy resale ticket" canClose={!tx.isBusy}>
+    <MarketDialog
+      open
+      onClose={onClose}
+      eyebrow="Resale purchase"
+      title="Buy resale ticket"
+      canClose={!tx.isBusy}
+      finalFocus={tx.state.phase === "success" ? focusAfterBuy : undefined}
+    >
       <div className="flex gap-4 rounded-md border border-border p-4">
         <div className="relative size-20 shrink-0 overflow-hidden rounded-sm">
           <EventImage src={event.image_url} />

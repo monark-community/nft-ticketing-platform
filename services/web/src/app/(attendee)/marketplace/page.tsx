@@ -65,6 +65,8 @@ export default function MarketplacePage() {
   const events = useListingEvents();
 
   const [buying, setBuying] = useState<Listing | null>(null);
+  // Focus lands here when the Buy popup closes after a purchase: the bought card has left (#457)
+  const listingsHeading = useRef<HTMLHeadingElement>(null);
   const [selling, setSelling] = useState<{ tokenId: string | null } | null>(null);
   const [sellLinkClosed, setSellLinkClosed] = useState(false);
 
@@ -162,6 +164,10 @@ export default function MarketplacePage() {
             onRefresh={() => void market.reload()}
             refreshing={market.loading}
           />
+          
+          <h2 ref={listingsHeading} tabIndex={-1} className="sr-only">
+            Resale listings
+          </h2>
 
           {showPlaceholders ? (
             <div role="status" aria-label="Loading listings" className="placeholder-in grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -259,6 +265,7 @@ export default function MarketplacePage() {
           showPopupChanges();
         }}
         onBought={() => buying && recordChange({ tokenId: buying.token_id, price: null }, "afterPopup")}
+        focusAfterBuy={listingsHeading}
       />
       <SellDialog
         open={selling !== null}
