@@ -769,6 +769,13 @@ test.describe('buying', () => {
     await expect(buyDialog(page).getByRole('status').filter({ hasText: "It's yours!" })).toBeVisible();
     expect(sendsSince(wallet, sent)).toBe(1);
     expect(await chain.ownerOf(token)).toBe(accounts.jordan.address);
+    
+    // Closing the popup with the keyboard: the bought card leaves, and the focus goes to the
+    // listings' heading instead of the page (#457)
+    await page.keyboard.press('Escape');
+    await expect(buyDialog(page)).toHaveCount(0);
+    await expect(card(page, token)).toHaveCount(0);
+    await expect(main(page).getByRole('heading', { name: 'Resale listings' })).toBeFocused();
   });
 
   test('rejecting the purchase in the wallet charges nothing', async ({ page, signIn, wallet }) => {
@@ -782,6 +789,11 @@ test.describe('buying', () => {
     await expect(buyDialog(page).getByRole('alert')).toHaveText(RESALE_ERRORS.buyRejected);
     expect(await chain.ownerOf(token)).toBe(accounts.alex.address);
     expect(await chain.usdcBalance(accounts.jordan.address)).toBe(before);
+    
+    // Nothing was bought: closing the popup puts the focus back on the card's Buy button
+    await page.keyboard.press('Escape');
+    await expect(buyDialog(page)).toHaveCount(0);
+    await expect(buyOn(page, token)).toBeFocused();
   });
 
   test('not enough USDC, then not enough ETH for gas', async ({ page, signIn }) => {
